@@ -30,82 +30,99 @@ type TransactionAttributes struct {
 }
 
 type SubTransaction struct {
-	User                         string      `json:"user"`
-	TransactionJournalID         string      `json:"transaction_journal_id"`
-	Type                         string      `json:"type"`
-	Date                         string      `json:"date"`
-	Order                        int         `json:"order"`
-	ObjectHasCurrencySetting     bool        `json:"object_has_currency_setting"`
-	CurrencyID                   string      `json:"currency_id"`
-	CurrencyCode                 string      `json:"currency_code"`
-	CurrencySymbol               string      `json:"currency_symbol"`
-	CurrencyName                 string      `json:"currency_name"`
-	CurrencyDecimalPlaces        int         `json:"currency_decimal_places"`
-	ForeignCurrencyID            string      `json:"foreign_currency_id"`
-	ForeignCurrencyCode          string      `json:"foreign_currency_code"`
-	ForeignCurrencySymbol        string      `json:"foreign_currency_symbol"`
-	ForeignCurrencyDecimalPlaces int         `json:"foreign_currency_decimal_places"`
-	PrimaryCurrencyID            string      `json:"primary_currency_id"`
-	PrimaryCurrencyCode          string      `json:"primary_currency_code"`
-	PrimaryCurrencySymbol        string      `json:"primary_currency_symbol"`
-	PrimaryCurrencyDecimalPlaces int         `json:"primary_currency_decimal_places"`
-	Amount                       string      `json:"amount"`
-	PCAmount                     string      `json:"pc_amount"`
-	ForeignAmount                string      `json:"foreign_amount"`
-	PCForeignAmount              string      `json:"pc_foreign_amount"`
-	SourceBalanceAfter           string      `json:"source_balance_after"`
-	PCSourceBalanceAfter         string      `json:"pc_source_balance_after"`
-	DestinationBalanceAfter      string      `json:"destination_balance_after"`
-	PCDestinationBalanceAfter    string      `json:"pc_destination_balance_after"`
-	Description                  string      `json:"description"`
-	SourceID                     string      `json:"source_id"`
-	SourceName                   string      `json:"source_name"`
-	SourceIBAN                   string      `json:"source_iban"`
-	SourceType                   string      `json:"source_type"`
-	DestinationID                string      `json:"destination_id"`
-	DestinationName              string      `json:"destination_name"`
-	DestinationIBAN              string      `json:"destination_iban"`
-	DestinationType              string      `json:"destination_type"`
-	BudgetID                     string      `json:"budget_id"`
-	BudgetName                   string      `json:"budget_name"`
-	CategoryID                   string      `json:"category_id"`
-	CategoryName                 string      `json:"category_name"`
-	BillID                       string      `json:"bill_id"`
-	BillName                     string      `json:"bill_name"`
-	SubscriptionID               string      `json:"subscription_id"`
-	SubscriptionName             string      `json:"subscription_name"`
-	Reconciled                   bool        `json:"reconciled"`
-	Notes                        string      `json:"notes"`
-	Tags                         interface{} `json:"tags"`
-	InternalReference            string      `json:"internal_reference"`
-	ExternalID                   string      `json:"external_id"`
-	ExternalURL                  string      `json:"external_url"`
-	OriginalSource               string      `json:"original_source"`
-	RecurrenceID                 string      `json:"recurrence_id"`
-	RecurrenceTotal              int         `json:"recurrence_total"`
-	RecurrenceCount              int         `json:"recurrence_count"`
-	ImportHashV2                 string      `json:"import_hash_v2"`
-	SepaCC                       string      `json:"sepa_cc"`
-	SepaCTOp                     string      `json:"sepa_ct_op"`
-	SepaCTID                     string      `json:"sepa_ct_id"`
-	SepaDB                       string      `json:"sepa_db"`
-	SepaCountry                  string      `json:"sepa_country"`
-	SepaEP                       string      `json:"sepa_ep"`
-	SepaCI                       string      `json:"sepa_ci"`
-	SepaBatchID                  string      `json:"sepa_batch_id"`
-	InterestDate                 string      `json:"interest_date"`
-	BookDate                     string      `json:"book_date"`
-	ProcessDate                  string      `json:"process_date"`
-	DueDate                      string      `json:"due_date"`
-	PaymentDate                  string      `json:"payment_date"`
-	InvoiceDate                  string      `json:"invoice_date"`
-	Latitude                     float64     `json:"latitude"`
-	Longitude                    float64     `json:"longitude"`
-	ZoomLevel                    int         `json:"zoom_level"`
-	HasAttachments               bool        `json:"has_attachments"`
+	User                         string  `json:"user"`
+	TransactionJournalID         string  `json:"transaction_journal_id"`
+	Type                         string  `json:"type"`
+	Date                         string  `json:"date"`
+	Order                        int     `json:"order"`
+	ObjectHasCurrencySetting     bool    `json:"object_has_currency_setting"`
+	CurrencyID                   string  `json:"currency_id"`
+	CurrencyCode                 string  `json:"currency_code"`
+	CurrencySymbol               string  `json:"currency_symbol"`
+	CurrencyName                 string  `json:"currency_name"`
+	CurrencyDecimalPlaces        int     `json:"currency_decimal_places"`
+	ForeignCurrencyID            string  `json:"foreign_currency_id"`
+	ForeignCurrencyCode          string  `json:"foreign_currency_code"`
+	ForeignCurrencySymbol        string  `json:"foreign_currency_symbol"`
+	ForeignCurrencyDecimalPlaces int     `json:"foreign_currency_decimal_places"`
+	PrimaryCurrencyID            string  `json:"primary_currency_id"`
+	PrimaryCurrencyCode          string  `json:"primary_currency_code"`
+	PrimaryCurrencySymbol        string  `json:"primary_currency_symbol"`
+	PrimaryCurrencyDecimalPlaces int     `json:"primary_currency_decimal_places"`
+	Amount                       string  `json:"amount"`
+	PCAmount                     string  `json:"pc_amount"`
+	ForeignAmount                string  `json:"foreign_amount"`
+	PCForeignAmount              string  `json:"pc_foreign_amount"`
+	SourceBalanceAfter           string  `json:"source_balance_after"`
+	PCSourceBalanceAfter         string  `json:"pc_source_balance_after"`
+	DestinationBalanceAfter      string  `json:"destination_balance_after"`
+	PCDestinationBalanceAfter    string  `json:"pc_destination_balance_after"`
+	Description                  string  `json:"description"`
+	SourceID                     string  `json:"source_id"`
+	SourceName                   string  `json:"source_name"`
+	SourceIBAN                   string  `json:"source_iban"`
+	SourceType                   string  `json:"source_type"`
+	DestinationID                string  `json:"destination_id"`
+	DestinationName              string  `json:"destination_name"`
+	DestinationIBAN              string  `json:"destination_iban"`
+	DestinationType              string  `json:"destination_type"`
+	BudgetID                     string  `json:"budget_id"`
+	BudgetName                   string  `json:"budget_name"`
+	CategoryID                   string  `json:"category_id"`
+	CategoryName                 string  `json:"category_name"`
+	BillID                       string  `json:"bill_id"`
+	BillName                     string  `json:"bill_name"`
+	SubscriptionID               string  `json:"subscription_id"`
+	SubscriptionName             string  `json:"subscription_name"`
+	Reconciled                   bool    `json:"reconciled"`
+	Notes                        string  `json:"notes"`
+	Tags                         any     `json:"tags"`
+	InternalReference            string  `json:"internal_reference"`
+	ExternalID                   string  `json:"external_id"`
+	ExternalURL                  string  `json:"external_url"`
+	OriginalSource               string  `json:"original_source"`
+	RecurrenceID                 string  `json:"recurrence_id"`
+	RecurrenceTotal              int     `json:"recurrence_total"`
+	RecurrenceCount              int     `json:"recurrence_count"`
+	ImportHashV2                 string  `json:"import_hash_v2"`
+	SepaCC                       string  `json:"sepa_cc"`
+	SepaCTOp                     string  `json:"sepa_ct_op"`
+	SepaCTID                     string  `json:"sepa_ct_id"`
+	SepaDB                       string  `json:"sepa_db"`
+	SepaCountry                  string  `json:"sepa_country"`
+	SepaEP                       string  `json:"sepa_ep"`
+	SepaCI                       string  `json:"sepa_ci"`
+	SepaBatchID                  string  `json:"sepa_batch_id"`
+	InterestDate                 string  `json:"interest_date"`
+	BookDate                     string  `json:"book_date"`
+	ProcessDate                  string  `json:"process_date"`
+	DueDate                      string  `json:"due_date"`
+	PaymentDate                  string  `json:"payment_date"`
+	InvoiceDate                  string  `json:"invoice_date"`
+	Latitude                     float64 `json:"latitude"`
+	Longitude                    float64 `json:"longitude"`
+	ZoomLevel                    int     `json:"zoom_level"`
+	HasAttachments               bool    `json:"has_attachments"`
 }
 
-func (api *Api) ListTransactions(page, limit int, start, end string) ([]Transaction, error) {
+func (api *Api) ListTransactions(start, end string) ([]Transaction, error) {
+	transactions := []Transaction{}
+	page := 1
+	for {
+		txs, err := api.listTransactions(page, 20, start, end)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list transactions: %v", err)
+		}
+		if len(txs) == 0 {
+			break
+		}
+		transactions = append(transactions, txs...)
+		page++
+	}
+	return transactions, nil
+}
+
+func (api *Api) listTransactions(page, limit int, start, end string) ([]Transaction, error) {
 
 	if start == "" {
 		// First day of the current month
@@ -142,7 +159,7 @@ func (api *Api) ListTransactions(page, limit int, start, end string) ([]Transact
 		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	var rawJson map[string]interface{}
+	var rawJson map[string]any
 
 	err = json.Unmarshal(body, &rawJson)
 	if err != nil {
@@ -151,7 +168,7 @@ func (api *Api) ListTransactions(page, limit int, start, end string) ([]Transact
 
 	// transactions := []Transaction{}
 
-	data, ok := rawJson["data"].([]interface{})
+	data, ok := rawJson["data"].([]any)
 	if !ok {
 		return nil, fmt.Errorf("invalid data format in response")
 	}
@@ -159,7 +176,7 @@ func (api *Api) ListTransactions(page, limit int, start, end string) ([]Transact
 	transactions := make([]Transaction, 0, len(data))
 
 	for _, item := range data {
-		itemMap, ok := item.(map[string]interface{})
+		itemMap, ok := item.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("invalid item format in data")
 		}
@@ -178,7 +195,24 @@ func (api *Api) ListTransactions(page, limit int, start, end string) ([]Transact
 	return transactions, nil
 }
 
-func (api *Api) SearchTransactions(page, limit int, query string) ([]Transaction, error) {
+func (api *Api) SearchTransactions(query string) ([]Transaction, error) {
+	transactions := []Transaction{}
+	page := 1
+	for {
+		txs, err := api.searchTransactions(page, 20, query)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list transactions: %v", err)
+		}
+		if len(txs) == 0 {
+			break
+		}
+		transactions = append(transactions, txs...)
+		page++
+	}
+	return transactions, nil
+}
+
+func (api *Api) searchTransactions(page, limit int, query string) ([]Transaction, error) {
 
 	endpoint := fmt.Sprintf(searchTransactionsEndpoint, api.Config.ApiUrl, page, limit, query)
 
@@ -206,14 +240,14 @@ func (api *Api) SearchTransactions(page, limit int, query string) ([]Transaction
 		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	var rawJson map[string]interface{}
+	var rawJson map[string]any
 
 	err = json.Unmarshal(body, &rawJson)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
 	}
 
-	data, ok := rawJson["data"].([]interface{})
+	data, ok := rawJson["data"].([]any)
 	if !ok {
 		return nil, fmt.Errorf("invalid data format in response")
 	}
@@ -221,7 +255,7 @@ func (api *Api) SearchTransactions(page, limit int, query string) ([]Transaction
 	transactions := make([]Transaction, 0, len(data))
 
 	for _, item := range data {
-		itemMap, ok := item.(map[string]interface{})
+		itemMap, ok := item.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("invalid item format in data")
 		}
@@ -238,5 +272,4 @@ func (api *Api) SearchTransactions(page, limit int, query string) ([]Transaction
 	}
 
 	return transactions, nil
-
 }

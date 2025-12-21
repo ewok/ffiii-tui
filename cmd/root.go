@@ -13,8 +13,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"ffiii-tui/internal/ui"
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui"
 )
 
 var (
@@ -48,28 +48,50 @@ to quickly create a Cobra application.`,
 			return fmt.Errorf("firefly API URL is not set")
 		}
 
-		fireflyApi := firefly.NewApi(firefly.ApiConfig{
+		ff := firefly.NewApi(firefly.ApiConfig{
 			ApiKey:         apiKey,
 			ApiUrl:         apiUrl,
 			TimeoutSeconds: 10,
 		})
 
-        transactions := []firefly.Transaction{}
-        page := 1
-        for {
-            // txs, err := fireflyApi.SearchTransactions(page, 20, "taxi")
-            txs, err := fireflyApi.ListTransactions(page, 20, "", "")
-            if err != nil {
-                return err
-            }
-            if len(txs) == 0 {
-                break
-            }
-            transactions = append(transactions, txs...)
-            page++
-        }
+		fmt.Println("Connected to Firefly III at", apiUrl)
+		// print assets
+		fmt.Println("Asset accounts:")
+		for _, account := range ff.Assets {
+			fmt.Printf("- %s (ID: %s)\n", account.Name, account.ID)
+		}
 
-		ui.Show(transactions, fireflyApi)
+		// print expenses
+		fmt.Println("Expense accounts:")
+		for _, account := range ff.Expenses {
+			fmt.Printf("- %s (ID: %s)\n", account.Name, account.ID)
+		}
+
+		// print liabilities
+		fmt.Println("Liability accounts:")
+		for _, account := range ff.Liabilities {
+			fmt.Printf("- %s (ID: %s)\n", account.Name, account.ID)
+		}
+
+		// print revenues
+		fmt.Println("Revenue accounts:")
+		for _, account := range ff.Revenues {
+			fmt.Printf("- %s (ID: %s)\n", account.Name, account.ID)
+		}
+
+		// print categories
+		fmt.Println("Categories:")
+		for _, category := range ff.Categories {
+			fmt.Printf("- %s (ID: %s)\n", category.Name, category.ID)
+		}
+
+		// currencies
+		fmt.Println("Currencies:")
+		for _, currency := range ff.Currencies {
+			fmt.Printf("- %s (Code: %s, ID: %s)\n", currency.Name, currency.Code, currency.ID)
+		}
+
+		ui.Show(ff)
 
 		return nil
 	},

@@ -4,8 +4,187 @@ SPDX-License-Identifier: Apache-2.0
 */
 package firefly
 
-type Account struct {
-	ID          string
-	Name        string
-	AccountType string
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+)
+
+const accountsEndpoint = "%s/accounts?page=%d&type=%s"
+
+type Asset struct {
+	ID   string
+	Name string
+}
+
+type Expense struct {
+	ID   string
+	Name string
+}
+
+type Liability struct {
+	ID   string
+	Name string
+}
+
+type Revenue struct {
+	ID   string
+	Name string
+}
+
+type apiAccount struct {
+	ID         string         `json:"id"`
+	Attributes apiAccountAttr `json:"attributes"`
+}
+
+type apiAccountAttr struct {
+	Active bool   `json:"active"`
+	Name   string `json:"name"`
+}
+
+func (api *Api) UpdateAssets() error {
+	assets, err := api.ListAccounts("asset")
+	if err != nil {
+		return err
+	}
+
+	api.Assets = make([]Asset, 0)
+	for _, account := range assets {
+		api.Assets = append(api.Assets, Asset{
+			ID:   account.ID,
+			Name: account.Attributes.Name,
+		})
+	}
+
+	return nil
+}
+
+func (api *Api) UpdateExpenses() error {
+	expenses, err := api.ListAccounts("expense")
+	if err != nil {
+		return err
+	}
+
+	api.Expenses = make([]Expense, 0)
+	for _, account := range expenses {
+		api.Expenses = append(api.Expenses, Expense{
+			ID:   account.ID,
+			Name: account.Attributes.Name,
+		})
+	}
+
+	return nil
+}
+
+func (api *Api) UpdateLiabilities() error {
+	liabilities, err := api.ListAccounts("liability")
+	if err != nil {
+		return err
+	}
+
+	api.Liabilities = make([]Liability, 0)
+	for _, account := range liabilities {
+		api.Liabilities = append(api.Liabilities, Liability{
+			ID:   account.ID,
+			Name: account.Attributes.Name,
+		})
+	}
+
+	return nil
+}
+
+func (api *Api) UpdateRevenues() error {
+	revenues, err := api.ListAccounts("revenue")
+	if err != nil {
+		return err
+	}
+
+	api.Revenues = make([]Revenue, 0)
+	for _, account := range revenues {
+		api.Revenues = append(api.Revenues, Revenue{
+			ID:   account.ID,
+			Name: account.Attributes.Name,
+		})
+	}
+
+	return nil
+}
+
+func (api *Api) ListAccounts(accountType string) ([]apiAccount, error) {
+	allAccounts := []apiAccount{}
+	page := 1
+
+	for {
+		accounts, err := api.listAccounts(accountType, page)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(accounts) == 0 {
+			break
+		}
+
+		allAccounts = append(allAccounts, accounts...)
+		page++
+	}
+
+	return allAccounts, nil
+}
+
+func (api *Api) listAccounts(accountType string, page int) ([]apiAccount, error) {
+
+	endpoint := fmt.Sprintf(accountsEndpoint, api.Config.ApiUrl, page, accountType)
+
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/vnd.api+json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
+
+	client := &http.Client{Timeout: time.Duration(api.Config.TimeoutSeconds) * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	var rawJson map[string]any
+	if err := json.Unmarshal(body, &rawJson); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
+	}
+
+	data, ok := rawJson["data"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid data format in response")
+	}
+
+	accounts := make([]apiAccount, 0, len(data))
+	for _, item := range data {
+		itemBytes, err := json.Marshal(item)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal item: %v", err)
+		}
+
+		var account apiAccount
+		if err := json.Unmarshal(itemBytes, &account); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal account: %v", err)
+		}
+
+		accounts = append(accounts, account)
+	}
+
+	return accounts, nil
 }

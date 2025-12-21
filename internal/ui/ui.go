@@ -1,218 +1,67 @@
+/*
+Copyright © 2025 Artur Taranchiev <artur.taranchiev@gmail.com>
+SPDX-License-Identifier: Apache-2.0
+*/
 package ui
 
 import (
 	"ffiii-tui/internal/firefly"
 	"fmt"
 	"os"
-	"strconv"
-	"time"
 
-	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/charmbracelet/bubbles/textinput"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
-type model struct {
-	table        table.Model
-	transactions []firefly.Transaction
-	filter       textinput.Model
-	fireflyApi   *firefly.Api
+type state uint
+
+const (
+	transactionView state = iota
+	filterView
+	periodView
+	newView
+	accountView
+	categoryView
+)
+
+type (
+	viewTransactionsMsg struct{}
+	viewFilterMsg       struct{}
+	viewNewMsg          struct{}
+)
+
+type modelUI struct {
+	state      state
+	list       modelList
+	filter     textinput.Model
+	fireflyApi *firefly.Api
+	new        modelNewTransaction
 }
 
-var baseStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("240"))
-
-var tableColumns = []table.Column{
-	{Title: "Type", Width: 2},
-	{Title: "Date", Width: 20},
-	{Title: "Source", Width: 30},
-	{Title: "Destination", Width: 30},
-	{Title: "Category", Width: 40},
-	{Title: "Currency", Width: 8},
-	{Title: "Amount", Width: 14},
-	{Title: "Foreign Currency", Width: 8},
-	{Title: "Foreign Amount", Width: 14},
-	{Title: "Description", Width: 30},
-}
-
-func getRows(transactions []firefly.Transaction) []table.Row {
-
-	rows := []table.Row{}
-	// Populate rows from transactions
-	for _, tx := range transactions {
-		for _, split := range tx.Attributes.Transactions {
-
-			// Parse amounts
-			amount, _ := strconv.ParseFloat(split.Amount, 64)
-			foreignAmount, _ := strconv.ParseFloat(split.ForeignAmount, 64)
-
-			// Convert from string to desired date format
-			// YYYY-MM-DD HH:MM:SS
-			date, _ := time.Parse(time.RFC3339, split.Date)
-
-			// Determine type icon
-			Type := ""
-			switch split.Type {
-			case "withdrawal":
-				Type = "➖"
-			case "deposit":
-				Type = "➕"
-			case "transfer":
-				Type = "➡️"
-			}
-
-			row := table.Row{
-				Type,
-				date.Format("2006-01-02 15:04:05"),
-				split.SourceName,
-				split.DestinationName,
-				split.CategoryName,
-				split.CurrencyCode,
-				fmt.Sprintf("%.2f", amount),
-				split.ForeignCurrencyCode,
-				fmt.Sprintf("%.2f", foreignAmount),
-				split.Description,
-			}
-			rows = append(rows, row)
-		}
-	}
-
-	return rows
-}
-
-func Show(transactions []firefly.Transaction, api *firefly.Api) {
-
-	t := table.New(
-		table.WithColumns(tableColumns),
-		table.WithRows(getRows(transactions)),
-		table.WithFocused(true),
-	)
-
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderBottom(true).
-		Bold(false)
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
-		Bold(false)
-	t.SetStyles(s)
+func Show(api *firefly.Api) {
 
 	ti := textinput.New()
 	ti.Placeholder = "Filter"
 	ti.CharLimit = 156
 	ti.Width = 20
 
-	m := model{table: t, transactions: transactions, filter: ti, fireflyApi: api}
+	n := newModelNewTransaction(api)
+
+	m := modelUI{filter: ti, fireflyApi: api, list: InitList(api), new: n}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}
 }
 
-func (m model) Init() tea.Cmd {
+func (m modelUI) Init() tea.Cmd {
 	return nil
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-
-	if m.table.Focused() {
-
-		switch msg := msg.(type) {
-		case tea.WindowSizeMsg:
-			m.table.SetWidth(msg.Width - 2)
-			m.table.SetHeight(msg.Height - 5)
-			return m, nil
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "esc":
-				if m.table.Focused() {
-					m.table.Blur()
-				} else {
-					m.table.Focus()
-					m.filter.Blur()
-				}
-			case "backspace":
-				if len(m.table.Rows()) > 0 {
-					index := m.table.Cursor()
-					rows := m.table.Rows()
-					rows = append(rows[:index], rows[index+1:]...)
-					m.table.SetRows(rows)
-					if index >= len(rows) && index > 0 {
-						m.table.SetCursor(index - 1)
-					}
-				}
-			// refresh
-			case "r":
-				m.table.SetRows(getRows(m.transactions))
-				return m, tea.Batch(
-					tea.Printf("Refreshed"),
-				)
-			// filter
-			case "f":
-				m.filter.Focus()
-				m.table.Blur()
-			// enter
-			case "enter":
-				return m, tea.Batch(
-					tea.Printf("Let's go to %s!", m.table.SelectedRow()[1]),
-				)
-			case "q", "ctrl+c":
-				return m, tea.Quit
-			}
-
-		}
-		m.table, cmd = m.table.Update(msg)
-		return m, cmd
-	}
-
-	if m.filter.Focused() {
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "esc":
-				m.table.Focus()
-				m.filter.Blur()
-			case "enter":
-				m.table.Focus()
-				m.filter.Blur()
-
-				value := m.filter.Value()
-
-				if value == "" {
-					m.table.SetRows(getRows(m.transactions))
-					return m, nil
-				}
-
-				transactions := []firefly.Transaction{}
-				page := 1
-				for {
-					txs, err := m.fireflyApi.SearchTransactions(page, 20, value)
-					if err != nil {
-						return m, nil
-					}
-					if len(txs) == 0 {
-						break
-					}
-					transactions = append(transactions, txs...)
-					page++
-				}
-
-				m.table.SetRows(getRows(transactions))
-
-			}
-		}
-
-		m.filter, cmd = m.filter.Update(msg)
-		return m, cmd
-	}
+	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -220,11 +69,66 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		}
+	case viewTransactionsMsg:
+		m.state = transactionView
+		m.filter.Blur()
+		m.list.table.Focus()
+	case viewFilterMsg:
+		m.state = filterView
+		m.filter.Focus()
+		m.list.table.Blur()
+	case viewNewMsg:
+		m.state = newView
+		m.filter.Blur()
+		m.list.table.Blur()
 	}
-	return m, nil
+
+	switch m.state {
+	case transactionView:
+		nModel, nCmd := m.list.Update(msg)
+		listModel, ok := nModel.(modelList)
+		if !ok {
+			panic("Somthing bad happened")
+		}
+		m.list = listModel
+		cmd = nCmd
+	case filterView:
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "esc":
+				cmds = append(cmds, func() tea.Msg { return FilterMsg{query: ""} })
+				cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
+			case "enter":
+				value := m.filter.Value()
+				cmds = append(cmds, func() tea.Msg { return FilterMsg{query: value} })
+				cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
+			}
+		}
+		m.filter, cmd = m.filter.Update(msg)
+	case newView:
+		// m.new = newModelNewTransaction(m.fireflyApi)
+		nModel, nCmd := m.new.Update(msg)
+		newModel, ok := nModel.(modelNewTransaction)
+		if !ok {
+			panic("Somthing bad happened")
+		}
+		m.new = newModel
+		cmd = nCmd
+	}
+
+	cmds = append(cmds, cmd)
+	return m, tea.Batch(cmds...)
 }
 
-func (m model) View() string {
-	return fmt.Sprintf("filter: %s", m.filter.View()) + "\n" +
-		baseStyle.Render(m.table.View()) + "\n"
+func (m modelUI) View() string {
+	switch m.state {
+	case transactionView:
+		return m.list.View()
+	case filterView:
+		return fmt.Sprintf("filter: %s", m.filter.View()) + "\n" + m.list.View()
+	case newView:
+		return m.new.View()
+	}
+	return baseStyle.Render(m.list.View()) + "\n"
 }

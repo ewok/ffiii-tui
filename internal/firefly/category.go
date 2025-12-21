@@ -4,7 +4,102 @@ SPDX-License-Identifier: Apache-2.0
 */
 package firefly
 
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+)
+
 type Category struct {
 	ID   string
 	Name string
+}
+
+type apiCategory struct {
+	Type       string          `json:"type"`
+	ID         string          `json:"id"`
+	Attributes apiCategoryAttr `json:"attributes"`
+}
+
+type apiCategoryAttr struct {
+	Name string `json:"name"`
+}
+
+type apiCategoriesResponse struct {
+	Data []apiCategory `json:"data"`
+}
+
+const categoriesEndpoint = "%s/categories?page=%d"
+
+func (api *Api) UpdateCategories() error {
+	categories, err := api.ListCategories()
+	if err != nil {
+		return err
+	}
+	api.Categories = categories
+	return nil
+}
+
+func (api *Api) ListCategories() ([]Category, error) {
+	categories := []Category{}
+	page := 1
+
+	for {
+		catsPage, err := api.listCategories(page)
+		if err != nil {
+			return nil, err
+		}
+		if len(catsPage) == 0 {
+			break
+		}
+		categories = append(categories, catsPage...)
+		page++
+	}
+
+	return categories, nil
+}
+
+func (api *Api) listCategories(page int) ([]Category, error) {
+	endpoint := fmt.Sprintf(categoriesEndpoint, api.Config.ApiUrl, page)
+
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/vnd.api+json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
+
+	client := &http.Client{Timeout: time.Duration(api.Config.TimeoutSeconds) * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	var apiResp apiCategoriesResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
+	}
+
+	categories := []Category{}
+	for _, apiCat := range apiResp.Data {
+		categories = append(categories, Category{
+			ID:   apiCat.ID,
+			Name: apiCat.Attributes.Name,
+		})
+	}
+
+	return categories, nil
 }
