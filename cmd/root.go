@@ -24,15 +24,13 @@ var (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "ffiii-tui",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "A TUI for Firefly III personal finance manager",
+	Long: `ffiii-tui is a terminal user interface (TUI) application that connects to your Firefly III personal finance manager via its API:
+It allows you to view and manage your financial data directly from the terminal.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
+Prerequisites:
+  - A running instance of Firefly III with API access enabled.
+  - An API key generated from your Firefly III user settings. `,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		return initializeConfig(cmd)
 	},
