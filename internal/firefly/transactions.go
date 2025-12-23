@@ -109,7 +109,7 @@ func (api *Api) ListTransactions(start, end string) ([]Transaction, error) {
 	transactions := []Transaction{}
 	page := 1
 	for {
-		txs, err := api.listTransactions(page, 20, start, end)
+		txs, err := api.listTransactions(page, 50, start, end)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list transactions: %v", err)
 		}

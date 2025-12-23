@@ -20,6 +20,8 @@ type FilterMsg struct {
 	query string
 }
 
+type RefreshMsg struct{}
+
 type modelList struct {
 	table        table.Model
 	transactions []firefly.Transaction
@@ -44,7 +46,7 @@ var tableColumns = []table.Column{
 }
 
 func InitList(api *firefly.Api) modelList {
-	transactions, err := api.ListTransactions("", "")
+	transactions, err := api.ListTransactions("2025-12-20", "2025-12-25")
 	if err != nil {
 		fmt.Println("Error fetching transactions:", err)
 		os.Exit(1)
@@ -137,6 +139,13 @@ func (m modelList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.table.SetRows(getRows(transactions))
+	case RefreshMsg:
+		transactions, err := m.fireflyApi.ListTransactions("", "")
+		if err != nil {
+			return m, nil
+		}
+		m.table.SetRows(getRows(transactions))
+		return m, tea.Batch(tea.Printf("Refreshed"))
 	case tea.WindowSizeMsg:
 		m.table.SetWidth(msg.Width - 2)
 		m.table.SetHeight(msg.Height - 5)

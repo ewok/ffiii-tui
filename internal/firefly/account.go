@@ -9,29 +9,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
 
 const accountsEndpoint = "%s/accounts?page=%d&type=%s"
 
-type Asset struct {
-	ID   string
-	Name string
-}
-
-type Expense struct {
-	ID   string
-	Name string
-}
-
-type Liability struct {
-	ID   string
-	Name string
-}
-
-type Revenue struct {
-	ID   string
-	Name string
+type Account struct {
+	ID           string
+	Name         string
+	CurrencyCode string
+	Balance      float64
 }
 
 type apiAccount struct {
@@ -40,8 +28,10 @@ type apiAccount struct {
 }
 
 type apiAccountAttr struct {
-	Active bool   `json:"active"`
-	Name   string `json:"name"`
+	Active         bool   `json:"active"`
+	Name           string `json:"name"`
+	CurrencyCode   string `json:"currency_code"`
+	CurrentBalance string `json:"current_balance"`
 }
 
 func (api *Api) UpdateAssets() error {
@@ -50,11 +40,18 @@ func (api *Api) UpdateAssets() error {
 		return err
 	}
 
-	api.Assets = make([]Asset, 0)
+	api.Assets = make([]Account, 0)
 	for _, account := range assets {
-		api.Assets = append(api.Assets, Asset{
-			ID:   account.ID,
-			Name: account.Attributes.Name,
+		balance, err := strconv.ParseFloat(account.Attributes.CurrentBalance, 64)
+		if err != nil {
+			balance = 0.0
+		}
+
+		api.Assets = append(api.Assets, Account{
+			ID:           account.ID,
+			Name:         account.Attributes.Name,
+			CurrencyCode: account.Attributes.CurrencyCode,
+			Balance:      balance,
 		})
 	}
 
@@ -67,9 +64,9 @@ func (api *Api) UpdateExpenses() error {
 		return err
 	}
 
-	api.Expenses = make([]Expense, 0)
+	api.Expenses = make([]Account, 0)
 	for _, account := range expenses {
-		api.Expenses = append(api.Expenses, Expense{
+		api.Expenses = append(api.Expenses, Account{
 			ID:   account.ID,
 			Name: account.Attributes.Name,
 		})
@@ -84,9 +81,9 @@ func (api *Api) UpdateLiabilities() error {
 		return err
 	}
 
-	api.Liabilities = make([]Liability, 0)
+	api.Liabilities = make([]Account, 0)
 	for _, account := range liabilities {
-		api.Liabilities = append(api.Liabilities, Liability{
+		api.Liabilities = append(api.Liabilities, Account{
 			ID:   account.ID,
 			Name: account.Attributes.Name,
 		})
@@ -101,9 +98,9 @@ func (api *Api) UpdateRevenues() error {
 		return err
 	}
 
-	api.Revenues = make([]Revenue, 0)
+	api.Revenues = make([]Account, 0)
 	for _, account := range revenues {
-		api.Revenues = append(api.Revenues, Revenue{
+		api.Revenues = append(api.Revenues, Account{
 			ID:   account.ID,
 			Name: account.Attributes.Name,
 		})
