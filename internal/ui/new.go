@@ -6,7 +6,6 @@ package ui
 
 // TODO: Use last date as input, and key for resetting to today.
 // TODO: Add category, destination creation.
-// TODO: Add foreign currency for transfer.
 
 import (
 	"errors"
@@ -15,7 +14,6 @@ import (
 	"strconv"
 	"time"
 
-	// "github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 )
@@ -30,38 +28,37 @@ var (
 	destination     firefly.Account
 	transactionType string
 	amount          string
+	foreignAmount   string
 	category        firefly.Category
 	year            string
 	month           string
 	day             string
 )
 
-// Type
-// Date
-// Amount
-// Description
-// CurrencyCode
-// SourceName
-// DestinationName
-// CategoryName
-func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
-	// Initialize default values
+func resetNewTransactionDefaults() {
 	now := time.Now()
-	year = now.Format("2006")
-	month = now.Format("01")
-	day = now.Format("02")
-
-	years := []string{}
-	for y := range 10 {
-		years = append(years, fmt.Sprintf("%d", now.Year()-y))
-	}
-	months := []string{"01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"}
+	year = fmt.Sprint(now.Year())
+	month = fmt.Sprintf("%02d", now.Month())
+	day = fmt.Sprintf("%02d", now.Day())
 
 	source = firefly.Account{}
 	destination = firefly.Account{}
 	transactionType = "withdrawal"
 	amount = ""
+	foreignAmount = ""
 	category = firefly.Category{}
+}
+
+func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
+	// Initialize default values
+	resetNewTransactionDefaults()
+
+	now := time.Now()
+
+	years := []string{}
+	for y := range 10 {
+		years = append(years, fmt.Sprintf("%d", now.Year()-y))
+	}
 
 	return modelNewTransaction{
 		api: api,
@@ -170,6 +167,33 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 						return nil
 					}),
 				huh.NewInput().
+					Key("foreignAmount").
+					Title("Foreign Amount").
+					Value(&foreignAmount).
+					DescriptionFunc(func() string {
+						switch transactionType {
+						case "transfer":
+							return destination.CurrencyCode
+						default:
+							return "N/A"
+						}
+					}, []any{&source, &destination}).
+					Validate(func(str string) error {
+						switch transactionType {
+						case "transfer":
+							var amount float64
+							_, err := strconv.ParseFloat(str, 64)
+							if err != nil || amount < 0 {
+								return errors.New("please enter a valid positive number for amount")
+							}
+						default:
+							if str != "" {
+								return errors.New("foreign amount is only applicable for transfers")
+							}
+						}
+						return nil
+					}),
+				huh.NewInput().
 					Key("description").
 					Title("Description").
 					PlaceholderFunc(func() string {
@@ -187,7 +211,7 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 				huh.NewSelect[string]().
 					Key("month").
 					Title("Month").
-					Options(huh.NewOptions(months...)...).
+					Options(huh.NewOptions("01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12")...).
 					Value(&month).
 					WithHeight(4),
 				huh.NewSelect[string]().
@@ -224,17 +248,11 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "esc":
 			cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
-			// case "n":
-			// 	customInput = !customInput
-			// 	return m, nil
-			// 	// switch m.form.GetFocusedField().GetKey() {
-			// 	// case "destination_name":
-			// 	//
-			// 	// }
-			//
-		case "ctrl+n":
-			form := newModelNewTransaction(m.api)
-			return form, nil
+		case "ctrl+r":
+			newModel := newModelNewTransaction(m.api)
+			cmds = append(cmds, func() tea.Msg { return RefreshAssetsMsg{} })
+			cmds = append(cmds, func() tea.Msg { return RefreshExpensesMsg{} })
+			return newModel, tea.Batch(cmds...)
 		case "enter":
 			if m.form.State == huh.StateCompleted {
 				description := m.form.GetString("description")
@@ -242,38 +260,48 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					description = fmt.Sprintf("%s, %s -> %s", category.Name, source.Name, destination.Name)
 				}
 				currencyCode := ""
+				foreignCurrencyCode := ""
 				switch transactionType {
-				case "withdrawal", "transfer":
+				case "withdrawal":
 					currencyCode = source.CurrencyCode
 				case "deposit":
 					currencyCode = destination.CurrencyCode
+				case "transfer":
+					currencyCode = source.CurrencyCode
+					foreignCurrencyCode = destination.CurrencyCode
 				default:
 					currencyCode = source.CurrencyCode
+					foreignCurrencyCode = destination.CurrencyCode
 				}
 
 				if err := m.api.CreateTransaction(firefly.NewTransaction{
 					ApplyRules:           true,
-					ErrorIfDuplicateHash: true,
+					ErrorIfDuplicateHash: false,
 					FireWebhooks:         true,
 					Transactions: []firefly.NewSubTransaction{
 						{
-							Type:          transactionType,
-							Date:          fmt.Sprintf("%s-%s-%s", year, month, day),
-							Amount:        amount,
-							Description:   description,
-							CurrencyCode:  currencyCode,
-							SourceID:      source.ID,
-							DestinationID: destination.ID,
-							CategoryID:    category.ID,
+							Type:                transactionType,
+							Date:                fmt.Sprintf("%s-%s-%s", year, month, day),
+							Amount:              amount,
+							ForeignAmount:       foreignAmount,
+							Description:         description,
+							CurrencyCode:        currencyCode,
+							ForeignCurrencyCode: foreignCurrencyCode,
+							SourceID:            source.ID,
+							DestinationID:       destination.ID,
+							CategoryID:          category.ID,
 						},
 					},
 				}); err != nil {
-					m.form.State = huh.StateAborted
+					newModel := newModelNewTransaction(m.api)
+					return newModel, nil
+
 				} else {
-					form := newModelNewTransaction(m.api)
-					cmds = append(cmds, func() tea.Msg { return RefreshMsg{} })
+					newModel := newModelNewTransaction(m.api)
+					cmds = append(cmds, func() tea.Msg { return RefreshAssetsMsg{} })
+					cmds = append(cmds, func() tea.Msg { return RefreshTransactionsMsg{} })
 					cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
-					return form, tea.Batch(cmds...)
+					return newModel, tea.Batch(cmds...)
 				}
 
 			}

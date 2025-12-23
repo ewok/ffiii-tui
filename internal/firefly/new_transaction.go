@@ -75,7 +75,7 @@ func (api *Api) CreateTransaction(newTransaction NewTransaction) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal new transaction: %v", err)
 	}
-	// fmt.Print(payload)
+	// fmt.Printf("CreateTransaction payload: %s\n", string(payload))
 	// os.Exit(1)
 
 	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(payload))

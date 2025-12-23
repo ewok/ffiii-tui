@@ -20,7 +20,9 @@ type FilterMsg struct {
 	query string
 }
 
-type RefreshMsg struct{}
+type RefreshAssetsMsg struct{}
+type RefreshTransactionsMsg struct{}
+type RefreshExpensesMsg struct{}
 
 type modelList struct {
 	table        table.Model
@@ -139,52 +141,33 @@ func (m modelList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.table.SetRows(getRows(transactions))
-	case RefreshMsg:
+	case RefreshTransactionsMsg:
 		transactions, err := m.fireflyApi.ListTransactions("", "")
 		if err != nil {
 			return m, nil
 		}
 		m.table.SetRows(getRows(transactions))
+
 		return m, tea.Batch(tea.Printf("Refreshed"))
+	case RefreshAssetsMsg:
+		m.fireflyApi.UpdateAssets()
+	case RefreshExpensesMsg:
+		m.fireflyApi.UpdateExpenses()
 	case tea.WindowSizeMsg:
 		m.table.SetWidth(msg.Width - 2)
 		m.table.SetHeight(msg.Height - 5)
 		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {
-		// case "esc":
-		// 	if m.table.Focused() {
-		// 		m.table.Blur()
-		// 	} else {
-		// 		m.table.Focus()
-		// 		m.filter.Blur()
-		// 	}
-		// case "backspace":
-		// 	if len(m.table.Rows()) > 0 {
-		// 		index := m.table.Cursor()
-		// 		rows := m.table.Rows()
-		// 		rows = append(rows[:index], rows[index+1:]...)
-		// 		m.table.SetRows(rows)
-		// 		if index >= len(rows) && index > 0 {
-		// 			m.table.SetCursor(index - 1)
-		// 		}
-		// 	}
-		// refresh
 		case "r":
-			transactions, err := m.fireflyApi.ListTransactions("", "")
-			if err != nil {
-				return m, nil
-			}
-			m.table.SetRows(getRows(transactions))
-			return m, tea.Batch(
-				tea.Printf("Refreshed"),
-			)
-		// filter
+			cmds = append(cmds, func() tea.Msg { return RefreshTransactionsMsg{} })
+			cmds = append(cmds, func() tea.Msg { return RefreshAssetsMsg{} })
+			cmds = append(cmds, func() tea.Msg { return RefreshExpensesMsg{} })
+			return m, tea.Batch(cmds...)
 		case "f":
 			cmds = append(cmds, func() tea.Msg { return viewFilterMsg{} })
 		case "n":
 			cmds = append(cmds, func() tea.Msg { return viewNewMsg{} })
-		// enter
 		case "enter":
 			return m, tea.Batch(
 				tea.Printf("Let's go to %s!", m.table.SelectedRow()[1]),
