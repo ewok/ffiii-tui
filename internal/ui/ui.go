@@ -124,11 +124,11 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m modelUI) View() string {
 	switch m.state {
 	case transactionView:
-		return m.list.View()
+		return baseStyle.Render(m.list.View()) + "\n"
 	case filterView:
-		return fmt.Sprintf("filter: %s", m.filter.View()) + "\n" + m.list.View()
+		return baseStyle.Render(fmt.Sprintf("filter: %s", m.filter.View()) + "\n" + m.list.View())
 	case newView:
-		return m.new.View()
+		return baseStyle.Render(m.new.View())
 	}
 	return baseStyle.Render(m.list.View()) + "\n"
 }

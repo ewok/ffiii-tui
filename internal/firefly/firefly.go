@@ -4,7 +4,10 @@ SPDX-License-Identifier: Apache-2.0
 */
 package firefly
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 // ApiConfig holds configuration for the Firefly III API.
 type Api struct {
@@ -12,16 +15,16 @@ type Api struct {
 	Config ApiConfig
 
 	// Assets holds the list of asset accounts.
-	Assets []Asset
+	Assets []Account
 
 	// Expenses holds the list of expense accounts.
-	Expenses []Expense
+	Expenses []Account
 
 	// Liabilities holds the list of liability accounts.
-	Liabilities []Liability
+	Liabilities []Account
 
 	// Revenues holds the list of revenue accounts.
-	Revenues []Revenue
+	Revenues []Account
 
 	// Categories holds the list of categories.
 	Categories []Category
@@ -40,24 +43,28 @@ func NewApi(config ApiConfig) *Api {
 	api := &Api{Config: config}
 
 	// Initial data fetch
-	if err := api.UpdateAssets(); err != nil {
-		fmt.Println("Error updating assets:", err)
+	var wg sync.WaitGroup
+	updateFuncs := []func() error{
+		api.UpdateAssets,
+		api.UpdateExpenses,
+		api.UpdateLiabilities,
+		api.UpdateRevenues,
+		api.UpdateCategories,
+		api.UpdateCurrencies,
 	}
-	if err := api.UpdateExpenses(); err != nil {
-		fmt.Println("Error updating expenses:", err)
+
+	wg.Add(len(updateFuncs))
+
+	for _, updateFunc := range updateFuncs {
+		go func(f func() error) {
+			defer wg.Done()
+			if err := f(); err != nil {
+				fmt.Println("Error during update:", err)
+			}
+		}(updateFunc)
 	}
-	if err := api.UpdateLiabilities(); err != nil {
-		fmt.Println("Error updating liabilities:", err)
-	}
-	if err := api.UpdateRevenues(); err != nil {
-		fmt.Println("Error updating revenues:", err)
-	}
-	if err := api.UpdateCategories(); err != nil {
-		fmt.Println("Error updating categories:", err)
-	}
-	if err := api.UpdateCurrencies(); err != nil {
-		fmt.Println("Error updating currencies:", err)
-	}
+
+	wg.Wait()
 
 	return api
 }
