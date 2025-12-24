@@ -53,41 +53,6 @@ Prerequisites:
 		})
 
 		fmt.Println("Connected to Firefly III at", apiUrl)
-		// print assets
-		fmt.Println("Asset accounts:")
-		for _, account := range ff.Assets {
-			fmt.Printf("- %s (ID: %s)\n", account.Name, account.ID)
-		}
-
-		// print expenses
-		fmt.Println("Expense accounts:")
-		for _, account := range ff.Expenses {
-			fmt.Printf("- %s (ID: %s)\n", account.Name, account.ID)
-		}
-
-		// print liabilities
-		fmt.Println("Liability accounts:")
-		for _, account := range ff.Liabilities {
-			fmt.Printf("- %s (ID: %s)\n", account.Name, account.ID)
-		}
-
-		// print revenues
-		fmt.Println("Revenue accounts:")
-		for _, account := range ff.Revenues {
-			fmt.Printf("- %s (ID: %s)\n", account.Name, account.ID)
-		}
-
-		// print categories
-		fmt.Println("Categories:")
-		for _, category := range ff.Categories {
-			fmt.Printf("- %s (ID: %s)\n", category.Name, category.ID)
-		}
-
-		// currencies
-		fmt.Println("Currencies:")
-		for _, currency := range ff.Currencies {
-			fmt.Printf("- %s (Code: %s, ID: %s)\n", currency.Name, currency.Code, currency.ID)
-		}
 
 		ui.Show(ff)
 

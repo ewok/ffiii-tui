@@ -10,6 +10,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/charmbracelet/bubbles/textinput"
 )
@@ -27,16 +28,18 @@ const (
 
 type (
 	viewTransactionsMsg struct{}
+	viewAccountsMsg     struct{}
 	viewFilterMsg       struct{}
 	viewNewMsg          struct{}
 )
 
 type modelUI struct {
-	state      state
-	list       modelList
-	filter     textinput.Model
-	fireflyApi *firefly.Api
-	new        modelNewTransaction
+	state        state
+	transactions modelTransactions
+	filter       textinput.Model
+	fireflyApi   *firefly.Api
+	new          modelNewTransaction
+	accounts     modelAccounts
 }
 
 func Show(api *firefly.Api) {
@@ -47,8 +50,9 @@ func Show(api *firefly.Api) {
 	ti.Width = 20
 
 	n := newModelNewTransaction(api)
+	a := newModelAccounts(api)
 
-	m := modelUI{filter: ti, fireflyApi: api, list: InitList(api), new: n}
+	m := modelUI{filter: ti, fireflyApi: api, transactions: InitList(api), new: n, accounts: a}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
@@ -56,7 +60,7 @@ func Show(api *firefly.Api) {
 }
 
 func (m modelUI) Init() tea.Cmd {
-	return nil
+	return func() tea.Msg { return viewAccountsMsg{} }
 }
 
 func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -72,26 +76,44 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case viewTransactionsMsg:
 		m.state = transactionView
 		m.filter.Blur()
-		m.list.table.Focus()
+		m.transactions.table.Focus()
+		m.accounts.Blur()
+	case viewAccountsMsg:
+		m.state = accountView
+		m.filter.Blur()
+		m.transactions.table.Blur()
+		m.accounts.Focus()
 	case viewFilterMsg:
 		m.state = filterView
 		m.filter.Focus()
-		m.list.table.Blur()
+		m.transactions.table.Blur()
+		m.accounts.Blur()
 	case viewNewMsg:
 		m.state = newView
 		m.filter.Blur()
-		m.list.table.Blur()
+		m.transactions.table.Blur()
+		m.accounts.Blur()
 	}
 
 	switch m.state {
-	case transactionView:
-		nModel, nCmd := m.list.Update(msg)
-		listModel, ok := nModel.(modelList)
+	case accountView, transactionView:
+		nModel, nCmd := m.transactions.Update(msg)
+		listModel, ok := nModel.(modelTransactions)
 		if !ok {
+			// FIX: make it better
 			panic("Somthing bad happened")
 		}
-		m.list = listModel
-		cmd = nCmd
+		m.transactions = listModel
+		cmds = append(cmds, nCmd)
+
+		nModel, nCmd = m.accounts.Update(msg)
+		accountsModel, ok := nModel.(modelAccounts)
+		if !ok {
+			// FIX: make it better
+			panic("Somthing bad happened")
+		}
+		m.accounts = accountsModel
+		cmds = append(cmds, nCmd)
 	case filterView:
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
@@ -124,11 +146,15 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m modelUI) View() string {
 	switch m.state {
 	case transactionView:
-		return baseStyle.Render(m.list.View()) + "\n"
+		// return baseStyle.Render(m.transactions.View())
+		return lipgloss.JoinHorizontal(lipgloss.Top, baseStyle.Render(m.accounts.View()), baseStyle.Render(m.transactions.View()))
+	case accountView:
+		// return baseStyle.Render(m.accounts.View())
+		return lipgloss.JoinHorizontal(lipgloss.Top, baseStyle.Render(m.accounts.View()), baseStyle.Render(m.transactions.View()))
 	case filterView:
-		return baseStyle.Render(fmt.Sprintf("filter: %s", m.filter.View()) + "\n" + m.list.View())
+		return baseStyle.Render(fmt.Sprintf("filter: %s", m.filter.View()) + "\n" + m.transactions.View())
 	case newView:
 		return baseStyle.Render(m.new.View())
 	}
-	return baseStyle.Render(m.list.View()) + "\n"
+	return baseStyle.Render(m.transactions.View()) + "\n"
 }

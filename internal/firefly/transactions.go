@@ -16,20 +16,34 @@ const transactionsEndpoint = "%s/transactions?page=%d&limit=%d&start=%s&end=%s"
 const searchTransactionsEndpoint = "%s/search/transactions?page=%d&limit=%d&query=%s"
 
 type Transaction struct {
-	Type       string                `json:"type"`
-	ID         string                `json:"id"`
-	Attributes TransactionAttributes `json:"attributes"`
+	TransactionID   string
+	Type            string
+	Date            string
+	Source          string
+	Destination     string
+	Category        string
+	Currency        string
+	ForeignCurrency string
+	Amount          string
+	ForeignAmount   string
+	Description     string
 }
 
-type TransactionAttributes struct {
-	CreatedAt    string           `json:"created_at"`
-	UpdatedAt    string           `json:"updated_at"`
-	User         string           `json:"user"`
-	GroupTitle   string           `json:"group_title"`
-	Transactions []SubTransaction `json:"transactions"`
+type ApiTransaction struct {
+	Type       string                   `json:"type"`
+	ID         string                   `json:"id"`
+	Attributes apiTransactionAttributes `json:"attributes"`
 }
 
-type SubTransaction struct {
+type apiTransactionAttributes struct {
+	CreatedAt    string              `json:"created_at"`
+	UpdatedAt    string              `json:"updated_at"`
+	User         string              `json:"user"`
+	GroupTitle   string              `json:"group_title"`
+	Transactions []apiSubTransaction `json:"transactions"`
+}
+
+type apiSubTransaction struct {
 	User                         string  `json:"user"`
 	TransactionJournalID         string  `json:"transaction_journal_id"`
 	Type                         string  `json:"type"`
@@ -105,7 +119,7 @@ type SubTransaction struct {
 	HasAttachments               bool    `json:"has_attachments"`
 }
 
-func (api *Api) ListTransactions(start, end string) ([]Transaction, error) {
+func (api *Api) ListTransactions(start, end, account string) ([]Transaction, error) {
 	transactions := []Transaction{}
 	page := 1
 	for {
@@ -116,13 +130,35 @@ func (api *Api) ListTransactions(start, end string) ([]Transaction, error) {
 		if len(txs) == 0 {
 			break
 		}
-		transactions = append(transactions, txs...)
+		for _, t := range txs {
+			for _, subTx := range t.Attributes.Transactions {
+				transaction := Transaction{
+					TransactionID:   t.ID,
+					Type:            subTx.Type,
+					Date:            subTx.Date,
+					Source:          subTx.SourceName,
+					Destination:     subTx.DestinationName,
+					Category:        subTx.CategoryName,
+					Currency:        subTx.CurrencyCode,
+					ForeignCurrency: subTx.ForeignCurrencyCode,
+					Amount:          subTx.Amount,
+					ForeignAmount:   subTx.ForeignAmount,
+					Description:     subTx.Description,
+				}
+				if account != "" {
+					if subTx.SourceName != account && subTx.DestinationName != account {
+						continue
+					}
+				}
+				transactions = append(transactions, transaction)
+			}
+		}
 		page++
 	}
 	return transactions, nil
 }
 
-func (api *Api) listTransactions(page, limit int, start, end string) ([]Transaction, error) {
+func (api *Api) listTransactions(page, limit int, start, end string) ([]ApiTransaction, error) {
 
 	if start == "" {
 		// First day of the current month
@@ -173,7 +209,7 @@ func (api *Api) listTransactions(page, limit int, start, end string) ([]Transact
 		return nil, fmt.Errorf("invalid data format in response")
 	}
 
-	transactions := make([]Transaction, 0, len(data))
+	transactions := make([]ApiTransaction, 0, len(data))
 
 	for _, item := range data {
 		itemMap, ok := item.(map[string]any)
@@ -184,7 +220,7 @@ func (api *Api) listTransactions(page, limit int, start, end string) ([]Transact
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal item: %v", err)
 		}
-		var transaction Transaction
+		var transaction ApiTransaction
 		err = json.Unmarshal(itemJson, &transaction)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal item to Transaction: %v", err)
@@ -199,20 +235,37 @@ func (api *Api) SearchTransactions(query string) ([]Transaction, error) {
 	transactions := []Transaction{}
 	page := 1
 	for {
-		txs, err := api.searchTransactions(page, 20, query)
+		txs, err := api.searchTransactions(page, 50, query)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list transactions: %v", err)
+			return nil, fmt.Errorf("failed to search transactions: %v", err)
 		}
 		if len(txs) == 0 {
 			break
 		}
-		transactions = append(transactions, txs...)
+		for _, t := range txs {
+			for _, subTx := range t.Attributes.Transactions {
+				transaction := Transaction{
+					TransactionID:   t.ID,
+					Type:            subTx.Type,
+					Date:            subTx.Date,
+					Source:          subTx.SourceName,
+					Destination:     subTx.DestinationName,
+					Category:        subTx.CategoryName,
+					Currency:        subTx.CurrencyCode,
+					ForeignCurrency: subTx.ForeignCurrencyCode,
+					Amount:          subTx.Amount,
+					ForeignAmount:   subTx.ForeignAmount,
+					Description:     subTx.Description,
+				}
+				transactions = append(transactions, transaction)
+			}
+		}
 		page++
 	}
 	return transactions, nil
 }
 
-func (api *Api) searchTransactions(page, limit int, query string) ([]Transaction, error) {
+func (api *Api) searchTransactions(page, limit int, query string) ([]ApiTransaction, error) {
 
 	endpoint := fmt.Sprintf(searchTransactionsEndpoint, api.Config.ApiUrl, page, limit, query)
 
@@ -252,7 +305,7 @@ func (api *Api) searchTransactions(page, limit int, query string) ([]Transaction
 		return nil, fmt.Errorf("invalid data format in response")
 	}
 
-	transactions := make([]Transaction, 0, len(data))
+	transactions := make([]ApiTransaction, 0, len(data))
 
 	for _, item := range data {
 		itemMap, ok := item.(map[string]any)
@@ -263,7 +316,7 @@ func (api *Api) searchTransactions(page, limit int, query string) ([]Transaction
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal item: %v", err)
 		}
-		var transaction Transaction
+		var transaction ApiTransaction
 		err = json.Unmarshal(itemJson, &transaction)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal item to Transaction: %v", err)
