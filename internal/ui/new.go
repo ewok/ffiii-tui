@@ -173,6 +173,9 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 					DescriptionFunc(func() string {
 						switch transactionType {
 						case "transfer":
+							if source.CurrencyCode == destination.CurrencyCode {
+								return "N/A"
+							}
 							return destination.CurrencyCode
 						default:
 							return "N/A"
@@ -181,6 +184,12 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 					Validate(func(str string) error {
 						switch transactionType {
 						case "transfer":
+							if source.CurrencyCode == destination.CurrencyCode {
+								if str != "" {
+									return errors.New("for transfers between same currency accounts, foreign amount should be empty")
+								}
+								return nil
+							}
 							var amount float64
 							_, err := strconv.ParseFloat(str, 64)
 							if err != nil || amount < 0 {
@@ -268,10 +277,12 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					currencyCode = destination.CurrencyCode
 				case "transfer":
 					currencyCode = source.CurrencyCode
-					foreignCurrencyCode = destination.CurrencyCode
+					if source.CurrencyCode != destination.CurrencyCode {
+						foreignCurrencyCode = destination.CurrencyCode
+					}
 				default:
-					currencyCode = source.CurrencyCode
-					foreignCurrencyCode = destination.CurrencyCode
+					newModel := newModelNewTransaction(m.api)
+					return newModel, nil
 				}
 
 				if err := m.api.CreateTransaction(firefly.NewTransaction{
