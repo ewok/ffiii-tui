@@ -38,20 +38,6 @@ var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
-var tableColumns = []table.Column{
-	{Title: "Type", Width: 2},
-	{Title: "Date", Width: 20},
-	{Title: "Source", Width: 25},
-	{Title: "Destination", Width: 25},
-	{Title: "Category", Width: 30},
-	{Title: "Currency", Width: 5},
-	{Title: "Amount", Width: 10},
-	{Title: "Foreign Currency", Width: 8},
-	{Title: "Foreign Amount", Width: 10},
-	{Title: "Description", Width: 30},
-	{Title: "TxID", Width: 5},
-}
-
 func InitList(api *firefly.Api) modelTransactions {
 	transactions, err := api.ListTransactions("", "", "")
 	if err != nil {
@@ -59,9 +45,10 @@ func InitList(api *firefly.Api) modelTransactions {
 		os.Exit(1)
 	}
 
+	rows, columns := getRows(transactions)
 	t := table.New(
-		table.WithColumns(tableColumns),
-		table.WithRows(getRows(transactions)),
+		table.WithColumns(columns),
+		table.WithRows(rows),
 		table.WithFocused(true),
 	)
 
@@ -81,15 +68,35 @@ func InitList(api *firefly.Api) modelTransactions {
 	return m
 }
 
-func getRows(transactions []firefly.Transaction) []table.Row {
+func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
+
+	// Determine max widths for dynamic columns
+	sourceWidth := 5
+	destinationWidth := 5
+	categoryWidth := 5
+	amountWidth := 5
+	foreignAmountWidth := 5
+	descriptionWidth := 10
+	transactionIDWidth := 4
 
 	rows := []table.Row{}
 	// Populate rows from transactions
 	for _, tx := range transactions {
 
 		// Parse amounts
-		amount, _ := strconv.ParseFloat(tx.Amount, 64)
-		foreignAmount, _ := strconv.ParseFloat(tx.ForeignAmount, 64)
+		fAmount, err := strconv.ParseFloat(tx.Amount, 64)
+		if err != nil {
+			amount = "N/A"
+		} else {
+			amount = fmt.Sprintf("%.2f", fAmount)
+		}
+
+		fForeignAmount, err := strconv.ParseFloat(tx.ForeignAmount, 64)
+		if err != nil {
+			foreignAmount = "N/A"
+		} else {
+			foreignAmount = fmt.Sprintf("%.2f", fForeignAmount)
+		}
 
 		// Convert from string to desired date format
 		// YYYY-MM-DD HH:MM:SS
@@ -113,16 +120,59 @@ func getRows(transactions []firefly.Transaction) []table.Row {
 			tx.Destination,
 			tx.Category,
 			tx.Currency,
-			fmt.Sprintf("%.2f", amount),
+			amount,
 			tx.ForeignCurrency,
-			fmt.Sprintf("%.2f", foreignAmount),
+			foreignAmount,
 			tx.Description,
 			tx.TransactionID,
 		}
 		rows = append(rows, row)
+
+		// Update max widths
+		sourceLen := len(tx.Source)
+		if sourceLen > sourceWidth {
+			sourceWidth = sourceLen
+		}
+		destinationLen := len(tx.Destination)
+		if destinationLen > destinationWidth {
+			destinationWidth = destinationLen
+		}
+		categoryLen := len(tx.Category)
+		if categoryLen > categoryWidth {
+			categoryWidth = categoryLen
+		}
+		amountLen := len(amount)
+		if amountLen > amountWidth {
+			amountWidth = amountLen
+		}
+		foreignAmountLen := len(foreignAmount)
+		if foreignAmountLen > foreignAmountWidth {
+			foreignAmountWidth = foreignAmountLen
+		}
+		descriptionLen := len(tx.Description)
+		if descriptionLen > descriptionWidth {
+			descriptionWidth = descriptionLen
+		}
+		transactionIDLen := len(tx.TransactionID)
+		if transactionIDLen > transactionIDWidth {
+			transactionIDWidth = transactionIDLen
+		}
 	}
 
-	return rows
+	return rows, []table.Column{
+		{Title: "Type", Width: 2},
+		{Title: "Date", Width: 20},
+		{Title: "Source", Width: sourceWidth},
+		{Title: "Destination", Width: destinationWidth},
+		{Title: "Category", Width: categoryWidth},
+		{Title: "Currency", Width: 5},
+		{Title: "Amount", Width: amountWidth},
+		{Title: "Foreign Currency", Width: 5},
+		{Title: "Foreign Amount", Width: foreignAmountWidth},
+		{Title: "Description", Width: descriptionWidth},
+		{Title: "TxID", Width: transactionIDWidth},
+	}
+
 }
 
 func (m modelTransactions) Init() tea.Cmd {
@@ -137,14 +187,18 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case FilterMsg:
 		value := msg.query
 		if value == "" {
-			m.table.SetRows(getRows(m.transactions))
+			rows, columns := getRows(m.transactions)
+			m.table.SetRows(rows)
+			m.table.SetColumns(columns)
 			return m, nil
 		}
 		transactions, err := m.fireflyApi.SearchTransactions(value)
 		if err != nil {
 			return m, nil
 		}
-		m.table.SetRows(getRows(transactions))
+		rows, columns := getRows(transactions)
+		m.table.SetRows(rows)
+		m.table.SetColumns(columns)
 		cmds = append(cmds, tea.Printf("Filtered"))
 	case FilterAccountMsg:
 		value := msg.account
@@ -156,9 +210,13 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					transactions = append(transactions, tx)
 				}
 			}
-			m.table.SetRows(getRows(transactions))
+			rows, columns := getRows(transactions)
+			m.table.SetRows(rows)
+			m.table.SetColumns(columns)
 		} else {
-			m.table.SetRows(getRows(m.transactions))
+			rows, columns := getRows(m.transactions)
+			m.table.SetRows(rows)
+			m.table.SetColumns(columns)
 		}
 	case RefreshTransactionsMsg:
 		transactions, err := m.fireflyApi.ListTransactions("", "", "")

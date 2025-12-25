@@ -15,11 +15,11 @@ import (
 type RefreshBalanceMsg struct{}
 
 type accountItem struct {
-	account, balance string
+	account, balance, currency string
 }
 
 func (i accountItem) Title() string       { return i.account }
-func (i accountItem) Description() string { return i.balance }
+func (i accountItem) Description() string { return fmt.Sprintf("%s %s", i.balance, i.currency) }
 func (i accountItem) FilterValue() string { return i.account }
 
 type modelAccounts struct {
@@ -32,7 +32,7 @@ func newModelAccounts(api *firefly.Api) modelAccounts {
 
 	items := []list.Item{}
 	for _, i := range api.Assets {
-		items = append(items, accountItem{account: i.Name, balance: fmt.Sprintf("%.2f", i.Balance)})
+		items = append(items, accountItem{account: i.Name, balance: fmt.Sprintf("%.2f", i.Balance), currency: i.CurrencyCode})
 	}
 
 	m := modelAccounts{list: list.New(items, list.NewDefaultDelegate(), 0, 0), api: api}
@@ -59,7 +59,7 @@ func (m modelAccounts) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RefreshBalanceMsg:
 		items := []list.Item{}
 		for _, i := range m.api.Assets {
-			items = append(items, accountItem{account: i.Name, balance: fmt.Sprintf("%.2f", i.Balance)})
+			items = append(items, accountItem{account: i.Name, balance: fmt.Sprintf("%.2f", i.Balance), currency: i.CurrencyCode})
 		}
 		cmds = append(cmds, m.list.SetItems(items))
 		m.list, cmd = m.list.Update(msg)
