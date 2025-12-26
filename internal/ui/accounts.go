@@ -28,14 +28,6 @@ type modelAccounts struct {
 	focus bool
 }
 
-func getAssetsItems(api *firefly.Api) []list.Item {
-	items := []list.Item{}
-	for _, i := range api.Assets {
-		items = append(items, accountItem{account: i.Name, balance: fmt.Sprintf("%.2f", i.Balance), currency: i.CurrencyCode})
-	}
-	return items
-}
-
 func newModelAccounts(api *firefly.Api) modelAccounts {
 	items := getAssetsItems(api)
 
@@ -45,7 +37,6 @@ func newModelAccounts(api *firefly.Api) modelAccounts {
 	m.list.SetShowStatusBar(false)
 	m.list.SetFilteringEnabled(false)
 	m.list.DisableQuitKeybindings()
-	m.Focus()
 
 	return m
 }
@@ -60,14 +51,11 @@ func (m modelAccounts) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case RefreshBalanceMsg:
-		cmds = append(cmds, m.list.SetItems(getAssetsItems(m.api)))
-		return m, tea.Batch(cmds...)
 	case tea.KeyMsg:
 		if m.focus {
 			switch msg.String() {
 			case "esc", "q", "ctrl+c":
-				cmds = append(cmds, Cmd(viewTransactionsMsg{}))
+				cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 			case "f":
 				i, ok := m.list.SelectedItem().(accountItem)
 				if ok {
@@ -79,13 +67,13 @@ func (m modelAccounts) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if ok {
 					cmds = append(cmds, Cmd(FilterAccountMsg{account: i.account}))
 				}
-				cmds = append(cmds, Cmd(viewTransactionsMsg{}))
+				cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 			// case "n":
 			// 	cmds = append(cmds, func() tea.Msg { return viewNewMsg{} })
 			case "c":
-				cmds = append(cmds, Cmd(viewCategoriesMsg{}))
+				cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
 			case "e":
-				cmds = append(cmds, Cmd(viewExpensesMsg{}))
+				cmds = append(cmds, Cmd(ViewExpensesMsg{}))
 			}
 		}
 	case tea.WindowSizeMsg:
@@ -110,8 +98,16 @@ func (m *modelAccounts) Focus() {
 	m.focus = true
 }
 
-// Blur blurs the table, preventing selection or movement.
 func (m *modelAccounts) Blur() {
 	m.list.FilterInput.Blur()
 	m.focus = false
 }
+
+func getAssetsItems(api *firefly.Api) []list.Item {
+	items := []list.Item{}
+	for _, i := range api.Assets {
+		items = append(items, accountItem{account: i.Name, balance: fmt.Sprintf("%.2f", i.Balance), currency: i.CurrencyCode})
+	}
+	return items
+}
+

@@ -187,6 +187,7 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 							if err != nil || amount < 0 {
 								return errors.New("please enter a valid positive number for amount")
 							}
+							return nil
 						}
 						if str != "" {
 							return errors.New("foreign amount is only applicable for transfers")
@@ -246,20 +247,30 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		// case "n":
-		// 	switch m.form.GetFocusedField().GetKey() {
-		// 	case "destination_name":
-		// 		isCustomDestination = true
-		// 		cmds = append(cmds, m.form.NextField())
-		// 	case "category_name":
-		// 		isCustomCategory = true
-		// 		cmds = append(cmds, m.form.NextField())
-		// 	}
+		case "n":
+			switch m.form.GetFocusedField().GetKey() {
+			// case "destination_name":
+			// 	isCustomDestination = true
+			// 	cmds = append(cmds, m.form.NextField())
+			case "category_name":
+				cmds = append(cmds, Cmd(PromptMsg{
+					Prompt: "New Category: ",
+					Value:  "",
+					Callback: func(value string) []tea.Cmd {
+						var cmds []tea.Cmd
+						if value != "" {
+							cmds = append(cmds, Cmd(NewCategoryMsg{category: value}))
+						}
+						cmds = append(cmds, Cmd(ViewNewMsg{}))
+						return cmds
+					}}))
+				return m, tea.Batch(cmds...)
+			}
 		case "esc":
-			cmds = append(cmds, Cmd(viewTransactionsMsg{}))
+			cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 		case "ctrl+r":
 			newModel := newModelNewTransaction(m.api)
-			cmds = append(cmds, Cmd(RefreshAssetsMsg{}))
+			cmds = append(cmds, Cmd(RefreshBalanceMsg{}))
 			cmds = append(cmds, Cmd(RefreshExpensesMsg{}))
 			return newModel, tea.Batch(cmds...)
 		case "enter":
@@ -310,9 +321,9 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				} else {
 					newModel := newModelNewTransaction(m.api)
-					cmds = append(cmds, Cmd(RefreshAssetsMsg{}))
+					cmds = append(cmds, Cmd(RefreshBalanceMsg{}))
 					cmds = append(cmds, Cmd(RefreshTransactionsMsg{}))
-					cmds = append(cmds, Cmd(viewTransactionsMsg{}))
+					cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 					return newModel, tea.Batch(cmds...)
 				}
 

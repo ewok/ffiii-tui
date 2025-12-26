@@ -15,6 +15,9 @@ import (
 )
 
 type RefreshCategoriesMsg struct{}
+type NewCategoryMsg struct {
+	category string
+}
 
 type categoryItem struct {
 	id, name, notes string
@@ -49,14 +52,6 @@ type modelCategories struct {
 	focus bool
 }
 
-func getCategoriesItems(api *firefly.Api) []list.Item {
-	items := []list.Item{}
-	for _, i := range api.Categories {
-		items = append(items, categoryItem{id: i.ID, name: i.Name, notes: i.Notes})
-	}
-	return items
-}
-
 func newModelCategories(api *firefly.Api) modelCategories {
 	items := getCategoriesItems(api)
 
@@ -80,9 +75,6 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case RefreshCategoriesMsg:
-		cmds = append(cmds, m.list.SetItems(getCategoriesItems(m.api)))
-		return m, tea.Batch(cmds...)
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v)
@@ -90,13 +82,26 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.focus {
 			switch msg.String() {
 			case "esc", "q", "ctrl+c":
-				cmds = append(cmds, Cmd(viewTransactionsMsg{}))
-			// case "n":
-			// 	cmds = append(cmds, func() tea.Msg { return viewNewMsg{} })
+				cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
+			case "n":
+				cmds = append(cmds, Cmd(PromptMsg{
+					Prompt: "New Category: ",
+					Value:  "",
+					Callback: func(value string) []tea.Cmd {
+						var cmds []tea.Cmd
+						if value != "" {
+							cmds = append(cmds, Cmd(NewCategoryMsg{category: value}))
+						}
+						cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
+						return cmds
+					}}))
+				return m, tea.Batch(cmds...)
 			case "a":
-				cmds = append(cmds, Cmd(viewAccountsMsg{}))
+				cmds = append(cmds, Cmd(ViewAccountsMsg{}))
 			case "e":
-				cmds = append(cmds, Cmd(viewExpensesMsg{}))
+				cmds = append(cmds, Cmd(ViewExpensesMsg{}))
+			case "r":
+				cmds = append(cmds, Cmd(RefreshCategoriesMsg{}))
 			}
 		}
 	}
@@ -118,8 +123,15 @@ func (m *modelCategories) Focus() {
 	m.focus = true
 }
 
-// Blur blurs the table, preventing selection or movement.
 func (m *modelCategories) Blur() {
 	m.list.FilterInput.Blur()
 	m.focus = false
+}
+
+func getCategoriesItems(api *firefly.Api) []list.Item {
+	items := []list.Item{}
+	for _, i := range api.Categories {
+		items = append(items, categoryItem{id: i.ID, name: i.Name, notes: i.Notes})
+	}
+	return items
 }

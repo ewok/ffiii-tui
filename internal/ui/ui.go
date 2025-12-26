@@ -11,8 +11,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-
-	"github.com/charmbracelet/bubbles/textinput"
 )
 
 var (
@@ -24,48 +22,44 @@ type state uint
 
 const (
 	transactionView state = iota
-	filterView
 	periodView
 	newView
 	accountView
 	categoryView
 	expensesView
+	promptView
 )
 
 type (
-	viewTransactionsMsg struct{}
-	viewAccountsMsg     struct{}
-	viewFilterMsg       struct{}
-	viewNewMsg          struct{}
-	viewCategoriesMsg   struct{}
-	viewExpensesMsg     struct{}
+	ViewTransactionsMsg struct{}
+	ViewAccountsMsg     struct{}
+	ViewNewMsg          struct{}
+	ViewCategoriesMsg   struct{}
+	ViewExpensesMsg     struct{}
+	ViewPromptMsg       struct{}
 )
 
 type modelUI struct {
 	state        state
 	transactions modelTransactions
-	filter       textinput.Model
-	fireflyApi   *firefly.Api
+	api          *firefly.Api
 	new          modelNewTransaction
 	accounts     modelAccounts
 	categories   modelCategories
 	expenses     modelExpenses
+	prompt       modelPrompt
 }
 
 func Show(api *firefly.Api) {
 
-	ti := textinput.New()
-	ti.Placeholder = "Filter"
-	ti.CharLimit = 156
-	ti.Width = 20
-
-	n := newModelNewTransaction(api)
-	a := newModelAccounts(api)
-	t := newModelTransactions(api)
-	c := newModelCategories(api)
-	e := newModelExpenses(api)
-
-	m := modelUI{filter: ti, fireflyApi: api, transactions: t, new: n, accounts: a, categories: c, expenses: e}
+	m := modelUI{
+		api:          api,
+		transactions: newModelTransactions(api),
+		new:          newModelNewTransaction(api),
+		accounts:     newModelAccounts(api),
+		categories:   newModelCategories(api),
+		expenses:     newModelExpenses(api),
+	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
@@ -73,10 +67,14 @@ func Show(api *firefly.Api) {
 }
 
 func (m modelUI) Init() tea.Cmd {
-	return func() tea.Msg { return viewTransactionsMsg{} }
+	return func() tea.Msg { return ViewTransactionsMsg{} }
 }
 
 func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+
+    // FIXME: Remake routing
+
+	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -85,48 +83,118 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		}
-	case viewTransactionsMsg:
+		// TODO: Make it prettier
+	case ViewTransactionsMsg:
 		m.state = transactionView
-		m.filter.Blur()
 		m.transactions.Focus()
 		m.accounts.Blur()
 		m.categories.Blur()
 		m.expenses.Blur()
-	case viewAccountsMsg:
+		m.prompt.Blur()
+	case ViewAccountsMsg:
 		m.state = accountView
-		m.filter.Blur()
 		m.transactions.Blur()
 		m.accounts.Focus()
 		m.categories.Blur()
 		m.expenses.Blur()
-	case viewFilterMsg:
-		m.state = filterView
-		m.filter.Focus()
-		m.transactions.Blur()
-		m.accounts.Blur()
-		m.categories.Blur()
-		m.expenses.Blur()
-	case viewNewMsg:
+		m.prompt.Blur()
+	case ViewNewMsg:
 		m.state = newView
-		m.filter.Blur()
 		m.transactions.Blur()
 		m.accounts.Blur()
 		m.categories.Blur()
 		m.expenses.Blur()
-	case viewCategoriesMsg:
+		m.prompt.Blur()
+	case ViewCategoriesMsg:
 		m.state = categoryView
-		m.filter.Blur()
 		m.transactions.Blur()
 		m.accounts.Blur()
 		m.categories.Focus()
 		m.expenses.Blur()
-	case viewExpensesMsg:
+		m.prompt.Blur()
+	case ViewExpensesMsg:
 		m.state = expensesView
-		m.filter.Blur()
 		m.transactions.Blur()
 		m.accounts.Blur()
 		m.categories.Blur()
 		m.expenses.Focus()
+		m.prompt.Blur()
+	case ViewPromptMsg:
+		m.state = promptView
+		m.transactions.Blur()
+		m.accounts.Blur()
+		m.categories.Blur()
+		m.expenses.Blur()
+		m.prompt.Focus()
+	case PromptMsg:
+		m.prompt = newPrompt(msg)
+		cmds = append(cmds, cmd, Cmd(ViewPromptMsg{}))
+		return m, tea.Batch(cmds...)
+
+	case RefreshCategoriesMsg:
+		m.api.UpdateCategories()
+		cmds = append(cmds, m.categories.list.SetItems(getCategoriesItems(m.api)))
+		return m, tea.Batch(cmds...)
+	case NewCategoryMsg:
+		err := m.api.CreateCategory(msg.category, "")
+		if err != nil {
+			cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
+			return m, tea.Batch(cmds...)
+		}
+		cmds = append(cmds, Cmd(RefreshCategoriesMsg{}))
+		return m, tea.Batch(cmds...)
+
+	case RefreshBalanceMsg:
+		m.api.UpdateAssets()
+		cmds = append(cmds, m.accounts.list.SetItems(getAssetsItems(m.api)))
+		return m, tea.Batch(cmds...)
+	case RefreshExpensesMsg:
+		m.api.UpdateExpenses()
+		cmds = append(cmds, m.expenses.list.SetItems(getExpensesItems(m.api)))
+		return m, tea.Batch(cmds...)
+
+	case FilterMsg:
+		value := msg.query
+		if value == "" {
+			rows, columns := getRows(m.transactions.transactions)
+			m.transactions.table.SetRows(rows)
+			m.transactions.table.SetColumns(columns)
+			return m, nil
+		}
+		transactions, err := m.api.SearchTransactions(value)
+		if err != nil {
+			return m, nil
+		}
+		rows, columns := getRows(transactions)
+		m.transactions.table.SetRows(rows)
+		m.transactions.table.SetColumns(columns)
+		cmds = append(cmds, tea.Printf("Filtered"))
+	case FilterAccountMsg:
+		value := msg.account
+		m.transactions.currentAccount = value
+		if value != "" {
+			transactions := []firefly.Transaction{}
+			for _, tx := range m.transactions.transactions {
+				if tx.Source == value || tx.Destination == value {
+					transactions = append(transactions, tx)
+				}
+			}
+			rows, columns := getRows(transactions)
+			m.transactions.table.SetRows(rows)
+			m.transactions.table.SetColumns(columns)
+		} else {
+			rows, columns := getRows(m.transactions.transactions)
+			m.transactions.table.SetRows(rows)
+			m.transactions.table.SetColumns(columns)
+		}
+	case RefreshTransactionsMsg:
+		transactions, err := m.api.ListTransactions("", "", "")
+		if err != nil {
+			return m, nil
+		}
+		m.transactions.transactions = transactions
+		cmds = append(cmds, Cmd(FilterAccountMsg{account: m.transactions.currentAccount}))
+
 	}
 
 	switch m.state {
@@ -162,22 +230,6 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.expenses = expensesModel
 		cmds = append(cmds, nCmd)
-	case filterView:
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "esc":
-				cmds = append(cmds, Cmd(FilterMsg{query: ""}))
-				cmds = append(cmds, Cmd(viewTransactionsMsg{}))
-			case "enter":
-				value := m.filter.Value()
-				cmds = append(cmds, Cmd(FilterMsg{query: value}))
-				cmds = append(cmds, Cmd(viewTransactionsMsg{}))
-			}
-		}
-		var cmd tea.Cmd
-		m.filter, cmd = m.filter.Update(msg)
-		cmds = append(cmds, cmd)
 	case newView:
 		nModel, nCmd := m.new.Update(msg)
 		newModel, ok := nModel.(modelNewTransaction)
@@ -186,6 +238,14 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.new = newModel
 		cmds = append(cmds, nCmd)
+	case promptView:
+		nModel, nCmd := m.prompt.Update(msg)
+		promptModel, ok := nModel.(modelPrompt)
+		if !ok {
+			panic("Somthing bad happened")
+		}
+		cmds = append(cmds, nCmd)
+		m.prompt = promptModel
 	}
 
 	return m, tea.Batch(cmds...)
@@ -196,17 +256,15 @@ func (m modelUI) View() string {
 	case transactionView:
 		// return baseStyle.Render(m.transactions.View())
 		return lipgloss.JoinHorizontal(lipgloss.Top,
-		    baseStyle.Render(m.accounts.View()),
-		    baseStyle.Render(m.transactions.View()))
+			baseStyle.Render(m.accounts.View()),
+			baseStyle.Render(m.transactions.View()))
 	case accountView:
 		// return baseStyle.Render(m.accounts.View())
 		return lipgloss.JoinHorizontal(
-		    lipgloss.Top,
-		    baseStyle.Render(m.accounts.View()),
-		    baseStyle.Render(m.transactions.View()))
-    // TODO: Make prompt view
-	case filterView:
-		return baseStyle.Render(fmt.Sprintf("filter: %s", m.filter.View()) + "\n" + m.transactions.View())
+			lipgloss.Top,
+			baseStyle.Render(m.accounts.View()),
+			baseStyle.Render(m.transactions.View()))
+		// TODO: Make prompt view
 	case newView:
 		return lipgloss.JoinHorizontal(
 			lipgloss.Top,
@@ -222,6 +280,11 @@ func (m modelUI) View() string {
 			lipgloss.Top,
 			baseStyle.Render(m.expenses.View()),
 			baseStyle.Render(m.transactions.View()))
+	case promptView:
+		return lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			baseStyle.Render(m.accounts.View()),
+			baseStyle.Render(m.prompt.View()))
 	}
 	return baseStyle.Render(m.transactions.View()) + "\n"
 }

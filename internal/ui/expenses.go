@@ -49,14 +49,6 @@ type modelExpenses struct {
 	focus bool
 }
 
-func getExpensesItems(api *firefly.Api) []list.Item {
-	items := []list.Item{}
-	for _, i := range api.Expenses {
-		items = append(items, expensesItem{id: i.ID, name: i.Name})
-	}
-	return items
-}
-
 func newModelExpenses(api *firefly.Api) modelExpenses {
 	items := getExpensesItems(api)
 
@@ -66,7 +58,6 @@ func newModelExpenses(api *firefly.Api) modelExpenses {
 	m.list.SetFilteringEnabled(false)
 	m.list.SetShowStatusBar(false)
 	m.list.DisableQuitKeybindings()
-	m.Focus()
 
 	return m
 }
@@ -81,9 +72,6 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case RefreshExpensesMsg:
-		cmds = append(cmds, m.list.SetItems(getExpensesItems(m.api)))
-		return m, tea.Batch(cmds...)
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v)
@@ -91,11 +79,11 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.focus {
 			switch msg.String() {
 			case "esc", "q", "ctrl+c":
-				cmds = append(cmds, Cmd(viewTransactionsMsg{}))
+				cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 			case "a":
-				cmds = append(cmds, Cmd(viewAccountsMsg{}))
+				cmds = append(cmds, Cmd(ViewAccountsMsg{}))
 			case "c":
-				cmds = append(cmds, Cmd(viewCategoriesMsg{}))
+				cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
 			}
 		}
 	}
@@ -117,8 +105,15 @@ func (m *modelExpenses) Focus() {
 	m.focus = true
 }
 
-// Blur blurs the table, preventing selection or movement.
 func (m *modelExpenses) Blur() {
 	m.list.FilterInput.Blur()
 	m.focus = false
+}
+
+func getExpensesItems(api *firefly.Api) []list.Item {
+	items := []list.Item{}
+	for _, i := range api.Expenses {
+		items = append(items, expensesItem{id: i.ID, name: i.Name})
+	}
+	return items
 }
