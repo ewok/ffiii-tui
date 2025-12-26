@@ -13,8 +13,9 @@ import (
 )
 
 type Category struct {
-	ID   string
-	Name string
+	ID    string
+	Name  string
+	Notes string
 }
 
 type apiCategory struct {
@@ -24,7 +25,8 @@ type apiCategory struct {
 }
 
 type apiCategoryAttr struct {
-	Name string `json:"name"`
+	Name  string `json:"name"`
+	Notes string `json:"notes"`
 }
 
 type apiCategoriesResponse struct {
@@ -96,8 +98,9 @@ func (api *Api) listCategories(page int) ([]Category, error) {
 	categories := []Category{}
 	for _, apiCat := range apiResp.Data {
 		categories = append(categories, Category{
-			ID:   apiCat.ID,
-			Name: apiCat.Attributes.Name,
+			ID:    apiCat.ID,
+			Name:  apiCat.Attributes.Name,
+			Notes: apiCat.Attributes.Notes,
 		})
 	}
 

@@ -103,7 +103,6 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 						}
 						return options
 					}, &transactionType).WithHeight(5),
-
 				huh.NewSelect[firefly.Account]().
 					Key("destination_name").
 					Title("Destination Account Name").
@@ -128,11 +127,10 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 							}
 						}
 						return options
-					}, &transactionType).WithHeight(5),
-
+					}, []any{&transactionType}).WithHeight(5),
 				huh.NewSelect[firefly.Category]().
 					Key("category_name").
-					Title("Category Name").
+					Title("Category").
 					Value(&category).
 					OptionsFunc(func() []huh.Option[firefly.Category] {
 						options := []huh.Option[firefly.Category]{}
@@ -141,19 +139,16 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 						}
 						return options
 					}, nil).WithHeight(5),
-
 				huh.NewInput().
 					Key("amount").
 					Title("Amount").
 					Value(&amount).
 					DescriptionFunc(func() string {
 						switch transactionType {
-						case "withdrawal":
+						case "withdrawal", "transfer":
 							return source.CurrencyCode
 						case "deposit":
 							return destination.CurrencyCode
-						case "transfer":
-							return source.CurrencyCode
 						default:
 							return ""
 						}
@@ -171,19 +166,16 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 					Title("Foreign Amount").
 					Value(&foreignAmount).
 					DescriptionFunc(func() string {
-						switch transactionType {
-						case "transfer":
+						if transactionType == "transfer" {
 							if source.CurrencyCode == destination.CurrencyCode {
 								return "N/A"
 							}
 							return destination.CurrencyCode
-						default:
-							return "N/A"
 						}
+						return "N/A"
 					}, []any{&source, &destination}).
 					Validate(func(str string) error {
-						switch transactionType {
-						case "transfer":
+						if transactionType == "transfer" {
 							if source.CurrencyCode == destination.CurrencyCode {
 								if str != "" {
 									return errors.New("for transfers between same currency accounts, foreign amount should be empty")
@@ -195,10 +187,9 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 							if err != nil || amount < 0 {
 								return errors.New("please enter a valid positive number for amount")
 							}
-						default:
-							if str != "" {
-								return errors.New("foreign amount is only applicable for transfers")
-							}
+						}
+						if str != "" {
+							return errors.New("foreign amount is only applicable for transfers")
 						}
 						return nil
 					}),
@@ -240,7 +231,7 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 						return huh.NewOptions(days...)
 					}, []any{&month, &year}).WithHeight(4),
 			),
-		).WithLayout(huh.LayoutGrid(2, 2)),
+		).WithLayout(huh.LayoutColumns(2)),
 	}
 }
 
@@ -255,12 +246,21 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		// case "n":
+		// 	switch m.form.GetFocusedField().GetKey() {
+		// 	case "destination_name":
+		// 		isCustomDestination = true
+		// 		cmds = append(cmds, m.form.NextField())
+		// 	case "category_name":
+		// 		isCustomCategory = true
+		// 		cmds = append(cmds, m.form.NextField())
+		// 	}
 		case "esc":
-			cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
+			cmds = append(cmds, Cmd(viewTransactionsMsg{}))
 		case "ctrl+r":
 			newModel := newModelNewTransaction(m.api)
-			cmds = append(cmds, func() tea.Msg { return RefreshAssetsMsg{} })
-			cmds = append(cmds, func() tea.Msg { return RefreshExpensesMsg{} })
+			cmds = append(cmds, Cmd(RefreshAssetsMsg{}))
+			cmds = append(cmds, Cmd(RefreshExpensesMsg{}))
 			return newModel, tea.Batch(cmds...)
 		case "enter":
 			if m.form.State == huh.StateCompleted {
@@ -268,6 +268,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if description == "" {
 					description = fmt.Sprintf("%s, %s -> %s", category.Name, source.Name, destination.Name)
 				}
+
 				currencyCode := ""
 				foreignCurrencyCode := ""
 				switch transactionType {
@@ -309,9 +310,9 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				} else {
 					newModel := newModelNewTransaction(m.api)
-					cmds = append(cmds, func() tea.Msg { return RefreshAssetsMsg{} })
-					cmds = append(cmds, func() tea.Msg { return RefreshTransactionsMsg{} })
-					cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
+					cmds = append(cmds, Cmd(RefreshAssetsMsg{}))
+					cmds = append(cmds, Cmd(RefreshTransactionsMsg{}))
+					cmds = append(cmds, Cmd(viewTransactionsMsg{}))
 					return newModel, tea.Batch(cmds...)
 				}
 
@@ -330,7 +331,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m modelNewTransaction) View() string {
 	if m.form.State == huh.StateCompleted {
-		return "Transaction created successfully! Press Enter to submit, Ctrl+N to create another, or Esc to go back."
+		return "Transaction created successfully! Press Enter to submit, Ctrl+R to reset curren form, or Esc to go back."
 	}
 	return m.form.View()
 }

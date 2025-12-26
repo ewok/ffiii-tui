@@ -38,7 +38,7 @@ var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
-func InitList(api *firefly.Api) modelTransactions {
+func newModelTransactions(api *firefly.Api) modelTransactions {
 	transactions, err := api.ListTransactions("", "", "")
 	if err != nil {
 		fmt.Println("Error fetching transactions:", err)
@@ -115,7 +115,7 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 
 		row := table.Row{
 			Type,
-			date.Format("2006-01-02 15:04:05"),
+			date.Format("2006-01-02"),
 			tx.Source,
 			tx.Destination,
 			tx.Category,
@@ -161,7 +161,7 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 
 	return rows, []table.Column{
 		{Title: "Type", Width: 2},
-		{Title: "Date", Width: 20},
+		{Title: "Date", Width: 10},
 		{Title: "Source", Width: sourceWidth},
 		{Title: "Destination", Width: destinationWidth},
 		{Title: "Category", Width: categoryWidth},
@@ -224,11 +224,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.transactions = transactions
-		cmds = append(cmds, func() tea.Msg { return FilterAccountMsg{account: m.currentAccount} })
+		cmds = append(cmds, Cmd(FilterAccountMsg{account: m.currentAccount}))
 		cmds = append(cmds, tea.Printf("Refreshed"))
 	case RefreshAssetsMsg:
 		m.fireflyApi.UpdateAssets()
-		cmds = append(cmds, func() tea.Msg { return RefreshBalanceMsg{} })
+		cmds = append(cmds, Cmd(RefreshBalanceMsg{}))
 	case RefreshExpensesMsg:
 		m.fireflyApi.UpdateExpenses()
 	case tea.WindowSizeMsg:
@@ -237,21 +237,24 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.table.SetHeight(msg.Height - v)
 	case tea.KeyMsg:
 		if m.table.Focused() {
-
 			switch msg.String() {
 			case "r":
-				cmds = append(cmds, func() tea.Msg { return RefreshTransactionsMsg{} })
-				cmds = append(cmds, func() tea.Msg { return RefreshAssetsMsg{} })
-				cmds = append(cmds, func() tea.Msg { return RefreshExpensesMsg{} })
+				cmds = append(cmds, Cmd(RefreshTransactionsMsg{}))
+				cmds = append(cmds, Cmd(RefreshAssetsMsg{}))
+				cmds = append(cmds, Cmd(RefreshExpensesMsg{}))
 				return m, tea.Batch(cmds...)
 			case "f":
-				cmds = append(cmds, func() tea.Msg { return viewFilterMsg{} })
+				cmds = append(cmds, Cmd(viewFilterMsg{}))
 			case "n":
-				cmds = append(cmds, func() tea.Msg { return viewNewMsg{} })
+				cmds = append(cmds, Cmd(viewNewMsg{}))
 			case "a":
-				cmds = append(cmds, func() tea.Msg { return viewAccountsMsg{} })
+				cmds = append(cmds, Cmd(viewAccountsMsg{}))
 			case "ctrl+a":
-				cmds = append(cmds, func() tea.Msg { return FilterAccountMsg{account: ""} })
+				cmds = append(cmds, Cmd(FilterAccountMsg{account: ""}))
+			case "c":
+				cmds = append(cmds, Cmd(viewCategoriesMsg{}))
+			case "e":
+				cmds = append(cmds, Cmd(viewExpensesMsg{}))
 			// enter
 			// case "enter":
 			// 	return m, tea.Batch(
@@ -261,7 +264,6 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 		}
-
 	}
 	m.table, cmd = m.table.Update(msg)
 	cmds = append(cmds, cmd)
@@ -271,4 +273,12 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m modelTransactions) View() string {
 	return m.table.View()
+}
+
+func (m *modelTransactions) Blur() {
+	m.table.Blur()
+}
+
+func (m *modelTransactions) Focus() {
+	m.table.Focus()
 }

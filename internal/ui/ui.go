@@ -15,6 +15,11 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 )
 
+var (
+	itemStyle         = lipgloss.NewStyle().PaddingLeft(2).PaddingRight(2)
+	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(0).Foreground(lipgloss.Color("170"))
+)
+
 type state uint
 
 const (
@@ -24,6 +29,7 @@ const (
 	newView
 	accountView
 	categoryView
+	expensesView
 )
 
 type (
@@ -31,6 +37,8 @@ type (
 	viewAccountsMsg     struct{}
 	viewFilterMsg       struct{}
 	viewNewMsg          struct{}
+	viewCategoriesMsg   struct{}
+	viewExpensesMsg     struct{}
 )
 
 type modelUI struct {
@@ -40,6 +48,8 @@ type modelUI struct {
 	fireflyApi   *firefly.Api
 	new          modelNewTransaction
 	accounts     modelAccounts
+	categories   modelCategories
+	expenses     modelExpenses
 }
 
 func Show(api *firefly.Api) {
@@ -51,8 +61,11 @@ func Show(api *firefly.Api) {
 
 	n := newModelNewTransaction(api)
 	a := newModelAccounts(api)
+	t := newModelTransactions(api)
+	c := newModelCategories(api)
+	e := newModelExpenses(api)
 
-	m := modelUI{filter: ti, fireflyApi: api, transactions: InitList(api), new: n, accounts: a}
+	m := modelUI{filter: ti, fireflyApi: api, transactions: t, new: n, accounts: a, categories: c, expenses: e}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
@@ -60,11 +73,10 @@ func Show(api *firefly.Api) {
 }
 
 func (m modelUI) Init() tea.Cmd {
-	return func() tea.Msg { return viewAccountsMsg{} }
+	return func() tea.Msg { return viewTransactionsMsg{} }
 }
 
 func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -76,31 +88,52 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case viewTransactionsMsg:
 		m.state = transactionView
 		m.filter.Blur()
-		m.transactions.table.Focus()
+		m.transactions.Focus()
 		m.accounts.Blur()
+		m.categories.Blur()
+		m.expenses.Blur()
 	case viewAccountsMsg:
 		m.state = accountView
 		m.filter.Blur()
-		m.transactions.table.Blur()
+		m.transactions.Blur()
 		m.accounts.Focus()
+		m.categories.Blur()
+		m.expenses.Blur()
 	case viewFilterMsg:
 		m.state = filterView
 		m.filter.Focus()
-		m.transactions.table.Blur()
+		m.transactions.Blur()
 		m.accounts.Blur()
+		m.categories.Blur()
+		m.expenses.Blur()
 	case viewNewMsg:
 		m.state = newView
 		m.filter.Blur()
-		m.transactions.table.Blur()
+		m.transactions.Blur()
 		m.accounts.Blur()
+		m.categories.Blur()
+		m.expenses.Blur()
+	case viewCategoriesMsg:
+		m.state = categoryView
+		m.filter.Blur()
+		m.transactions.Blur()
+		m.accounts.Blur()
+		m.categories.Focus()
+		m.expenses.Blur()
+	case viewExpensesMsg:
+		m.state = expensesView
+		m.filter.Blur()
+		m.transactions.Blur()
+		m.accounts.Blur()
+		m.categories.Blur()
+		m.expenses.Focus()
 	}
 
 	switch m.state {
-	case accountView, transactionView:
+	case accountView, transactionView, categoryView, expensesView:
 		nModel, nCmd := m.transactions.Update(msg)
 		listModel, ok := nModel.(modelTransactions)
 		if !ok {
-			// FIX: make it better
 			panic("Somthing bad happened")
 		}
 		m.transactions = listModel
@@ -109,37 +142,52 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		nModel, nCmd = m.accounts.Update(msg)
 		accountsModel, ok := nModel.(modelAccounts)
 		if !ok {
-			// FIX: make it better
 			panic("Somthing bad happened")
 		}
 		m.accounts = accountsModel
+		cmds = append(cmds, nCmd)
+
+		nModel, nCmd = m.categories.Update(msg)
+		categoryModel, ok := nModel.(modelCategories)
+		if !ok {
+			panic("Somthing bad happened")
+		}
+		m.categories = categoryModel
+		cmds = append(cmds, nCmd)
+
+		nModel, nCmd = m.expenses.Update(msg)
+		expensesModel, ok := nModel.(modelExpenses)
+		if !ok {
+			panic("Somthing bad happened")
+		}
+		m.expenses = expensesModel
 		cmds = append(cmds, nCmd)
 	case filterView:
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "esc":
-				cmds = append(cmds, func() tea.Msg { return FilterMsg{query: ""} })
-				cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
+				cmds = append(cmds, Cmd(FilterMsg{query: ""}))
+				cmds = append(cmds, Cmd(viewTransactionsMsg{}))
 			case "enter":
 				value := m.filter.Value()
-				cmds = append(cmds, func() tea.Msg { return FilterMsg{query: value} })
-				cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
+				cmds = append(cmds, Cmd(FilterMsg{query: value}))
+				cmds = append(cmds, Cmd(viewTransactionsMsg{}))
 			}
 		}
+		var cmd tea.Cmd
 		m.filter, cmd = m.filter.Update(msg)
+		cmds = append(cmds, cmd)
 	case newView:
-		// m.new = newModelNewTransaction(m.fireflyApi)
 		nModel, nCmd := m.new.Update(msg)
 		newModel, ok := nModel.(modelNewTransaction)
 		if !ok {
 			panic("Somthing bad happened")
 		}
 		m.new = newModel
-		cmd = nCmd
+		cmds = append(cmds, nCmd)
 	}
 
-	cmds = append(cmds, cmd)
 	return m, tea.Batch(cmds...)
 }
 
@@ -147,14 +195,33 @@ func (m modelUI) View() string {
 	switch m.state {
 	case transactionView:
 		// return baseStyle.Render(m.transactions.View())
-		return lipgloss.JoinHorizontal(lipgloss.Top, baseStyle.Render(m.accounts.View()), baseStyle.Render(m.transactions.View()))
+		return lipgloss.JoinHorizontal(lipgloss.Top,
+		    baseStyle.Render(m.accounts.View()),
+		    baseStyle.Render(m.transactions.View()))
 	case accountView:
 		// return baseStyle.Render(m.accounts.View())
-		return lipgloss.JoinHorizontal(lipgloss.Top, baseStyle.Render(m.accounts.View()), baseStyle.Render(m.transactions.View()))
+		return lipgloss.JoinHorizontal(
+		    lipgloss.Top,
+		    baseStyle.Render(m.accounts.View()),
+		    baseStyle.Render(m.transactions.View()))
+    // TODO: Make prompt view
 	case filterView:
 		return baseStyle.Render(fmt.Sprintf("filter: %s", m.filter.View()) + "\n" + m.transactions.View())
 	case newView:
-		return baseStyle.Render(m.new.View())
+		return lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			baseStyle.Render(m.accounts.View()),
+			baseStyle.Render(m.new.View()))
+	case categoryView:
+		return lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			baseStyle.Render(m.categories.View()),
+			baseStyle.Render(m.transactions.View()))
+	case expensesView:
+		return lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			baseStyle.Render(m.expenses.View()),
+			baseStyle.Render(m.transactions.View()))
 	}
 	return baseStyle.Render(m.transactions.View()) + "\n"
 }

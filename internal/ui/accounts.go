@@ -28,12 +28,16 @@ type modelAccounts struct {
 	focus bool
 }
 
-func newModelAccounts(api *firefly.Api) modelAccounts {
-
+func getAssetsItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Assets {
 		items = append(items, accountItem{account: i.Name, balance: fmt.Sprintf("%.2f", i.Balance), currency: i.CurrencyCode})
 	}
+	return items
+}
+
+func newModelAccounts(api *firefly.Api) modelAccounts {
+	items := getAssetsItems(api)
 
 	m := modelAccounts{list: list.New(items, list.NewDefaultDelegate(), 0, 0), api: api}
 	m.list.Title = "Accounts"
@@ -57,35 +61,31 @@ func (m modelAccounts) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case RefreshBalanceMsg:
-		items := []list.Item{}
-		for _, i := range m.api.Assets {
-			items = append(items, accountItem{account: i.Name, balance: fmt.Sprintf("%.2f", i.Balance), currency: i.CurrencyCode})
-		}
-		cmds = append(cmds, m.list.SetItems(items))
-		m.list, cmd = m.list.Update(msg)
-		cmds = append(cmds, cmd)
+		cmds = append(cmds, m.list.SetItems(getAssetsItems(m.api)))
 		return m, tea.Batch(cmds...)
 	case tea.KeyMsg:
 		if m.focus {
 			switch msg.String() {
-			case "esc":
-				cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
+			case "esc", "q", "ctrl+c":
+				cmds = append(cmds, Cmd(viewTransactionsMsg{}))
 			case "f":
 				i, ok := m.list.SelectedItem().(accountItem)
 				if ok {
-					cmds = append(cmds, func() tea.Msg { return FilterAccountMsg{account: i.account} })
+					cmds = append(cmds, Cmd(FilterAccountMsg{account: i.account}))
 				}
 				return m, tea.Batch(cmds...)
 			case "enter":
 				i, ok := m.list.SelectedItem().(accountItem)
 				if ok {
-					cmds = append(cmds, func() tea.Msg { return FilterAccountMsg{account: i.account} })
+					cmds = append(cmds, Cmd(FilterAccountMsg{account: i.account}))
 				}
-				cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
-			case "n":
-				cmds = append(cmds, func() tea.Msg { return viewNewMsg{} })
-			case "q", "ctrl+c":
-				return m, tea.Quit
+				cmds = append(cmds, Cmd(viewTransactionsMsg{}))
+			// case "n":
+			// 	cmds = append(cmds, func() tea.Msg { return viewNewMsg{} })
+			case "c":
+				cmds = append(cmds, Cmd(viewCategoriesMsg{}))
+			case "e":
+				cmds = append(cmds, Cmd(viewExpensesMsg{}))
 			}
 		}
 	case tea.WindowSizeMsg:
