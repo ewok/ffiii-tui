@@ -5,7 +5,6 @@ SPDX-License-Identifier: Apache-2.0
 package ui
 
 // TODO: Use last date as input, and key for resetting to today.
-// TODO: Add category, destination creation.
 
 import (
 	"errors"
@@ -22,6 +21,7 @@ import (
 type RefreshNewCategoryMsg struct{}
 type RefreshNewAssetMsg struct{}
 type RefreshNewExpenseMsg struct{}
+type RefreshNewRevenueMsg struct{}
 
 type modelNewTransaction struct {
 	form  *huh.Form // huh.Form is just a tea.Model
@@ -268,6 +268,11 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "withdrawal":
 			triggerDestinationCounter++
 		}
+	case RefreshNewRevenueMsg:
+		switch transactionType {
+		case "deposit":
+			triggerSourceCounter++
+		}
 	case RefreshNewCategoryMsg:
 		triggerCategoryCounter++
 	}
@@ -282,7 +287,8 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "n":
 			switch m.form.GetFocusedField().GetKey() {
 			case "source_name":
-				if transactionType == "withdrawal" || transactionType == "transfer" {
+				switch transactionType {
+				case "withdrawal", "transfer":
 					cmds = append(cmds, Cmd(PromptMsg{
 						Prompt: "New Asset(name,currency): ",
 						Value:  "",
@@ -301,6 +307,19 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								}
 							}
 							cmds = append(cmds, Cmd(RefreshNewAssetMsg{}))
+							cmds = append(cmds, Cmd(ViewNewMsg{}))
+							return cmds
+						}}))
+				case "deposit":
+					cmds = append(cmds, Cmd(PromptMsg{
+						Prompt: "New Revenue: ",
+						Value:  "",
+						Callback: func(value string) []tea.Cmd {
+							var cmds []tea.Cmd
+							if value != "" {
+								cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
+							}
+							cmds = append(cmds, Cmd(RefreshNewRevenueMsg{}))
 							cmds = append(cmds, Cmd(ViewNewMsg{}))
 							return cmds
 						}}))

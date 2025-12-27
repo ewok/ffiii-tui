@@ -28,7 +28,7 @@ var (
 				BorderStyle(lipgloss.ThickBorder())
 	promptStyle        = baseStyle
 	promptStyleFocused = baseStyleFocused
-	topSize            = 30
+	topSize            = 3
 )
 
 type state uint
@@ -242,9 +242,9 @@ func (m modelUI) View() string {
 	s := ""
 
 	if m.promptVisible {
-		s = s + promptStyleFocused.Render(m.prompt.View()) + "\n"
+		s = s + promptStyleFocused.Render(" "+m.prompt.View()) + "\n"
 	} else {
-		s = s + promptStyle.Render("ffiii-tui") + "\n"
+		s = s + promptStyle.Render(" ffiii-tui") + "\n"
 	}
 
 	switch m.state {
