@@ -14,24 +14,24 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type RefreshEspensesMsg struct{}
-type NewExpenseMsg struct {
+type RefreshRevenuesMsg struct{}
+type NewRevenueMsg struct {
 	account string
 }
 
-type expensesItem struct {
+type revenuesItem struct {
 	id, name string
 }
 
-func (i expensesItem) FilterValue() string { return i.name }
+func (i revenuesItem) FilterValue() string { return i.name }
 
-type expensesItemDelegate struct{}
+type revenuesItemDelegate struct{}
 
-func (d expensesItemDelegate) Height() int                             { return 1 }
-func (d expensesItemDelegate) Spacing() int                            { return 0 }
-func (d expensesItemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d expensesItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(expensesItem)
+func (d revenuesItemDelegate) Height() int                             { return 1 }
+func (d revenuesItemDelegate) Spacing() int                            { return 0 }
+func (d revenuesItemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d revenuesItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	i, ok := listItem.(revenuesItem)
 	if !ok {
 		return
 	}
@@ -46,17 +46,17 @@ func (d expensesItemDelegate) Render(w io.Writer, m list.Model, index int, listI
 	fmt.Fprint(w, fn(i.name))
 }
 
-type modelExpenses struct {
+type modelRevenues struct {
 	list  list.Model
 	api   *firefly.Api
 	focus bool
 }
 
-func newModelExpenses(api *firefly.Api) modelExpenses {
-	items := getExpensesItems(api)
+func newModelRevenues(api *firefly.Api) modelRevenues {
+	items := getRevenuesItems(api)
 
-	m := modelExpenses{list: list.New(items, expensesItemDelegate{}, 0, 0), api: api}
-	m.list.Title = "Expenses"
+	m := modelRevenues{list: list.New(items, revenuesItemDelegate{}, 0, 0), api: api}
+	m.list.Title = "Revenues"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	m.list.SetFilteringEnabled(false)
 	m.list.SetShowStatusBar(false)
@@ -65,25 +65,25 @@ func newModelExpenses(api *firefly.Api) modelExpenses {
 	return m
 }
 
-func (m modelExpenses) Init() tea.Cmd {
+func (m modelRevenues) Init() tea.Cmd {
 	return nil
 }
 
-func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case RefreshExpensesMsg:
-		m.api.UpdateExpenses()
-		cmds = append(cmds, m.list.SetItems(getExpensesItems(m.api)))
+	case RefreshRevenuesMsg:
+		m.api.UpdateRevenues()
+		cmds = append(cmds, m.list.SetItems(getRevenuesItems(m.api)))
 		return m, tea.Batch(cmds...)
-	case NewExpenseMsg:
-		err := m.api.CreateAccount(msg.account, "expense", "")
+	case NewRevenueMsg:
+		err := m.api.CreateAccount(msg.account, "revenue", "")
         // TODO: Report error to user
 		if err == nil {
-			cmds = append(cmds, Cmd(RefreshExpensesMsg{}))
+			cmds = append(cmds, Cmd(RefreshRevenuesMsg{}))
 		}
 		return m, tea.Batch(cmds...)
 	case tea.WindowSizeMsg:
@@ -103,14 +103,14 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 			case "n":
 				cmds = append(cmds, Cmd(PromptMsg{
-					Prompt: "New Expense: ",
+					Prompt: "New Revenue: ",
 					Value:  "",
 					Callback: func(value string) []tea.Cmd {
 						var cmds []tea.Cmd
 						if value != "" {
-							cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
+							cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
 						}
-						cmds = append(cmds, Cmd(ViewExpensesMsg{}))
+						cmds = append(cmds, Cmd(ViewRevenuesMsg{}))
 						return cmds
 					}}))
 				return m, tea.Batch(cmds...)
@@ -118,10 +118,10 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, Cmd(ViewAssetsMsg{}))
 			case "c":
 				cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
+			case "e":
+				cmds = append(cmds, Cmd(ViewExpensesMsg{}))
 			case "r":
-				cmds = append(cmds, Cmd(RefreshExpensesMsg{}))
-			case "i":
-				cmds = append(cmds, Cmd(ViewRevenuesMsg{}))
+				cmds = append(cmds, Cmd(RefreshRevenuesMsg{}))
 			}
 		}
 	}
@@ -134,24 +134,25 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m modelExpenses) View() string {
+func (m modelRevenues) View() string {
 	return m.list.View()
 }
 
-func (m *modelExpenses) Focus() {
+func (m *modelRevenues) Focus() {
 	m.list.FilterInput.Focus()
 	m.focus = true
 }
 
-func (m *modelExpenses) Blur() {
+func (m *modelRevenues) Blur() {
 	m.list.FilterInput.Blur()
 	m.focus = false
 }
 
-func getExpensesItems(api *firefly.Api) []list.Item {
+func getRevenuesItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
-	for _, i := range api.Expenses {
-		items = append(items, expensesItem{id: i.ID, name: i.Name})
+	for _, i := range api.Revenues {
+		items = append(items, revenuesItem{id: i.ID, name: i.Name})
 	}
 	return items
 }
+

@@ -54,6 +54,7 @@ func (api *Api) CreateCategory(name, notes string) error {
 		return err
 	}
 
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
 
@@ -63,10 +64,6 @@ func (api *Api) CreateCategory(name, notes string) error {
 		return fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("failed status code : %d", resp.StatusCode)
-	}
 
 	// TODO: Make nice error handling
 	body, err := io.ReadAll(resp.Body)
@@ -78,6 +75,14 @@ func (api *Api) CreateCategory(name, notes string) error {
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		message, ok := response["message"].(string)
+		if ok && message != "" {
+			return fmt.Errorf("API error: %s", message)
+		}
+		return fmt.Errorf("failed status code : %d", resp.StatusCode)
 	}
 
 	data, ok := response["data"].(map[string]any)
@@ -129,6 +134,7 @@ func (api *Api) listCategories(page int) ([]Category, error) {
 		return nil, err
 	}
 
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/vnd.api+json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
 
@@ -139,13 +145,23 @@ func (api *Api) listCategories(page int) ([]Category, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
-	}
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		var response map[string]any
+		err = json.Unmarshal(body, &response)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
+		}
+
+		message, ok := response["message"].(string)
+		if ok && message != "" {
+			return nil, fmt.Errorf("API error: %s", message)
+		}
+		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
 	}
 
 	var apiResp apiCategoriesResponse

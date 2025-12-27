@@ -19,7 +19,7 @@ import (
 type FilterMsg struct {
 	query string
 }
-type FilterAccountMsg struct {
+type FilterAssetMsg struct {
 	account string
 }
 
@@ -30,12 +30,9 @@ type modelTransactions struct {
 	table          table.Model
 	transactions   []firefly.Transaction
 	api            *firefly.Api
-	currentAccount string
+	currentAsset string
+	focus          bool
 }
-
-var baseStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("240"))
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
 	transactions, err := api.ListTransactions("", "", "")
@@ -76,16 +73,64 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case FilterMsg:
+		value := msg.query
+		if value == "" {
+			rows, columns := getRows(m.transactions)
+			m.table.SetRows(rows)
+			m.table.SetColumns(columns)
+			return m, nil
+		}
+		transactions, err := m.api.SearchTransactions(value)
+		if err != nil {
+			return m, nil
+		}
+		rows, columns := getRows(transactions)
+		m.table.SetRows(rows)
+		m.table.SetColumns(columns)
+		cmds = append(cmds, tea.Printf("Filtered"))
+	case FilterAssetMsg:
+		value := msg.account
+		m.currentAsset = value
+		if value != "" {
+			transactions := []firefly.Transaction{}
+			for _, tx := range m.transactions {
+				if tx.Source == value || tx.Destination == value {
+					transactions = append(transactions, tx)
+				}
+			}
+			rows, columns := getRows(transactions)
+			m.table.SetRows(rows)
+			m.table.SetColumns(columns)
+		} else {
+			rows, columns := getRows(m.transactions)
+			m.table.SetRows(rows)
+			m.table.SetColumns(columns)
+		}
+	case RefreshTransactionsMsg:
+		transactions, err := m.api.ListTransactions("", "", "")
+		if err != nil {
+			return m, nil
+		}
+		m.transactions = transactions
+		cmds = append(cmds, Cmd(FilterAssetMsg{account: m.currentAsset}))
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
 		m.table.SetWidth(msg.Width - h)
-		m.table.SetHeight(msg.Height - v)
+		m.table.SetHeight(msg.Height - v - topSize)
+	}
+
+	if !m.focus {
+		return m, nil
+	}
+
+	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if m.table.Focused() {
 			switch msg.String() {
 			case "r":
 				cmds = append(cmds, Cmd(RefreshTransactionsMsg{}))
-				cmds = append(cmds, Cmd(RefreshBalanceMsg{}))
+				cmds = append(cmds, Cmd(RefreshAssetsMsg{}))
 				cmds = append(cmds, Cmd(RefreshExpensesMsg{}))
 				return m, tea.Batch(cmds...)
 			case "f":
@@ -103,13 +148,15 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "n":
 				cmds = append(cmds, Cmd(ViewNewMsg{}))
 			case "a":
-				cmds = append(cmds, Cmd(ViewAccountsMsg{}))
+				cmds = append(cmds, Cmd(ViewAssetsMsg{}))
 			case "ctrl+a":
-				cmds = append(cmds, Cmd(FilterAccountMsg{account: ""}))
+				cmds = append(cmds, Cmd(FilterAssetMsg{account: ""}))
 			case "c":
 				cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
 			case "e":
 				cmds = append(cmds, Cmd(ViewExpensesMsg{}))
+			case "i":
+				cmds = append(cmds, Cmd(ViewRevenuesMsg{}))
 			// enter
 			// case "enter":
 			// 	return m, tea.Batch(
@@ -132,10 +179,12 @@ func (m modelTransactions) View() string {
 
 func (m *modelTransactions) Blur() {
 	m.table.Blur()
+	m.focus = false
 }
 
 func (m *modelTransactions) Focus() {
 	m.table.Focus()
+	m.focus = true
 }
 
 func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {

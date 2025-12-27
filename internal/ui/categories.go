@@ -75,9 +75,27 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case RefreshCategoriesMsg:
+		m.api.UpdateCategories()
+		cmds = append(cmds, m.list.SetItems(getCategoriesItems(m.api)))
+		return m, tea.Batch(cmds...)
+	case NewCategoryMsg:
+		err := m.api.CreateCategory(msg.category, "")
+		// TODO: Report error to user
+		if err == nil {
+			cmds = append(cmds, Cmd(RefreshCategoriesMsg{}))
+		}
+		return m, tea.Batch(cmds...)
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v)
+		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
+	}
+
+	if !m.focus {
+		return m, nil
+	}
+
+	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if m.focus {
 			switch msg.String() {
@@ -97,19 +115,19 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}}))
 				return m, tea.Batch(cmds...)
 			case "a":
-				cmds = append(cmds, Cmd(ViewAccountsMsg{}))
+				cmds = append(cmds, Cmd(ViewAssetsMsg{}))
 			case "e":
 				cmds = append(cmds, Cmd(ViewExpensesMsg{}))
+			case "i":
+				cmds = append(cmds, Cmd(ViewRevenuesMsg{}))
 			case "r":
 				cmds = append(cmds, Cmd(RefreshCategoriesMsg{}))
 			}
 		}
 	}
 
-	if m.focus {
-		m.list, cmd = m.list.Update(msg)
-		cmds = append(cmds, cmd)
-	}
+	m.list, cmd = m.list.Update(msg)
+	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }

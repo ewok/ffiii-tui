@@ -18,6 +18,7 @@ type PromptMsg struct {
 type modelPrompt struct {
 	input    textinput.Model
 	callback func(value string) []tea.Cmd
+	focus    bool
 }
 
 func newPrompt(msg PromptMsg) modelPrompt {
@@ -42,6 +43,17 @@ func (m modelPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case PromptMsg:
+		m = newPrompt(msg)
+		cmds = append(cmds, cmd, Cmd(ViewPromptMsg{}))
+		return m, tea.Batch(cmds...)
+	}
+
+	if !m.focus {
+		return m, nil
+	}
+
+	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "enter":
@@ -62,8 +74,10 @@ func (m modelPrompt) View() string {
 
 func (m *modelPrompt) Focus() {
 	m.input.Focus()
+	m.focus = true
 }
 
 func (m *modelPrompt) Blur() {
 	m.input.Blur()
+	m.focus = false
 }

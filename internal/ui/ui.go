@@ -14,8 +14,21 @@ import (
 )
 
 var (
-	itemStyle         = lipgloss.NewStyle().PaddingLeft(2).PaddingRight(2)
-	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(0).Foreground(lipgloss.Color("170"))
+	itemStyle = lipgloss.NewStyle().
+			PaddingLeft(2).
+			PaddingRight(2)
+	selectedItemStyle = lipgloss.NewStyle().
+				PaddingLeft(0).
+				Foreground(lipgloss.Color("170"))
+	baseStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("240"))
+	baseStyleFocused = baseStyle.
+				BorderForeground(lipgloss.Color("62")).
+				BorderStyle(lipgloss.ThickBorder())
+	promptStyle        = baseStyle
+	promptStyleFocused = baseStyleFocused
+	topSize            = 30
 )
 
 type state uint
@@ -24,30 +37,33 @@ const (
 	transactionView state = iota
 	periodView
 	newView
-	accountView
+	assetView
 	categoryView
 	expensesView
-	promptView
+	revenuesView
 )
 
 type (
 	ViewTransactionsMsg struct{}
-	ViewAccountsMsg     struct{}
+	ViewAssetsMsg       struct{}
 	ViewNewMsg          struct{}
 	ViewCategoriesMsg   struct{}
 	ViewExpensesMsg     struct{}
+	ViewRevenuesMsg     struct{}
 	ViewPromptMsg       struct{}
 )
 
 type modelUI struct {
-	state        state
-	transactions modelTransactions
-	api          *firefly.Api
-	new          modelNewTransaction
-	accounts     modelAccounts
-	categories   modelCategories
-	expenses     modelExpenses
-	prompt       modelPrompt
+	state         state
+	transactions  modelTransactions
+	api           *firefly.Api
+	new           modelNewTransaction
+	assets        modelAssets
+	categories    modelCategories
+	expenses      modelExpenses
+	revenues      modelRevenues
+	prompt        modelPrompt
+	promptVisible bool
 }
 
 func Show(api *firefly.Api) {
@@ -56,9 +72,15 @@ func Show(api *firefly.Api) {
 		api:          api,
 		transactions: newModelTransactions(api),
 		new:          newModelNewTransaction(api),
-		accounts:     newModelAccounts(api),
+		assets:       newModelAssets(api),
 		categories:   newModelCategories(api),
 		expenses:     newModelExpenses(api),
+		revenues:     newModelRevenues(api),
+		prompt: newPrompt(PromptMsg{
+			Prompt:   "",
+			Value:    "",
+			Callback: func(value string) []tea.Cmd { return []tea.Cmd{Cmd(ViewTransactionsMsg{})} }}),
+		promptVisible: false,
 	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
@@ -71,9 +93,6 @@ func (m modelUI) Init() tea.Cmd {
 }
 
 func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
-    // FIXME: Remake routing
-
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
@@ -83,208 +102,181 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		}
+	case tea.WindowSizeMsg:
+		promptStyle = baseStyle.
+			Width(msg.Width - 2)
+		promptStyleFocused = baseStyleFocused.
+			BorderForeground(lipgloss.Color("#FF5555")).
+			Width(msg.Width - 2)
 		// TODO: Make it prettier
 	case ViewTransactionsMsg:
 		m.state = transactionView
+		m.promptVisible = false
 		m.transactions.Focus()
-		m.accounts.Blur()
+		m.assets.Blur()
 		m.categories.Blur()
 		m.expenses.Blur()
+		m.revenues.Blur()
 		m.prompt.Blur()
-	case ViewAccountsMsg:
-		m.state = accountView
+		m.new.Blur()
+	case ViewAssetsMsg:
+		m.state = assetView
+		m.promptVisible = false
 		m.transactions.Blur()
-		m.accounts.Focus()
+		m.assets.Focus()
 		m.categories.Blur()
 		m.expenses.Blur()
+		m.revenues.Blur()
 		m.prompt.Blur()
+		m.new.Blur()
 	case ViewNewMsg:
 		m.state = newView
+		m.promptVisible = false
 		m.transactions.Blur()
-		m.accounts.Blur()
+		m.assets.Blur()
 		m.categories.Blur()
 		m.expenses.Blur()
+		m.revenues.Blur()
 		m.prompt.Blur()
+		m.new.Focus()
 	case ViewCategoriesMsg:
 		m.state = categoryView
+		m.promptVisible = false
 		m.transactions.Blur()
-		m.accounts.Blur()
+		m.assets.Blur()
 		m.categories.Focus()
 		m.expenses.Blur()
+		m.revenues.Blur()
 		m.prompt.Blur()
 	case ViewExpensesMsg:
 		m.state = expensesView
+		m.promptVisible = false
 		m.transactions.Blur()
-		m.accounts.Blur()
+		m.assets.Blur()
 		m.categories.Blur()
 		m.expenses.Focus()
+		m.revenues.Blur()
 		m.prompt.Blur()
-	case ViewPromptMsg:
-		m.state = promptView
+		m.new.Blur()
+	case ViewRevenuesMsg:
+		m.state = revenuesView
+		m.promptVisible = false
 		m.transactions.Blur()
-		m.accounts.Blur()
+		m.assets.Blur()
 		m.categories.Blur()
 		m.expenses.Blur()
+		m.revenues.Focus()
+		m.prompt.Blur()
+		m.new.Blur()
+	case ViewPromptMsg:
+		m.promptVisible = true
+		m.transactions.Blur()
+		m.assets.Blur()
+		m.categories.Blur()
+		m.expenses.Blur()
+		m.revenues.Blur()
 		m.prompt.Focus()
-	case PromptMsg:
-		m.prompt = newPrompt(msg)
-		cmds = append(cmds, cmd, Cmd(ViewPromptMsg{}))
-		return m, tea.Batch(cmds...)
-
-	case RefreshCategoriesMsg:
-		m.api.UpdateCategories()
-		cmds = append(cmds, m.categories.list.SetItems(getCategoriesItems(m.api)))
-		return m, tea.Batch(cmds...)
-	case NewCategoryMsg:
-		err := m.api.CreateCategory(msg.category, "")
-		if err != nil {
-			cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
-			return m, tea.Batch(cmds...)
-		}
-		cmds = append(cmds, Cmd(RefreshCategoriesMsg{}))
-		return m, tea.Batch(cmds...)
-
-	case RefreshBalanceMsg:
-		m.api.UpdateAssets()
-		cmds = append(cmds, m.accounts.list.SetItems(getAssetsItems(m.api)))
-		return m, tea.Batch(cmds...)
-	case RefreshExpensesMsg:
-		m.api.UpdateExpenses()
-		cmds = append(cmds, m.expenses.list.SetItems(getExpensesItems(m.api)))
-		return m, tea.Batch(cmds...)
-
-	case FilterMsg:
-		value := msg.query
-		if value == "" {
-			rows, columns := getRows(m.transactions.transactions)
-			m.transactions.table.SetRows(rows)
-			m.transactions.table.SetColumns(columns)
-			return m, nil
-		}
-		transactions, err := m.api.SearchTransactions(value)
-		if err != nil {
-			return m, nil
-		}
-		rows, columns := getRows(transactions)
-		m.transactions.table.SetRows(rows)
-		m.transactions.table.SetColumns(columns)
-		cmds = append(cmds, tea.Printf("Filtered"))
-	case FilterAccountMsg:
-		value := msg.account
-		m.transactions.currentAccount = value
-		if value != "" {
-			transactions := []firefly.Transaction{}
-			for _, tx := range m.transactions.transactions {
-				if tx.Source == value || tx.Destination == value {
-					transactions = append(transactions, tx)
-				}
-			}
-			rows, columns := getRows(transactions)
-			m.transactions.table.SetRows(rows)
-			m.transactions.table.SetColumns(columns)
-		} else {
-			rows, columns := getRows(m.transactions.transactions)
-			m.transactions.table.SetRows(rows)
-			m.transactions.table.SetColumns(columns)
-		}
-	case RefreshTransactionsMsg:
-		transactions, err := m.api.ListTransactions("", "", "")
-		if err != nil {
-			return m, nil
-		}
-		m.transactions.transactions = transactions
-		cmds = append(cmds, Cmd(FilterAccountMsg{account: m.transactions.currentAccount}))
-
+		m.new.Blur()
 	}
 
-	switch m.state {
-	case accountView, transactionView, categoryView, expensesView:
-		nModel, nCmd := m.transactions.Update(msg)
-		listModel, ok := nModel.(modelTransactions)
-		if !ok {
-			panic("Somthing bad happened")
-		}
-		m.transactions = listModel
-		cmds = append(cmds, nCmd)
-
-		nModel, nCmd = m.accounts.Update(msg)
-		accountsModel, ok := nModel.(modelAccounts)
-		if !ok {
-			panic("Somthing bad happened")
-		}
-		m.accounts = accountsModel
-		cmds = append(cmds, nCmd)
-
-		nModel, nCmd = m.categories.Update(msg)
-		categoryModel, ok := nModel.(modelCategories)
-		if !ok {
-			panic("Somthing bad happened")
-		}
-		m.categories = categoryModel
-		cmds = append(cmds, nCmd)
-
-		nModel, nCmd = m.expenses.Update(msg)
-		expensesModel, ok := nModel.(modelExpenses)
-		if !ok {
-			panic("Somthing bad happened")
-		}
-		m.expenses = expensesModel
-		cmds = append(cmds, nCmd)
-	case newView:
-		nModel, nCmd := m.new.Update(msg)
-		newModel, ok := nModel.(modelNewTransaction)
-		if !ok {
-			panic("Somthing bad happened")
-		}
-		m.new = newModel
-		cmds = append(cmds, nCmd)
-	case promptView:
-		nModel, nCmd := m.prompt.Update(msg)
-		promptModel, ok := nModel.(modelPrompt)
-		if !ok {
-			panic("Somthing bad happened")
-		}
-		cmds = append(cmds, nCmd)
-		m.prompt = promptModel
+	nModel, cmd := m.transactions.Update(msg)
+	listModel, ok := nModel.(modelTransactions)
+	if !ok {
+		panic("Somthing bad happened")
 	}
+	m.transactions = listModel
+	cmds = append(cmds, cmd)
+
+	nModel, cmd = m.assets.Update(msg)
+	assetsModel, ok := nModel.(modelAssets)
+	if !ok {
+		panic("Somthing bad happened")
+	}
+	m.assets = assetsModel
+	cmds = append(cmds, cmd)
+
+	nModel, cmd = m.categories.Update(msg)
+	categoryModel, ok := nModel.(modelCategories)
+	if !ok {
+		panic("Somthing bad happened")
+	}
+	m.categories = categoryModel
+	cmds = append(cmds, cmd)
+
+	nModel, cmd = m.expenses.Update(msg)
+	expensesModel, ok := nModel.(modelExpenses)
+	if !ok {
+		panic("Somthing bad happened")
+	}
+	m.expenses = expensesModel
+	cmds = append(cmds, cmd)
+
+	nModel, cmd = m.revenues.Update(msg)
+	revenuesModel, ok := nModel.(modelRevenues)
+	if !ok {
+		panic("Somthing bad happened")
+	}
+	m.revenues = revenuesModel
+	cmds = append(cmds, cmd)
+
+	nModel, cmd = m.new.Update(msg)
+	newModel, ok := nModel.(modelNewTransaction)
+	if !ok {
+		panic("Somthing bad happened")
+	}
+	m.new = newModel
+	cmds = append(cmds, cmd)
+
+	nModel, cmd = m.prompt.Update(msg)
+	promptModel, ok := nModel.(modelPrompt)
+	if !ok {
+		panic("Somthing bad happened")
+	}
+	m.prompt = promptModel
+	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
 
 func (m modelUI) View() string {
+	s := ""
+
+	if m.promptVisible {
+		s = s + promptStyleFocused.Render(m.prompt.View()) + "\n"
+	} else {
+		s = s + promptStyle.Render("ffiii-tui") + "\n"
+	}
+
 	switch m.state {
 	case transactionView:
-		// return baseStyle.Render(m.transactions.View())
-		return lipgloss.JoinHorizontal(lipgloss.Top,
-			baseStyle.Render(m.accounts.View()),
-			baseStyle.Render(m.transactions.View()))
-	case accountView:
-		// return baseStyle.Render(m.accounts.View())
-		return lipgloss.JoinHorizontal(
+		s = s + lipgloss.JoinHorizontal(lipgloss.Top,
+			baseStyle.Render(m.assets.View()),
+			baseStyleFocused.Render(m.transactions.View()))
+	case assetView:
+		s = s + lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			baseStyle.Render(m.accounts.View()),
+			baseStyleFocused.Render(m.assets.View()),
 			baseStyle.Render(m.transactions.View()))
-		// TODO: Make prompt view
 	case newView:
-		return lipgloss.JoinHorizontal(
+		s = s + lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			baseStyle.Render(m.accounts.View()),
-			baseStyle.Render(m.new.View()))
+			baseStyle.Render(m.assets.View()),
+			baseStyleFocused.Render(m.new.View()))
 	case categoryView:
-		return lipgloss.JoinHorizontal(
+		s = s + lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			baseStyle.Render(m.categories.View()),
+			baseStyleFocused.Render(m.categories.View()),
 			baseStyle.Render(m.transactions.View()))
 	case expensesView:
-		return lipgloss.JoinHorizontal(
+		s = s + lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			baseStyle.Render(m.expenses.View()),
+			baseStyleFocused.Render(m.expenses.View()),
 			baseStyle.Render(m.transactions.View()))
-	case promptView:
-		return lipgloss.JoinHorizontal(
+	case revenuesView:
+		s = s + lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			baseStyle.Render(m.accounts.View()),
-			baseStyle.Render(m.prompt.View()))
+			baseStyleFocused.Render(m.revenues.View()),
+			baseStyle.Render(m.transactions.View()))
 	}
-	return baseStyle.Render(m.transactions.View()) + "\n"
+	return s
 }
