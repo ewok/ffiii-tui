@@ -3,12 +3,15 @@
 Warning: This project is in early development and may not be fully functional.
 
 `ffiii-tui` is a TUI for Firefly III personal finance manager.
-
+![Transactions](images/transactions.png)
 
 ## Features
 
-- Utilizes the [Charmbracelet](https://github.com/charmbracelet) libraries such as `bubbles`, `bubbletea`, and `lipgloss` for creating interactive terminal applications.
-- Integrates with `cobra` and `viper` for command-line interfaces and configuration management.
+- View and manage transactions, assets, categories, expenses, and revenues.
+![Assets](images/assets.png) ![Categories](images/categories.png)
+![Expenses](images/expenses.png) ![Revenues](images/revenues.png)
+- Create, edit(tbd), and delete(tbd) financial records directly from the terminal.
+![New Transaction](images/new_transaction.png)
 
 ## Installation
 
@@ -39,6 +42,7 @@ Main dependencies include:
 ## Contributing
 
 Please feel free to submit issues or pull requests.
+
 
 ## License
 
