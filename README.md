@@ -2,14 +2,15 @@
 
 Warning: This project is in early development and may not be fully functional.
 
-`ffiii-tui` is a TUI for Firefly III personal finance manager.
 ![Transactions](images/transactions.png)
+
+`ffiii-tui` is a TUI for Firefly III personal finance manager.
 
 ## Features
 
 - View and manage transactions, assets, categories, expenses, and revenues.
-![Assets](images/assets.png) ![Categories](images/categories.png)
-![Expenses](images/expenses.png) ![Revenues](images/revenues.png)
+![Assets](images/assets.png | width=50) ![Categories](images/categories.png | width=50)
+![Expenses](images/expenses.png | width=50) ![Revenues](images/revenues.png | width=50)
 - Create, edit(tbd), and delete(tbd) financial records directly from the terminal.
 ![New Transaction](images/new_transaction.png)
 
