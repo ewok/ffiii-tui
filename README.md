@@ -9,10 +9,7 @@ Warning: This project is in early development and may not be fully functional.
 ## Features
 
 - View and manage transactions, assets, categories, expenses, and revenues.
-<img src="images/assets.png" alt="Assets" width="100" />
-<img src="images/categories.png" alt="Categories" width="100" />
-<img src="images/expenses.png" alt="Expenses" width="100" />
-<img src="images/revenues.png" alt="Revenues" width="100" />
+<img src="images/assets.png" alt="Assets" width="200" /> <img src="images/categories.png" alt="Categories" width="200" /> <img src="images/expenses.png" alt="Expenses" width="200" /> <img src="images/revenues.png" alt="Revenues" width="200" />
 - Create, edit(tbd), and delete(tbd) financial records directly from the terminal.
 ![New Transaction](images/new_transaction.png)
 
