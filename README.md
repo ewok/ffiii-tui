@@ -1,6 +1,6 @@
 # ffiii-tui
 
-Warning: This project is in early development and may not be fully functional.
+_Warning: This project is in early development and may not be fully functional._
 
 ![Transactions](images/transactions.png)
 
@@ -8,10 +8,12 @@ Warning: This project is in early development and may not be fully functional.
 
 ## Features
 
-- View and manage transactions, assets, categories, expenses, and revenues.
+- View and manage transactions, assets, categories, expenses, and revenue accounts.
+
 <img src="images/assets.png" alt="Assets" width="200" /> <img src="images/categories.png" alt="Categories" width="200" /> <img src="images/expenses.png" alt="Expenses" width="200" /> <img src="images/revenues.png" alt="Revenues" width="200" />
+
 - Create, edit(tbd), and delete(tbd) financial records directly from the terminal.
-![New Transaction](images/new_transaction.png)
+<img src="images/new_transaction.png" alt="Assets" width="600" />
 
 ## Installation
 
