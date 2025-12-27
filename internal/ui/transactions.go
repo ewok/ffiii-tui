@@ -19,26 +19,22 @@ import (
 type FilterMsg struct {
 	query string
 }
-type FilterAccountMsg struct {
+type FilterAssetMsg struct {
 	account string
 }
 
-type RefreshAssetsMsg struct{}
 type RefreshTransactionsMsg struct{}
 type RefreshExpensesMsg struct{}
 
 type modelTransactions struct {
-	table          table.Model
-	transactions   []firefly.Transaction
-	fireflyApi     *firefly.Api
-	currentAccount string
+	table        table.Model
+	transactions []firefly.Transaction
+	api          *firefly.Api
+	currentAsset string
+	focus        bool
 }
 
-var baseStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("240"))
-
-func InitList(api *firefly.Api) modelTransactions {
+func newModelTransactions(api *firefly.Api) modelTransactions {
 	transactions, err := api.ListTransactions("", "", "")
 	if err != nil {
 		fmt.Println("Error fetching transactions:", err)
@@ -64,8 +60,132 @@ func InitList(api *firefly.Api) modelTransactions {
 		Bold(false)
 	t.SetStyles(s)
 
-	m := modelTransactions{table: t, transactions: transactions, fireflyApi: api}
+	m := modelTransactions{table: t, transactions: transactions, api: api}
 	return m
+}
+
+func (m modelTransactions) Init() tea.Cmd {
+	return nil
+}
+
+func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	var cmds []tea.Cmd
+
+	switch msg := msg.(type) {
+	case FilterMsg:
+		value := msg.query
+		if value == "" {
+			rows, columns := getRows(m.transactions)
+			m.table.SetRows(rows)
+			m.table.SetColumns(columns)
+			return m, nil
+		}
+		transactions, err := m.api.SearchTransactions(value)
+		if err != nil {
+			return m, nil
+		}
+		rows, columns := getRows(transactions)
+		m.table.SetRows(rows)
+		m.table.SetColumns(columns)
+		cmds = append(cmds, tea.Printf("Filtered"))
+	case FilterAssetMsg:
+		value := msg.account
+		m.currentAsset = value
+		if value != "" {
+			transactions := []firefly.Transaction{}
+			for _, tx := range m.transactions {
+				if tx.Source == value || tx.Destination == value {
+					transactions = append(transactions, tx)
+				}
+			}
+			rows, columns := getRows(transactions)
+			m.table.SetRows(rows)
+			m.table.SetColumns(columns)
+		} else {
+			rows, columns := getRows(m.transactions)
+			m.table.SetRows(rows)
+			m.table.SetColumns(columns)
+		}
+	case RefreshTransactionsMsg:
+		transactions, err := m.api.ListTransactions("", "", "")
+		if err != nil {
+			return m, nil
+		}
+		m.transactions = transactions
+		cmds = append(cmds, Cmd(FilterAssetMsg{account: m.currentAsset}))
+	case tea.WindowSizeMsg:
+		h, v := baseStyle.GetFrameSize()
+		m.table.SetWidth(msg.Width - h)
+		m.table.SetHeight(msg.Height - v - topSize)
+	}
+
+	if !m.focus {
+		return m, nil
+	}
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if m.table.Focused() {
+			switch msg.String() {
+			case "r":
+				cmds = append(cmds,
+					Cmd(RefreshTransactionsMsg{}),
+					Cmd(RefreshAssetsMsg{}),
+					Cmd(RefreshExpensesMsg{}))
+				return m, tea.Batch(cmds...)
+			case "f":
+				cmds = append(cmds, Cmd(PromptMsg{
+					Prompt: "Filter query: ",
+					Value:  "",
+					Callback: func(value string) []tea.Cmd {
+						var cmds []tea.Cmd
+						cmds = append(cmds,
+							Cmd(FilterMsg{query: value}),
+							Cmd(ViewTransactionsMsg{}))
+						return cmds
+					}}))
+				return m, tea.Batch(cmds...)
+			case "n":
+				cmds = append(cmds, Cmd(ViewNewMsg{}))
+			case "a":
+				cmds = append(cmds, Cmd(ViewAssetsMsg{}))
+			case "ctrl+a":
+				cmds = append(cmds, Cmd(FilterAssetMsg{account: ""}))
+			case "c":
+				cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
+			case "e":
+				cmds = append(cmds, Cmd(ViewExpensesMsg{}))
+			case "i":
+				cmds = append(cmds, Cmd(ViewRevenuesMsg{}))
+			// enter
+			// case "enter":
+			// 	return m, tea.Batch(
+			// 		tea.Printf("Let's go to %s!", m.table.SelectedRow()[1]),
+			// 	)
+			case "q", "ctrl+c":
+				return m, tea.Quit
+			}
+		}
+	}
+	m.table, cmd = m.table.Update(msg)
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m modelTransactions) View() string {
+	return m.table.View()
+}
+
+func (m *modelTransactions) Blur() {
+	m.table.Blur()
+	m.focus = false
+}
+
+func (m *modelTransactions) Focus() {
+	m.table.Focus()
+	m.focus = true
 }
 
 func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
@@ -115,7 +235,7 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 
 		row := table.Row{
 			Type,
-			date.Format("2006-01-02 15:04:05"),
+			date.Format("2006-01-02"),
 			tx.Source,
 			tx.Destination,
 			tx.Category,
@@ -161,7 +281,7 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 
 	return rows, []table.Column{
 		{Title: "Type", Width: 2},
-		{Title: "Date", Width: 20},
+		{Title: "Date", Width: 10},
 		{Title: "Source", Width: sourceWidth},
 		{Title: "Destination", Width: destinationWidth},
 		{Title: "Category", Width: categoryWidth},
@@ -173,102 +293,4 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 		{Title: "TxID", Width: transactionIDWidth},
 	}
 
-}
-
-func (m modelTransactions) Init() tea.Cmd {
-	return nil
-}
-
-func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	var cmds []tea.Cmd
-
-	switch msg := msg.(type) {
-	case FilterMsg:
-		value := msg.query
-		if value == "" {
-			rows, columns := getRows(m.transactions)
-			m.table.SetRows(rows)
-			m.table.SetColumns(columns)
-			return m, nil
-		}
-		transactions, err := m.fireflyApi.SearchTransactions(value)
-		if err != nil {
-			return m, nil
-		}
-		rows, columns := getRows(transactions)
-		m.table.SetRows(rows)
-		m.table.SetColumns(columns)
-		cmds = append(cmds, tea.Printf("Filtered"))
-	case FilterAccountMsg:
-		value := msg.account
-		m.currentAccount = value
-		if value != "" {
-			transactions := []firefly.Transaction{}
-			for _, tx := range m.transactions {
-				if tx.Source == value || tx.Destination == value {
-					transactions = append(transactions, tx)
-				}
-			}
-			rows, columns := getRows(transactions)
-			m.table.SetRows(rows)
-			m.table.SetColumns(columns)
-		} else {
-			rows, columns := getRows(m.transactions)
-			m.table.SetRows(rows)
-			m.table.SetColumns(columns)
-		}
-	case RefreshTransactionsMsg:
-		transactions, err := m.fireflyApi.ListTransactions("", "", "")
-		if err != nil {
-			return m, nil
-		}
-		m.transactions = transactions
-		cmds = append(cmds, func() tea.Msg { return FilterAccountMsg{account: m.currentAccount} })
-		cmds = append(cmds, tea.Printf("Refreshed"))
-	case RefreshAssetsMsg:
-		m.fireflyApi.UpdateAssets()
-		cmds = append(cmds, func() tea.Msg { return RefreshBalanceMsg{} })
-	case RefreshExpensesMsg:
-		m.fireflyApi.UpdateExpenses()
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.table.SetWidth(msg.Width - h)
-		m.table.SetHeight(msg.Height - v)
-	case tea.KeyMsg:
-		if m.table.Focused() {
-
-			switch msg.String() {
-			case "r":
-				cmds = append(cmds, func() tea.Msg { return RefreshTransactionsMsg{} })
-				cmds = append(cmds, func() tea.Msg { return RefreshAssetsMsg{} })
-				cmds = append(cmds, func() tea.Msg { return RefreshExpensesMsg{} })
-				return m, tea.Batch(cmds...)
-			case "f":
-				cmds = append(cmds, func() tea.Msg { return viewFilterMsg{} })
-			case "n":
-				cmds = append(cmds, func() tea.Msg { return viewNewMsg{} })
-			case "a":
-				cmds = append(cmds, func() tea.Msg { return viewAccountsMsg{} })
-			case "ctrl+a":
-				cmds = append(cmds, func() tea.Msg { return FilterAccountMsg{account: ""} })
-			// enter
-			// case "enter":
-			// 	return m, tea.Batch(
-			// 		tea.Printf("Let's go to %s!", m.table.SelectedRow()[1]),
-			// 	)
-			case "q", "ctrl+c":
-				return m, tea.Quit
-			}
-		}
-
-	}
-	m.table, cmd = m.table.Update(msg)
-	cmds = append(cmds, cmd)
-
-	return m, tea.Batch(cmds...)
-}
-
-func (m modelTransactions) View() string {
-	return m.table.View()
 }

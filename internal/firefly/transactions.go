@@ -176,6 +176,7 @@ func (api *Api) listTransactions(page, limit int, start, end string) ([]ApiTrans
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/vnd.api+json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
 
@@ -186,23 +187,24 @@ func (api *Api) listTransactions(page, limit int, start, end string) ([]ApiTrans
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
-	}
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	var rawJson map[string]any
-
 	err = json.Unmarshal(body, &rawJson)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
 	}
 
-	// transactions := []Transaction{}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		message, ok := rawJson["message"].(string)
+		if ok && message != "" {
+			return nil, fmt.Errorf("API error: %s", message)
+		}
+		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
+	}
 
 	data, ok := rawJson["data"].([]any)
 	if !ok {
@@ -274,6 +276,7 @@ func (api *Api) searchTransactions(page, limit int, query string) ([]ApiTransact
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/vnd.api+json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
 
@@ -283,10 +286,6 @@ func (api *Api) searchTransactions(page, limit int, query string) ([]ApiTransact
 		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
-	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -298,6 +297,14 @@ func (api *Api) searchTransactions(page, limit int, query string) ([]ApiTransact
 	err = json.Unmarshal(body, &rawJson)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		message, ok := rawJson["message"].(string)
+		if ok && message != "" {
+			return nil, fmt.Errorf("API error: %s", message)
+		}
+		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
 	}
 
 	data, ok := rawJson["data"].([]any)

@@ -101,6 +101,7 @@ func (api *Api) listCurrencies(page int) ([]Currency, error) {
 		return nil, err
 	}
 
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/vnd.api+json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
 
@@ -111,14 +112,25 @@ func (api *Api) listCurrencies(page int) ([]Currency, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
-	}
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		var response map[string]any
+		err = json.Unmarshal(body, &response)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
+		}
+
+		message, ok := response["message"].(string)
+		if ok && message != "" {
+			return nil, fmt.Errorf("API error: %s", message)
+		}
+		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
+	}
+
 	var apiResp apiCurrenciesResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)

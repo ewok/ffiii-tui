@@ -83,6 +83,7 @@ func (api *Api) CreateTransaction(newTransaction NewTransaction) error {
 		return fmt.Errorf("failed to create request: %v", err)
 	}
 
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
 
@@ -92,10 +93,6 @@ func (api *Api) CreateTransaction(newTransaction NewTransaction) error {
 		return fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("failed to send exchange rate: %d", resp.StatusCode)
-	}
 
 	// TODO: Make nice error handling
 	body, err := io.ReadAll(resp.Body)
@@ -107,6 +104,14 @@ func (api *Api) CreateTransaction(newTransaction NewTransaction) error {
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		message, ok := response["message"].(string)
+		if ok && message != "" {
+			return fmt.Errorf("API error: %s", message)
+		}
+		return fmt.Errorf("failed status code : %d", resp.StatusCode)
 	}
 
 	data, ok := response["data"].(map[string]any)

@@ -5,6 +5,6 @@ SPDX-License-Identifier: Apache-2.0
 package firefly
 
 type Subscription struct {
-    ID          string
-    Name        string
+	ID   string
+	Name string
 }

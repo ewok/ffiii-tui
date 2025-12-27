@@ -5,34 +5,43 @@ SPDX-License-Identifier: Apache-2.0
 package ui
 
 // TODO: Use last date as input, and key for resetting to today.
-// TODO: Add category, destination creation.
 
 import (
 	"errors"
 	"ffiii-tui/internal/firefly"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 )
 
+type RefreshNewCategoryMsg struct{}
+type RefreshNewAssetMsg struct{}
+type RefreshNewExpenseMsg struct{}
+type RefreshNewRevenueMsg struct{}
+
 type modelNewTransaction struct {
-	form *huh.Form // huh.Form is just a tea.Model
-	api  *firefly.Api
+	form  *huh.Form // huh.Form is just a tea.Model
+	api   *firefly.Api
+	focus bool
 }
 
 var (
-	source          firefly.Account
-	destination     firefly.Account
-	transactionType string
-	amount          string
-	foreignAmount   string
-	category        firefly.Category
-	year            string
-	month           string
-	day             string
+	source                    firefly.Account
+	destination               firefly.Account
+	transactionType           string
+	amount                    string
+	foreignAmount             string
+	category                  firefly.Category
+	year                      string
+	month                     string
+	day                       string
+	triggerCategoryCounter    byte
+	triggerSourceCounter      byte
+	triggerDestinationCounter byte
 )
 
 func resetNewTransactionDefaults() {
@@ -50,7 +59,6 @@ func resetNewTransactionDefaults() {
 }
 
 func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
-	// Initialize default values
 	resetNewTransactionDefaults()
 
 	now := time.Now()
@@ -102,8 +110,7 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 							}
 						}
 						return options
-					}, &transactionType).WithHeight(5),
-
+					}, []any{&transactionType, &triggerSourceCounter}).WithHeight(5),
 				huh.NewSelect[firefly.Account]().
 					Key("destination_name").
 					Title("Destination Account Name").
@@ -128,11 +135,10 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 							}
 						}
 						return options
-					}, &transactionType).WithHeight(5),
-
+					}, []any{&transactionType, &triggerDestinationCounter}).WithHeight(5),
 				huh.NewSelect[firefly.Category]().
 					Key("category_name").
-					Title("Category Name").
+					Title("Category").
 					Value(&category).
 					OptionsFunc(func() []huh.Option[firefly.Category] {
 						options := []huh.Option[firefly.Category]{}
@@ -140,20 +146,17 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 							options = append(options, huh.NewOption(category.Name, category))
 						}
 						return options
-					}, nil).WithHeight(5),
-
+					}, &triggerCategoryCounter).WithHeight(5),
 				huh.NewInput().
 					Key("amount").
 					Title("Amount").
 					Value(&amount).
 					DescriptionFunc(func() string {
 						switch transactionType {
-						case "withdrawal":
+						case "withdrawal", "transfer":
 							return source.CurrencyCode
 						case "deposit":
 							return destination.CurrencyCode
-						case "transfer":
-							return source.CurrencyCode
 						default:
 							return ""
 						}
@@ -171,19 +174,16 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 					Title("Foreign Amount").
 					Value(&foreignAmount).
 					DescriptionFunc(func() string {
-						switch transactionType {
-						case "transfer":
+						if transactionType == "transfer" {
 							if source.CurrencyCode == destination.CurrencyCode {
 								return "N/A"
 							}
 							return destination.CurrencyCode
-						default:
-							return "N/A"
 						}
+						return "N/A"
 					}, []any{&source, &destination}).
 					Validate(func(str string) error {
-						switch transactionType {
-						case "transfer":
+						if transactionType == "transfer" {
 							if source.CurrencyCode == destination.CurrencyCode {
 								if str != "" {
 									return errors.New("for transfers between same currency accounts, foreign amount should be empty")
@@ -195,10 +195,10 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 							if err != nil || amount < 0 {
 								return errors.New("please enter a valid positive number for amount")
 							}
-						default:
-							if str != "" {
-								return errors.New("foreign amount is only applicable for transfers")
-							}
+							return nil
+						}
+						if str != "" {
+							return errors.New("foreign amount is only applicable for transfers")
 						}
 						return nil
 					}),
@@ -240,7 +240,7 @@ func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
 						return huh.NewOptions(days...)
 					}, []any{&month, &year}).WithHeight(4),
 			),
-		).WithLayout(huh.LayoutGrid(2, 2)),
+		).WithLayout(huh.LayoutColumns(2)),
 	}
 }
 
@@ -252,15 +252,143 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
+	switch msg.(type) {
+	case RefreshNewAssetMsg:
+		switch transactionType {
+		case "withdrawal":
+			triggerSourceCounter++
+		case "deposit":
+			triggerDestinationCounter++
+		case "transfer":
+			triggerSourceCounter++
+			triggerDestinationCounter++
+		}
+	case RefreshNewExpenseMsg:
+		switch transactionType {
+		case "withdrawal":
+			triggerDestinationCounter++
+		}
+	case RefreshNewRevenueMsg:
+		switch transactionType {
+		case "deposit":
+			triggerSourceCounter++
+		}
+	case RefreshNewCategoryMsg:
+		triggerCategoryCounter++
+	}
+
+	if !m.focus {
+		return m, nil
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "n":
+			switch m.form.GetFocusedField().GetKey() {
+			case "source_name":
+				switch transactionType {
+				case "withdrawal", "transfer":
+					cmds = append(cmds, Cmd(PromptMsg{
+						Prompt: "New Asset(name,currency): ",
+						Value:  "",
+						Callback: func(value string) []tea.Cmd {
+							var cmds []tea.Cmd
+							if value != "" {
+								split := strings.SplitN(value, ",", 2)
+								if len(split) >= 2 {
+									acc := strings.TrimSpace(split[0])
+									cur := strings.TrimSpace(split[1])
+									if acc != "" && cur != "" {
+										cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
+									} else {
+										// TODO: Report error to user
+									}
+								}
+							}
+							cmds = append(cmds,
+								Cmd(RefreshNewAssetMsg{}),
+								Cmd(ViewNewMsg{}))
+							return cmds
+						}}))
+				case "deposit":
+					cmds = append(cmds, Cmd(PromptMsg{
+						Prompt: "New Revenue: ",
+						Value:  "",
+						Callback: func(value string) []tea.Cmd {
+							var cmds []tea.Cmd
+							if value != "" {
+								cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
+							}
+							cmds = append(cmds,
+								Cmd(RefreshNewRevenueMsg{}),
+								Cmd(ViewNewMsg{}))
+							return cmds
+						}}))
+				}
+				return m, tea.Batch(cmds...)
+			case "destination_name":
+				switch transactionType {
+				case "withdrawal":
+					cmds = append(cmds, Cmd(PromptMsg{
+						Prompt: "New Expense: ",
+						Value:  "",
+						Callback: func(value string) []tea.Cmd {
+							var cmds []tea.Cmd
+							if value != "" {
+								cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
+							}
+							cmds = append(cmds,
+								Cmd(RefreshNewExpenseMsg{}),
+								Cmd(ViewNewMsg{}))
+							return cmds
+						}}))
+				case "transfer", "deposit":
+					cmds = append(cmds, Cmd(PromptMsg{
+						Prompt: "New Asset(name,currency): ",
+						Value:  "",
+						Callback: func(value string) []tea.Cmd {
+							var cmds []tea.Cmd
+							if value != "" {
+								split := strings.SplitN(value, ",", 2)
+								if len(split) >= 2 {
+									acc := strings.TrimSpace(split[0])
+									cur := strings.TrimSpace(split[1])
+									if acc != "" && cur != "" {
+										cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
+									} else {
+										// TODO: Report error to user
+									}
+								}
+							}
+							cmds = append(cmds,
+								Cmd(RefreshNewAssetMsg{}),
+								Cmd(ViewNewMsg{}))
+							return cmds
+						}}))
+				}
+				return m, tea.Batch(cmds...)
+			case "category_name":
+				cmds = append(cmds, Cmd(PromptMsg{
+					Prompt: "New Category: ",
+					Value:  "",
+					Callback: func(value string) []tea.Cmd {
+						var cmds []tea.Cmd
+						if value != "" {
+							cmds = append(cmds, Cmd(NewCategoryMsg{category: value}))
+						}
+						cmds = append(cmds,
+							Cmd(RefreshNewCategoryMsg{}),
+							Cmd(ViewNewMsg{}))
+						return cmds
+					}}))
+				return m, tea.Batch(cmds...)
+			}
 		case "esc":
-			cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
+			cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 		case "ctrl+r":
 			newModel := newModelNewTransaction(m.api)
-			cmds = append(cmds, func() tea.Msg { return RefreshAssetsMsg{} })
-			cmds = append(cmds, func() tea.Msg { return RefreshExpensesMsg{} })
+			cmds = append(cmds, Cmd(ViewNewMsg{}))
 			return newModel, tea.Batch(cmds...)
 		case "enter":
 			if m.form.State == huh.StateCompleted {
@@ -268,6 +396,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if description == "" {
 					description = fmt.Sprintf("%s, %s -> %s", category.Name, source.Name, destination.Name)
 				}
+
 				currencyCode := ""
 				foreignCurrencyCode := ""
 				switch transactionType {
@@ -309,9 +438,10 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				} else {
 					newModel := newModelNewTransaction(m.api)
-					cmds = append(cmds, func() tea.Msg { return RefreshAssetsMsg{} })
-					cmds = append(cmds, func() tea.Msg { return RefreshTransactionsMsg{} })
-					cmds = append(cmds, func() tea.Msg { return viewTransactionsMsg{} })
+					cmds = append(cmds,
+						Cmd(RefreshAssetsMsg{}),
+						Cmd(RefreshTransactionsMsg{}),
+						Cmd(ViewTransactionsMsg{}))
 					return newModel, tea.Batch(cmds...)
 				}
 
@@ -330,7 +460,15 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m modelNewTransaction) View() string {
 	if m.form.State == huh.StateCompleted {
-		return "Transaction created successfully! Press Enter to submit, Ctrl+N to create another, or Esc to go back."
+		return "Transaction created successfully! Press Enter to submit, Ctrl+R to reset curren form, or Esc to go back."
 	}
 	return m.form.View()
+}
+
+func (m *modelNewTransaction) Focus() {
+	m.focus = true
+}
+
+func (m *modelNewTransaction) Blur() {
+	m.focus = false
 }
