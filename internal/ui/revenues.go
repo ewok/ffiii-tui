@@ -81,7 +81,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	case NewRevenueMsg:
 		err := m.api.CreateAccount(msg.account, "revenue", "")
-        // TODO: Report error to user
+		// TODO: Report error to user
 		if err == nil {
 			cmds = append(cmds, Cmd(RefreshRevenuesMsg{}))
 		}
@@ -155,4 +155,3 @@ func getRevenuesItems(api *firefly.Api) []list.Item {
 	}
 	return items
 }
-

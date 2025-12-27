@@ -81,7 +81,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	case NewExpenseMsg:
 		err := m.api.CreateAccount(msg.account, "expense", "")
-        // TODO: Report error to user
+		// TODO: Report error to user
 		if err == nil {
 			cmds = append(cmds, Cmd(RefreshExpensesMsg{}))
 		}

@@ -306,8 +306,9 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 									}
 								}
 							}
-							cmds = append(cmds, Cmd(RefreshNewAssetMsg{}))
-							cmds = append(cmds, Cmd(ViewNewMsg{}))
+							cmds = append(cmds,
+								Cmd(RefreshNewAssetMsg{}),
+								Cmd(ViewNewMsg{}))
 							return cmds
 						}}))
 				case "deposit":
@@ -319,8 +320,9 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							if value != "" {
 								cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
 							}
-							cmds = append(cmds, Cmd(RefreshNewRevenueMsg{}))
-							cmds = append(cmds, Cmd(ViewNewMsg{}))
+							cmds = append(cmds,
+								Cmd(RefreshNewRevenueMsg{}),
+								Cmd(ViewNewMsg{}))
 							return cmds
 						}}))
 				}
@@ -336,8 +338,9 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							if value != "" {
 								cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
 							}
-							cmds = append(cmds, Cmd(RefreshNewExpenseMsg{}))
-							cmds = append(cmds, Cmd(ViewNewMsg{}))
+							cmds = append(cmds,
+								Cmd(RefreshNewExpenseMsg{}),
+								Cmd(ViewNewMsg{}))
 							return cmds
 						}}))
 				case "transfer", "deposit":
@@ -358,8 +361,9 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 									}
 								}
 							}
-							cmds = append(cmds, Cmd(RefreshNewAssetMsg{}))
-							cmds = append(cmds, Cmd(ViewNewMsg{}))
+							cmds = append(cmds,
+								Cmd(RefreshNewAssetMsg{}),
+								Cmd(ViewNewMsg{}))
 							return cmds
 						}}))
 				}
@@ -373,8 +377,9 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						if value != "" {
 							cmds = append(cmds, Cmd(NewCategoryMsg{category: value}))
 						}
-						cmds = append(cmds, Cmd(RefreshNewCategoryMsg{}))
-						cmds = append(cmds, Cmd(ViewNewMsg{}))
+						cmds = append(cmds,
+							Cmd(RefreshNewCategoryMsg{}),
+							Cmd(ViewNewMsg{}))
 						return cmds
 					}}))
 				return m, tea.Batch(cmds...)
@@ -433,9 +438,10 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				} else {
 					newModel := newModelNewTransaction(m.api)
-					cmds = append(cmds, Cmd(RefreshAssetsMsg{}))
-					cmds = append(cmds, Cmd(RefreshTransactionsMsg{}))
-					cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
+					cmds = append(cmds,
+						Cmd(RefreshAssetsMsg{}),
+						Cmd(RefreshTransactionsMsg{}),
+						Cmd(ViewTransactionsMsg{}))
 					return newModel, tea.Batch(cmds...)
 				}
 

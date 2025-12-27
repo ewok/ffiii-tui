@@ -27,11 +27,11 @@ type RefreshTransactionsMsg struct{}
 type RefreshExpensesMsg struct{}
 
 type modelTransactions struct {
-	table          table.Model
-	transactions   []firefly.Transaction
-	api            *firefly.Api
+	table        table.Model
+	transactions []firefly.Transaction
+	api          *firefly.Api
 	currentAsset string
-	focus          bool
+	focus        bool
 }
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
@@ -129,9 +129,10 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.table.Focused() {
 			switch msg.String() {
 			case "r":
-				cmds = append(cmds, Cmd(RefreshTransactionsMsg{}))
-				cmds = append(cmds, Cmd(RefreshAssetsMsg{}))
-				cmds = append(cmds, Cmd(RefreshExpensesMsg{}))
+				cmds = append(cmds,
+					Cmd(RefreshTransactionsMsg{}),
+					Cmd(RefreshAssetsMsg{}),
+					Cmd(RefreshExpensesMsg{}))
 				return m, tea.Batch(cmds...)
 			case "f":
 				cmds = append(cmds, Cmd(PromptMsg{
