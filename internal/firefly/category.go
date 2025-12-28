@@ -10,13 +10,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
 
 type Category struct {
-	ID    string
-	Name  string
-	Notes string
+	ID     string
+	Name   string
+	Notes  string
+	Spent  []CategorySpent
+}
+
+type CategorySpent struct {
+	CurrencyCode string
+	Amount       float64
 }
 
 type apiCategory struct {
@@ -26,8 +33,15 @@ type apiCategory struct {
 }
 
 type apiCategoryAttr struct {
-	Name  string `json:"name"`
-	Notes string `json:"notes"`
+	Name  string               `json:"name"`
+	Notes string               `json:"notes"`
+	Spent []apiCategorySpent   `json:"spent"`
+}
+
+type apiCategorySpent struct {
+	CurrencyCode string `json:"currency_code"`
+	CurrencySymbol string `json:"currency_symbol"`
+	Amount       string `json:"sum"`
 }
 
 type apiCategoriesResponse struct {
@@ -171,10 +185,23 @@ func (api *Api) listCategories(page int) ([]Category, error) {
 
 	categories := []Category{}
 	for _, apiCat := range apiResp.Data {
+		spent := []CategorySpent{}
+		for _, s := range apiCat.Attributes.Spent {
+			amount, err := strconv.ParseFloat(s.Amount, 64)
+			if err != nil {
+				amount = 0.0
+			}
+			spent = append(spent, CategorySpent{
+				CurrencyCode: s.CurrencyCode,
+				Amount:       amount,
+			})
+		}
+		
 		categories = append(categories, Category{
 			ID:    apiCat.ID,
 			Name:  apiCat.Attributes.Name,
 			Notes: apiCat.Attributes.Notes,
+			Spent: spent,
 		})
 	}
 

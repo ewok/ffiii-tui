@@ -7,8 +7,6 @@ package ui
 import (
 	"ffiii-tui/internal/firefly"
 	"fmt"
-	"io"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -20,31 +18,17 @@ type NewCategoryMsg struct {
 }
 
 type categoryItem struct {
-	id, name, notes string
+	id, name, notes, spent, currency string
 }
 
+func (i categoryItem) Title() string       { return i.name }
+func (i categoryItem) Description() string { 
+	if i.spent != "" && i.currency != "" {
+		return fmt.Sprintf("%s %s", i.spent, i.currency)
+	}
+	return ""
+}
 func (i categoryItem) FilterValue() string { return i.name }
-
-type categoryItemDelegate struct{}
-
-func (d categoryItemDelegate) Height() int                             { return 1 }
-func (d categoryItemDelegate) Spacing() int                            { return 0 }
-func (d categoryItemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d categoryItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(categoryItem)
-	if !ok {
-		return
-	}
-
-	fn := itemStyle.Render
-	if index == m.Index() {
-		fn = func(s ...string) string {
-			return selectedItemStyle.Render("| " + strings.Join(s, " "))
-		}
-	}
-
-	fmt.Fprint(w, fn(i.name))
-}
 
 type modelCategories struct {
 	list  list.Model
@@ -55,7 +39,7 @@ type modelCategories struct {
 func newModelCategories(api *firefly.Api) modelCategories {
 	items := getCategoriesItems(api)
 
-	m := modelCategories{list: list.New(items, categoryItemDelegate{}, 0, 0), api: api}
+	m := modelCategories{list: list.New(items, list.NewDefaultDelegate(), 0, 0), api: api}
 	m.list.Title = "Categories"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	m.list.SetFilteringEnabled(false)
@@ -153,7 +137,22 @@ func (m *modelCategories) Blur() {
 func getCategoriesItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Categories {
-		items = append(items, categoryItem{id: i.ID, name: i.Name, notes: i.Notes})
+		spent := ""
+		currency := ""
+		
+		// Get the first spent entry if available
+		if len(i.Spent) > 0 {
+			spent = fmt.Sprintf("%.2f", i.Spent[0].Amount)
+			currency = i.Spent[0].CurrencyCode
+		}
+		
+		items = append(items, categoryItem{
+			id:       i.ID, 
+			name:     i.Name, 
+			notes:    i.Notes,
+			spent:    spent,
+			currency: currency,
+		})
 	}
 	return items
 }

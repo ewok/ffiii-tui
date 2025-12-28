@@ -7,8 +7,6 @@ package ui
 import (
 	"ffiii-tui/internal/firefly"
 	"fmt"
-	"io"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -20,31 +18,17 @@ type NewRevenueMsg struct {
 }
 
 type revenueItem struct {
-	id, name string
+	id, name, balance, currency string
 }
 
+func (i revenueItem) Title() string       { return i.name }
+func (i revenueItem) Description() string {
+	if i.balance != "" && i.currency != "" {
+		return fmt.Sprintf("%s %s", i.balance, i.currency)
+	}
+	return ""
+}
 func (i revenueItem) FilterValue() string { return i.name }
-
-type revenuesItemDelegate struct{}
-
-func (d revenuesItemDelegate) Height() int                             { return 1 }
-func (d revenuesItemDelegate) Spacing() int                            { return 0 }
-func (d revenuesItemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d revenuesItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(revenueItem)
-	if !ok {
-		return
-	}
-
-	fn := itemStyle.Render
-	if index == m.Index() {
-		fn = func(s ...string) string {
-			return selectedItemStyle.Render("| " + strings.Join(s, " "))
-		}
-	}
-
-	fmt.Fprint(w, fn(i.name))
-}
 
 type modelRevenues struct {
 	list  list.Model
@@ -55,7 +39,7 @@ type modelRevenues struct {
 func newModelRevenues(api *firefly.Api) modelRevenues {
 	items := getRevenuesItems(api)
 
-	m := modelRevenues{list: list.New(items, revenuesItemDelegate{}, 0, 0), api: api}
+	m := modelRevenues{list: list.New(items, list.NewDefaultDelegate(), 0, 0), api: api}
 	m.list.Title = "Revenues"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	m.list.SetFilteringEnabled(false)
@@ -150,7 +134,12 @@ func (m *modelRevenues) Blur() {
 func getRevenuesItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Revenues {
-		items = append(items, revenueItem{id: i.ID, name: i.Name})
+		items = append(items, revenueItem{
+			id:       i.ID, 
+			name:     i.Name,
+			balance:  fmt.Sprintf("%.2f", i.Balance),
+			currency: i.CurrencyCode,
+		})
 	}
 	return items
 }

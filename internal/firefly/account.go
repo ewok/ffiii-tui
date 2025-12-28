@@ -143,9 +143,16 @@ func (api *Api) UpdateExpenses() error {
 
 	api.Expenses = make([]Account, 0)
 	for _, account := range expenses {
+		balance, err := strconv.ParseFloat(account.Attributes.CurrentBalance, 64)
+		if err != nil {
+			balance = 0.0
+		}
+
 		api.Expenses = append(api.Expenses, Account{
-			ID:   account.ID,
-			Name: account.Attributes.Name,
+			ID:           account.ID,
+			Name:         account.Attributes.Name,
+			CurrencyCode: account.Attributes.CurrencyCode,
+			Balance:      balance,
 		})
 	}
 
@@ -177,9 +184,16 @@ func (api *Api) UpdateRevenues() error {
 
 	api.Revenues = make([]Account, 0)
 	for _, account := range revenues {
+		balance, err := strconv.ParseFloat(account.Attributes.CurrentBalance, 64)
+		if err != nil {
+			balance = 0.0
+		}
+
 		api.Revenues = append(api.Revenues, Account{
-			ID:   account.ID,
-			Name: account.Attributes.Name,
+			ID:           account.ID,
+			Name:         account.Attributes.Name,
+			CurrencyCode: account.Attributes.CurrencyCode,
+			Balance:      balance,
 		})
 	}
 

@@ -40,7 +40,7 @@ var (
 	day                       string
 	source                    firefly.Account
 	destination               firefly.Account
-	category                  firefly.Category
+	categoryName              string
 	amount                    string
 	foreignAmount             string
 	triggerCategoryCounter    byte
@@ -58,7 +58,7 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 		day = trx.Date[8:10]
 		source = trx.Source
 		destination = trx.Destination
-		category = trx.Category
+		categoryName = trx.Category.Name
 		if trx.Amount != 0 {
 			amount = fmt.Sprintf("%.2f", trx.Amount)
 		} else {
@@ -76,7 +76,7 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 		day = fmt.Sprintf("%02d", now.Day())
 		source = firefly.Account{}
 		destination = firefly.Account{}
-		category = firefly.Category{}
+		categoryName = ""
 		amount = ""
 		foreignAmount = ""
 	}
@@ -154,14 +154,14 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 						}
 						return options
 					}, []any{&transactionType, &triggerDestinationCounter}).WithHeight(5),
-				huh.NewSelect[firefly.Category]().
+				huh.NewSelect[string]().
 					Key("category_name").
 					Title("Category").
-					Value(&category).
-					OptionsFunc(func() []huh.Option[firefly.Category] {
-						options := []huh.Option[firefly.Category]{}
+					Value(&categoryName).
+					OptionsFunc(func() []huh.Option[string] {
+						options := []huh.Option[string]{}
 						for _, category := range api.Categories {
-							options = append(options, huh.NewOption(category.Name, category))
+							options = append(options, huh.NewOption(category.Name, category.Name))
 						}
 						return options
 					}, &triggerCategoryCounter).WithHeight(5),
@@ -224,8 +224,8 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 					Key("description").
 					Title("Description").
 					PlaceholderFunc(func() string {
-						return fmt.Sprintf("%s, %s -> %s", category.Name, source.Name, destination.Name)
-					}, []any{&transactionType, &category, &source, &destination}).
+						return fmt.Sprintf("%s, %s -> %s", categoryName, source.Name, destination.Name)
+					}, []any{&transactionType, &categoryName, &source, &destination}).
 					WithWidth(60),
 			),
 			huh.NewGroup(
@@ -420,7 +420,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.form.State == huh.StateCompleted {
 				description := m.form.GetString("description")
 				if description == "" {
-					description = fmt.Sprintf("%s, %s -> %s", category.Name, source.Name, destination.Name)
+					description = fmt.Sprintf("%s, %s -> %s", categoryName, source.Name, destination.Name)
 				}
 
 				currencyCode := ""
@@ -456,7 +456,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							ForeignCurrencyCode: foreignCurrencyCode,
 							SourceID:            source.ID,
 							DestinationID:       destination.ID,
-							CategoryID:          category.ID,
+							CategoryID:          m.api.GetCategoryByName(categoryName).ID,
 						},
 					},
 				}); err != nil {
