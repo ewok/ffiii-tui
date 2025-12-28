@@ -21,8 +21,8 @@ type categoryItem struct {
 	id, name, notes, spent, currency string
 }
 
-func (i categoryItem) Title() string       { return i.name }
-func (i categoryItem) Description() string { 
+func (i categoryItem) Title() string { return i.name }
+func (i categoryItem) Description() string {
 	if i.spent != "" && i.currency != "" {
 		return fmt.Sprintf("%s %s", i.spent, i.currency)
 	}
@@ -139,16 +139,16 @@ func getCategoriesItems(api *firefly.Api) []list.Item {
 	for _, i := range api.Categories {
 		spent := ""
 		currency := ""
-		
+
 		// Get the first spent entry if available
 		if len(i.Spent) > 0 {
 			spent = fmt.Sprintf("%.2f", i.Spent[0].Amount)
 			currency = i.Spent[0].CurrencyCode
 		}
-		
+
 		items = append(items, categoryItem{
-			id:       i.ID, 
-			name:     i.Name, 
+			id:       i.ID,
+			name:     i.Name,
 			notes:    i.Notes,
 			spent:    spent,
 			currency: currency,

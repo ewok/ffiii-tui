@@ -21,7 +21,7 @@ type revenueItem struct {
 	id, name, balance, currency string
 }
 
-func (i revenueItem) Title() string       { return i.name }
+func (i revenueItem) Title() string { return i.name }
 func (i revenueItem) Description() string {
 	if i.balance != "" && i.currency != "" {
 		return fmt.Sprintf("%s %s", i.balance, i.currency)
@@ -135,7 +135,7 @@ func getRevenuesItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Revenues {
 		items = append(items, revenueItem{
-			id:       i.ID, 
+			id:       i.ID,
 			name:     i.Name,
 			balance:  fmt.Sprintf("%.2f", i.Balance),
 			currency: i.CurrencyCode,

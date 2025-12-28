@@ -15,10 +15,10 @@ import (
 )
 
 type Category struct {
-	ID     string
-	Name   string
-	Notes  string
-	Spent  []CategorySpent
+	ID    string
+	Name  string
+	Notes string
+	Spent []CategorySpent
 }
 
 type CategorySpent struct {
@@ -33,15 +33,15 @@ type apiCategory struct {
 }
 
 type apiCategoryAttr struct {
-	Name  string               `json:"name"`
-	Notes string               `json:"notes"`
-	Spent []apiCategorySpent   `json:"spent"`
+	Name  string             `json:"name"`
+	Notes string             `json:"notes"`
+	Spent []apiCategorySpent `json:"spent"`
 }
 
 type apiCategorySpent struct {
-	CurrencyCode string `json:"currency_code"`
+	CurrencyCode   string `json:"currency_code"`
 	CurrencySymbol string `json:"currency_symbol"`
-	Amount       string `json:"sum"`
+	Amount         string `json:"sum"`
 }
 
 type apiCategoriesResponse struct {
@@ -196,7 +196,7 @@ func (api *Api) listCategories(page int) ([]Category, error) {
 				Amount:       amount,
 			})
 		}
-		
+
 		categories = append(categories, Category{
 			ID:    apiCat.ID,
 			Name:  apiCat.Attributes.Name,

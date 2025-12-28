@@ -21,7 +21,7 @@ type expenseItem struct {
 	id, name, balance, currency string
 }
 
-func (i expenseItem) Title() string       { return i.name }
+func (i expenseItem) Title() string { return i.name }
 func (i expenseItem) Description() string {
 	if i.balance != "" && i.currency != "" {
 		return fmt.Sprintf("%s %s", i.balance, i.currency)
@@ -135,7 +135,7 @@ func getExpensesItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Expenses {
 		items = append(items, expenseItem{
-			id:       i.ID, 
+			id:       i.ID,
 			name:     i.Name,
 			balance:  fmt.Sprintf("%.2f", i.Balance),
 			currency: i.CurrencyCode,
