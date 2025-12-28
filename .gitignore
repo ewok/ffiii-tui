@@ -8,6 +8,9 @@
 *.so
 *.dylib
 
+# Built binary
+ffiii-tui
+
 # Test binary, built with `go test -c`
 *.test
 
