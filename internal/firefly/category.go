@@ -180,3 +180,21 @@ func (api *Api) listCategories(page int) ([]Category, error) {
 
 	return categories, nil
 }
+
+func (api *Api) GetCategoryByName(name string) Category {
+	for _, category := range api.Categories {
+		if category.Name == name {
+			return category
+		}
+	}
+	return Category{}
+}
+
+func (api *Api) GetCategoryByID(ID string) Category {
+	for _, category := range api.Categories {
+		if category.ID == ID {
+			return category
+		}
+	}
+	return Category{}
+}

@@ -23,6 +23,10 @@ type RefreshNewAssetMsg struct{}
 type RefreshNewExpenseMsg struct{}
 type RefreshNewRevenueMsg struct{}
 
+type NewTransactionMsg struct {
+	transaction firefly.Transaction
+}
+
 type modelNewTransaction struct {
 	form  *huh.Form // huh.Form is just a tea.Model
 	api   *firefly.Api
@@ -30,38 +34,48 @@ type modelNewTransaction struct {
 }
 
 var (
-	source                    firefly.Account
-	destination               firefly.Account
 	transactionType           string
-	amount                    string
-	foreignAmount             string
-	category                  firefly.Category
 	year                      string
 	month                     string
 	day                       string
+	source                    firefly.Account
+	destination               firefly.Account
+	category                  firefly.Category
+	amount                    string
+	foreignAmount             string
 	triggerCategoryCounter    byte
 	triggerSourceCounter      byte
 	triggerDestinationCounter byte
 )
 
-func resetNewTransactionDefaults() {
+func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewTransaction {
 	now := time.Now()
-	year = fmt.Sprint(now.Year())
-	month = fmt.Sprintf("%02d", now.Month())
-	day = fmt.Sprintf("%02d", now.Day())
 
-	source = firefly.Account{}
-	destination = firefly.Account{}
-	transactionType = "withdrawal"
-	amount = ""
-	foreignAmount = ""
-	category = firefly.Category{}
-}
-
-func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
-	resetNewTransactionDefaults()
-
-	now := time.Now()
+	if trx.Type != "" {
+		transactionType = trx.Type
+		year = trx.Date[0:4]
+		month = trx.Date[5:7]
+		day = trx.Date[8:10]
+		source = trx.Source
+		destination = trx.Destination
+		category = trx.Category
+		if trx.Amount != 0 {
+			amount = fmt.Sprintf("%.2f", trx.Amount)
+		}
+		if trx.ForeignAmount != 0 {
+			foreignAmount = fmt.Sprintf("%.2f", trx.ForeignAmount)
+		}
+	} else {
+		transactionType = "withdrawal"
+		year = fmt.Sprint(now.Year())
+		month = fmt.Sprintf("%02d", now.Month())
+		day = fmt.Sprintf("%02d", now.Day())
+		source = firefly.Account{}
+		destination = firefly.Account{}
+		category = firefly.Category{}
+		amount = ""
+		foreignAmount = ""
+	}
 
 	years := []string{}
 	for y := range 10 {
@@ -252,7 +266,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case RefreshNewAssetMsg:
 		switch transactionType {
 		case "withdrawal":
@@ -275,6 +289,10 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case RefreshNewCategoryMsg:
 		triggerCategoryCounter++
+	case NewTransactionMsg:
+		newModel := newModelNewTransaction(m.api, msg.transaction)
+		cmds = append(cmds, Cmd(ViewNewMsg{}))
+		return newModel, tea.Batch(cmds...)
 	}
 
 	if !m.focus {
@@ -387,7 +405,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 		case "ctrl+r":
-			newModel := newModelNewTransaction(m.api)
+			newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 			cmds = append(cmds, Cmd(ViewNewMsg{}))
 			return newModel, tea.Batch(cmds...)
 		case "enter":
@@ -410,7 +428,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						foreignCurrencyCode = destination.CurrencyCode
 					}
 				default:
-					newModel := newModelNewTransaction(m.api)
+					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 					return newModel, nil
 				}
 
@@ -433,11 +451,11 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						},
 					},
 				}); err != nil {
-					newModel := newModelNewTransaction(m.api)
+					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 					return newModel, nil
 
 				} else {
-					newModel := newModelNewTransaction(m.api)
+					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 					cmds = append(cmds,
 						Cmd(RefreshAssetsMsg{}),
 						Cmd(RefreshTransactionsMsg{}),

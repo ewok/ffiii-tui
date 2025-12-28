@@ -14,6 +14,7 @@ type Api struct {
 	// Config contains the API configuration details.
 	Config ApiConfig
 
+	// TODO: Merge it into one to improve performance
 	// Assets holds the list of asset accounts.
 	Assets []Account
 
