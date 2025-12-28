@@ -12,12 +12,12 @@ import (
 type PromptMsg struct {
 	Prompt   string
 	Value    string
-	Callback func(value string) []tea.Cmd
+	Callback func(value string) tea.Cmd
 }
 
 type modelPrompt struct {
 	input    textinput.Model
-	callback func(value string) []tea.Cmd
+	callback func(value string) tea.Cmd
 	focus    bool
 }
 
@@ -40,13 +40,11 @@ func (m modelPrompt) Init() tea.Cmd {
 
 func (m modelPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case PromptMsg:
 		m = newPrompt(msg)
-		cmds = append(cmds, cmd, Cmd(ViewPromptMsg{}))
-		return m, tea.Batch(cmds...)
+		return m, Cmd(ViewPromptMsg{})
 	}
 
 	if !m.focus {
@@ -57,15 +55,14 @@ func (m modelPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "enter":
-			cmds = m.callback(m.input.Value())
+			return m, m.callback(m.input.Value())
 		case "esc", "ctrl+c":
-			cmds = m.callback("")
+			return m, m.callback("")
 		default:
 			m.input, cmd = m.input.Update(msg)
-			cmds = append(cmds, cmd)
 		}
 	}
-	return m, tea.Batch(cmds...)
+	return m, cmd
 }
 
 func (m modelPrompt) View() string {

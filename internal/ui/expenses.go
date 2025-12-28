@@ -71,21 +71,17 @@ func (m modelExpenses) Init() tea.Cmd {
 
 func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
-	var cmd tea.Cmd
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case RefreshExpensesMsg:
 		m.api.UpdateExpenses()
-		cmds = append(cmds, m.list.SetItems(getExpensesItems(m.api)))
-		return m, tea.Batch(cmds...)
+		return m, m.list.SetItems(getExpensesItems(m.api))
 	case NewExpenseMsg:
 		err := m.api.CreateAccount(msg.account, "expense", "")
 		// TODO: Report error to user
 		if err == nil {
-			cmds = append(cmds, Cmd(RefreshExpensesMsg{}))
+			return m, Cmd(RefreshExpensesMsg{})
 		}
-		return m, tea.Batch(cmds...)
+		return m, nil
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
@@ -95,49 +91,46 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if m.focus {
 			switch msg.String() {
 			case "esc", "q", "ctrl+c":
-				cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
+				return m, Cmd(ViewTransactionsMsg{})
 			case "n":
-				cmds = append(cmds, Cmd(PromptMsg{
+				return m, Cmd(PromptMsg{
 					Prompt: "New Expense: ",
 					Value:  "",
-					Callback: func(value string) []tea.Cmd {
+					Callback: func(value string) tea.Cmd {
 						var cmds []tea.Cmd
 						if value != "" {
 							cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
 						}
 						cmds = append(cmds, Cmd(ViewExpensesMsg{}))
-						return cmds
-					}}))
-				return m, tea.Batch(cmds...)
+						return tea.Sequence(cmds...)
+					}})
 			case "f":
 				i, ok := m.list.SelectedItem().(expenseItem)
 				if ok {
-					cmds = append(cmds, Cmd(FilterItemMsg{account: i.name}))
+					return m, Cmd(FilterItemMsg{account: i.name})
 				}
-				return m, tea.Batch(cmds...)
+				return m, nil
 			case "a":
-				cmds = append(cmds, Cmd(ViewAssetsMsg{}))
+				return m, Cmd(ViewAssetsMsg{})
 			case "c":
-				cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
+				return m, Cmd(ViewCategoriesMsg{})
 			case "r":
-				cmds = append(cmds, Cmd(RefreshExpensesMsg{}))
+				return m, Cmd(RefreshExpensesMsg{})
 			case "i":
-				cmds = append(cmds, Cmd(ViewRevenuesMsg{}))
+				return m, Cmd(ViewRevenuesMsg{})
 			}
 		}
 	}
 
-	if m.focus {
-		m.list, cmd = m.list.Update(msg)
-		cmds = append(cmds, cmd)
-	}
-
-	return m, tea.Batch(cmds...)
+	m.list, cmd = m.list.Update(msg)
+	return m, cmd
 }
 
 func (m modelExpenses) View() string {

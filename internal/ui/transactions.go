@@ -76,13 +76,11 @@ func (m modelTransactions) Init() tea.Cmd {
 }
 
 func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case SearchMsg:
 		m.currentSearch = msg.query
-		cmds = append(cmds, Cmd(RefreshTransactionsMsg{}))
+		return m, Cmd(RefreshTransactionsMsg{})
 	case FilterMsg:
 		m.currentItem = ""
 		value := msg.query
@@ -157,7 +155,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.transactions = transactions
-		cmds = append(cmds, Cmd(FilterItemMsg{account: m.currentItem}))
+		return m, Cmd(FilterItemMsg{account: m.currentItem})
 
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
@@ -169,77 +167,76 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if m.table.Focused() {
 			switch msg.String() {
 			case "r":
-				cmds = append(cmds,
+				return m, tea.Sequence(
 					Cmd(RefreshTransactionsMsg{}),
 					Cmd(RefreshAssetsMsg{}))
-				return m, tea.Batch(cmds...)
 			case "f":
-				cmds = append(cmds, Cmd(PromptMsg{
+				return m, Cmd(PromptMsg{
 					Prompt: "Filter query: ",
 					Value:  "",
-					Callback: func(value string) []tea.Cmd {
+					Callback: func(value string) tea.Cmd {
 						var cmds []tea.Cmd
 						cmds = append(cmds,
 							Cmd(FilterMsg{query: value}),
 							Cmd(ViewTransactionsMsg{}))
-						return cmds
-					}}))
-				return m, tea.Batch(cmds...)
+						return tea.Sequence(cmds...)
+					}})
 			case "s":
-				cmds = append(cmds, Cmd(PromptMsg{
+				return m, Cmd(PromptMsg{
 					Prompt: "Search query: ",
 					Value:  "",
-					Callback: func(value string) []tea.Cmd {
+					Callback: func(value string) tea.Cmd {
 						var cmds []tea.Cmd
 						cmds = append(cmds,
 							Cmd(SearchMsg{query: value}),
-							Cmd(ViewTransactionsMsg{}))
-						return cmds
-					}}))
-				return m, tea.Batch(cmds...)
+							Cmd(ViewTransactionsMsg{}),
+						)
+						return tea.Sequence(cmds...)
+					}})
 			case "n":
-				cmds = append(cmds, Cmd(ViewNewMsg{}))
+				return m, Cmd(ViewNewMsg{})
 			case "N":
 				row := m.table.SelectedRow()
 				id, err := strconv.Atoi(row[0])
 				if err != nil {
-					break
+					return m, nil
 				}
 				trx := m.transactions[id]
-				cmds = append(cmds, Cmd(NewTransactionMsg{
-					transaction: trx,
-				}), Cmd(ViewNewMsg{}))
+				return m, tea.Sequence(
+					Cmd(NewTransactionMsg{transaction: trx}),
+					Cmd(ViewNewMsg{}))
 			case "a":
-				cmds = append(cmds, Cmd(ViewAssetsMsg{}))
+				return m, Cmd(ViewAssetsMsg{})
 			case "ctrl+a":
-				cmds = append(cmds, Cmd(FilterItemMsg{account: ""}))
+				return m, Cmd(FilterItemMsg{account: ""})
 			case "c":
-				cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
+				return m, Cmd(ViewCategoriesMsg{})
 			case "e":
-				cmds = append(cmds, Cmd(ViewExpensesMsg{}))
+				return m, Cmd(ViewExpensesMsg{})
 			case "i":
-				cmds = append(cmds, Cmd(ViewRevenuesMsg{}))
+				return m, Cmd(ViewRevenuesMsg{})
 			case "t":
-				cmds = append(cmds, Cmd(ViewFullTransactionViewMsg{}))
+				return m, Cmd(ViewFullTransactionViewMsg{})
 			// enter
 			// case "enter":
 			// 	return m, tea.Batch(
 			// 		tea.Printf("Let's go to %s!", m.table.SelectedRow()[1]),
 			// 	)
-			case "q", "ctrl+c":
+			case "q":
 				return m, tea.Quit
 			}
 		}
 	}
-	m.table, cmd = m.table.Update(msg)
-	cmds = append(cmds, cmd)
 
-	return m, tea.Batch(cmds...)
+	m.table, cmd = m.table.Update(msg)
+	return m, cmd
 }
 
 func (m modelTransactions) View() string {

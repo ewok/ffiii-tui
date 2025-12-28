@@ -58,17 +58,16 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case RefreshAssetsMsg:
 		m.api.UpdateAssets()
-		cmds = append(cmds, m.list.SetItems(getAssetsItems(m.api)))
-		return m, tea.Batch(cmds...)
+		return m, m.list.SetItems(getAssetsItems(m.api))
 	case NewAssetMsg:
 		err := m.api.CreateAccount(msg.account, "asset", msg.currency)
 		// TODO: Report error to user
 		if err != nil {
-			fmt.Println("Error creating asset:", err)
+			cmd = tea.Println("Error creating asset:", err)
 		} else {
-			cmds = append(cmds, Cmd(RefreshAssetsMsg{}))
+			cmd = Cmd(RefreshAssetsMsg{})
 		}
-		return m, tea.Batch(cmds...)
+		return m, cmd
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
@@ -82,25 +81,26 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if m.focus {
 			switch msg.String() {
-			case "esc", "q", "ctrl+c":
-				cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
+			case "esc", "q":
+				return m, Cmd(ViewTransactionsMsg{})
 			case "f":
 				i, ok := m.list.SelectedItem().(assetItem)
 				if ok {
-					cmds = append(cmds, Cmd(FilterItemMsg{account: i.account}))
+					return m, Cmd(FilterItemMsg{account: i.account})
 				}
-				return m, tea.Batch(cmds...)
+				return m, nil
 			case "enter":
 				i, ok := m.list.SelectedItem().(assetItem)
 				if ok {
 					cmds = append(cmds, Cmd(FilterItemMsg{account: i.account}))
 				}
 				cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
+				return m, tea.Sequence(cmds...)
 			case "n":
-				cmds = append(cmds, Cmd(PromptMsg{
+				cmd = Cmd(PromptMsg{
 					Prompt: "New Asset(name,currency): ",
 					Value:  "",
-					Callback: func(value string) []tea.Cmd {
+					Callback: func(value string) tea.Cmd {
 						var cmds []tea.Cmd
 						if value != "" {
 							split := strings.SplitN(value, ",", 2)
@@ -115,25 +115,23 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							}
 						}
 						cmds = append(cmds, Cmd(ViewAssetsMsg{}))
-						return cmds
-					}}))
-				return m, tea.Batch(cmds...)
+						return tea.Sequence(cmds...)
+					}})
+				return m, cmd
 			case "c":
-				cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
+				return m, Cmd(ViewCategoriesMsg{})
 			case "e":
-				cmds = append(cmds, Cmd(ViewExpensesMsg{}))
+				return m, Cmd(ViewExpensesMsg{})
 			case "i":
-				cmds = append(cmds, Cmd(ViewRevenuesMsg{}))
+				return m, Cmd(ViewRevenuesMsg{})
 			case "r":
-				cmds = append(cmds, Cmd(RefreshAssetsMsg{}))
+				return m, Cmd(RefreshAssetsMsg{})
 			}
 		}
 	}
 
 	m.list, cmd = m.list.Update(msg)
-	cmds = append(cmds, cmd)
-
-	return m, tea.Batch(cmds...)
+	return m, cmd
 }
 
 func (m modelAssets) View() string {

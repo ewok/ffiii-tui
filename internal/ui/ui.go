@@ -82,9 +82,11 @@ func Show(api *firefly.Api) {
 		expenses:     newModelExpenses(api),
 		revenues:     newModelRevenues(api),
 		prompt: newPrompt(PromptMsg{
-			Prompt:   "",
-			Value:    "",
-			Callback: func(value string) []tea.Cmd { return []tea.Cmd{Cmd(ViewTransactionsMsg{})} }}),
+			Prompt: "",
+			Value:  "",
+			Callback: func(value string) tea.Cmd {
+				return Cmd(ViewTransactionsMsg{})
+			}}),
 	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
@@ -97,8 +99,6 @@ func (m modelUI) Init() tea.Cmd {
 }
 
 func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -112,7 +112,6 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		promptStyleFocused = baseStyleFocused.
 			BorderForeground(lipgloss.Color("#FF5555")).
 			Width(msg.Width - 2)
-		// TODO: Make it prettier
 	case ViewTransactionsMsg:
 		m.state = transactionView
 		promptVisible = false
@@ -185,6 +184,8 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		fullTransactionView = !fullTransactionView
 		viper.Set("ui.full_view", fullTransactionView)
 	}
+
+	var cmds []tea.Cmd
 
 	nModel, cmd := m.transactions.Update(msg)
 	listModel, ok := nModel.(modelTransactions)
