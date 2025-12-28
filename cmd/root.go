@@ -46,15 +46,19 @@ Prerequisites:
 			return fmt.Errorf("firefly API URL is not set")
 		}
 
-		ff := firefly.NewApi(firefly.ApiConfig{
+		ff, err := firefly.NewApi(firefly.ApiConfig{
 			ApiKey:         apiKey,
 			ApiUrl:         apiUrl,
 			TimeoutSeconds: 10,
 		})
-
-		fmt.Println("Connected to Firefly III at", apiUrl)
+		if err != nil {
+			return fmt.Errorf("failed to connect to Firefly III: %w", err)
+		}
+		fmt.Printf("Connected to Firefly III at %s, as %s", apiUrl, ff.User.Email)
 
 		ui.Show(ff)
+
+		viper.WriteConfigAs(viper.ConfigFileUsed())
 
 		return nil
 	},

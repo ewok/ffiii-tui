@@ -158,6 +158,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, Cmd(ViewExpensesMsg{}))
 			case "i":
 				cmds = append(cmds, Cmd(ViewRevenuesMsg{}))
+			case "t":
+				cmds = append(cmds, Cmd(ViewFullTransactionViewMsg{}))
 			// enter
 			// case "enter":
 			// 	return m, tea.Batch(

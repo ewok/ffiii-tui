@@ -31,6 +31,9 @@ type Api struct {
 
 	// Currencies
 	Currencies []Currency
+
+	// User
+	User User
 }
 
 // NewApi creates a new Api instance with the provided configuration.
@@ -39,8 +42,17 @@ type Api struct {
 //
 // Returns:
 //   - A pointer to an Api struct initialized with the provided configuration.
-func NewApi(config ApiConfig) *Api {
+func NewApi(config ApiConfig) (*Api, error) {
 	api := &Api{Config: config}
+
+	// Test connection and get current user
+	userEmail, err := api.GetCurrentUser()
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Firefly III: %w", err)
+	}
+	api.User = User{
+		Email: userEmail,
+	}
 
 	// Initial data fetch
 	var wg sync.WaitGroup
@@ -66,5 +78,5 @@ func NewApi(config ApiConfig) *Api {
 
 	wg.Wait()
 
-	return api
+	return api, nil
 }

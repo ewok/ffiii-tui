@@ -11,6 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -26,9 +27,11 @@ var (
 	baseStyleFocused = baseStyle.
 				BorderForeground(lipgloss.Color("62")).
 				BorderStyle(lipgloss.ThickBorder())
-	promptStyle        = baseStyle
-	promptStyleFocused = baseStyleFocused
-	topSize            = 3
+	promptStyle         = baseStyle
+	promptStyleFocused  = baseStyleFocused
+	topSize             = 3
+	promptVisible       = false
+	fullTransactionView = false
 )
 
 type state uint
@@ -44,29 +47,31 @@ const (
 )
 
 type (
-	ViewTransactionsMsg struct{}
-	ViewAssetsMsg       struct{}
-	ViewNewMsg          struct{}
-	ViewCategoriesMsg   struct{}
-	ViewExpensesMsg     struct{}
-	ViewRevenuesMsg     struct{}
-	ViewPromptMsg       struct{}
+	ViewTransactionsMsg        struct{}
+	ViewAssetsMsg              struct{}
+	ViewNewMsg                 struct{}
+	ViewCategoriesMsg          struct{}
+	ViewExpensesMsg            struct{}
+	ViewRevenuesMsg            struct{}
+	ViewPromptMsg              struct{}
+	ViewFullTransactionViewMsg struct{}
 )
 
 type modelUI struct {
-	state         state
-	transactions  modelTransactions
-	api           *firefly.Api
-	new           modelNewTransaction
-	assets        modelAssets
-	categories    modelCategories
-	expenses      modelExpenses
-	revenues      modelRevenues
-	prompt        modelPrompt
-	promptVisible bool
+	state        state
+	transactions modelTransactions
+	api          *firefly.Api
+	new          modelNewTransaction
+	assets       modelAssets
+	categories   modelCategories
+	expenses     modelExpenses
+	revenues     modelRevenues
+	prompt       modelPrompt
 }
 
 func Show(api *firefly.Api) {
+
+	fullTransactionView = viper.GetBool("ui.full_view")
 
 	m := modelUI{
 		api:          api,
@@ -80,7 +85,6 @@ func Show(api *firefly.Api) {
 			Prompt:   "",
 			Value:    "",
 			Callback: func(value string) []tea.Cmd { return []tea.Cmd{Cmd(ViewTransactionsMsg{})} }}),
-		promptVisible: false,
 	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
@@ -111,7 +115,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// TODO: Make it prettier
 	case ViewTransactionsMsg:
 		m.state = transactionView
-		m.promptVisible = false
+		promptVisible = false
 		m.transactions.Focus()
 		m.assets.Blur()
 		m.categories.Blur()
@@ -121,7 +125,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.new.Blur()
 	case ViewAssetsMsg:
 		m.state = assetView
-		m.promptVisible = false
+		promptVisible = false
 		m.transactions.Blur()
 		m.assets.Focus()
 		m.categories.Blur()
@@ -131,7 +135,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.new.Blur()
 	case ViewNewMsg:
 		m.state = newView
-		m.promptVisible = false
+		promptVisible = false
 		m.transactions.Blur()
 		m.assets.Blur()
 		m.categories.Blur()
@@ -141,7 +145,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.new.Focus()
 	case ViewCategoriesMsg:
 		m.state = categoryView
-		m.promptVisible = false
+		promptVisible = false
 		m.transactions.Blur()
 		m.assets.Blur()
 		m.categories.Focus()
@@ -150,7 +154,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.prompt.Blur()
 	case ViewExpensesMsg:
 		m.state = expensesView
-		m.promptVisible = false
+		promptVisible = false
 		m.transactions.Blur()
 		m.assets.Blur()
 		m.categories.Blur()
@@ -160,7 +164,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.new.Blur()
 	case ViewRevenuesMsg:
 		m.state = revenuesView
-		m.promptVisible = false
+		promptVisible = false
 		m.transactions.Blur()
 		m.assets.Blur()
 		m.categories.Blur()
@@ -169,7 +173,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.prompt.Blur()
 		m.new.Blur()
 	case ViewPromptMsg:
-		m.promptVisible = true
+		promptVisible = true
 		m.transactions.Blur()
 		m.assets.Blur()
 		m.categories.Blur()
@@ -177,6 +181,9 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.revenues.Blur()
 		m.prompt.Focus()
 		m.new.Blur()
+	case ViewFullTransactionViewMsg:
+		fullTransactionView = !fullTransactionView
+		viper.Set("ui.full_view", fullTransactionView)
 	}
 
 	nModel, cmd := m.transactions.Update(msg)
@@ -241,7 +248,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m modelUI) View() string {
 	s := ""
 
-	if m.promptVisible {
+	if promptVisible {
 		s = s + promptStyleFocused.Render(" "+m.prompt.View()) + "\n"
 	} else {
 		s = s + promptStyle.Render(" ffiii-tui") + "\n"
@@ -249,19 +256,27 @@ func (m modelUI) View() string {
 
 	switch m.state {
 	case transactionView:
-		s = s + lipgloss.JoinHorizontal(lipgloss.Top,
-			baseStyle.Render(m.assets.View()),
-			baseStyleFocused.Render(m.transactions.View()))
+		if fullTransactionView {
+			s = s + baseStyleFocused.Render(m.transactions.View())
+		} else {
+			s = s + lipgloss.JoinHorizontal(lipgloss.Top,
+				baseStyle.Render(m.assets.View()),
+				baseStyleFocused.Render(m.transactions.View()))
+		}
 	case assetView:
 		s = s + lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			baseStyleFocused.Render(m.assets.View()),
 			baseStyle.Render(m.transactions.View()))
 	case newView:
-		s = s + lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			baseStyle.Render(m.assets.View()),
-			baseStyleFocused.Render(m.new.View()))
+		if fullTransactionView {
+			s = s + baseStyleFocused.Render(m.new.View())
+		} else {
+			s = s + lipgloss.JoinHorizontal(
+				lipgloss.Top,
+				baseStyle.Render(m.assets.View()),
+				baseStyleFocused.Render(m.new.View()))
+		}
 	case categoryView:
 		s = s + lipgloss.JoinHorizontal(
 			lipgloss.Top,
