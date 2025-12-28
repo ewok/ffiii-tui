@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -22,6 +23,9 @@ type FilterMsg struct {
 type FilterAssetMsg struct {
 	account string
 }
+type SearchMsg struct {
+	query string
+}
 
 type RefreshTransactionsMsg struct{}
 type RefreshExpensesMsg struct{}
@@ -31,6 +35,7 @@ type modelTransactions struct {
 	transactions  []firefly.Transaction
 	api           *firefly.Api
 	currentAsset  string
+	currentSearch string
 	currentFilter string
 	focus         bool
 }
@@ -74,10 +79,38 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case FilterMsg:
-		m.currentFilter = msg.query
+	case SearchMsg:
+		m.currentSearch = msg.query
 		cmds = append(cmds, Cmd(RefreshTransactionsMsg{}))
+	case FilterMsg:
+		m.currentAsset = ""
+		value := msg.query
+		m.currentFilter = value
+		if value != "" {
+			transactions := []firefly.Transaction{}
+			for _, tx := range m.transactions {
+				// if fields contain the filter value
+				if CaseInsensitiveContains(tx.Description, value) ||
+					CaseInsensitiveContains(tx.Source.Name, value) ||
+					CaseInsensitiveContains(tx.Destination.Name, value) ||
+					CaseInsensitiveContains(tx.Category.Name, value) ||
+					CaseInsensitiveContains(tx.Currency, value) ||
+					strings.Contains(fmt.Sprintf("%.2f", tx.Amount), value) ||
+					CaseInsensitiveContains(tx.ForeignCurrency, value) ||
+					strings.Contains(fmt.Sprintf("%.2f", tx.ForeignAmount), value) {
+					transactions = append(transactions, tx)
+				}
+			}
+			rows, columns := getRows(transactions)
+			m.table.SetRows(rows)
+			m.table.SetColumns(columns)
+		} else {
+			rows, columns := getRows(m.transactions)
+			m.table.SetRows(rows)
+			m.table.SetColumns(columns)
+		}
 	case FilterAssetMsg:
+		m.currentFilter = ""
 		value := msg.account
 		m.currentAsset = value
 		if value != "" {
@@ -98,8 +131,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RefreshTransactionsMsg:
 		var err error
 		transactions := []firefly.Transaction{}
-		if m.currentFilter != "" {
-			transactions, err = m.api.SearchTransactions(m.currentFilter)
+		if m.currentSearch != "" {
+			transactions, err = m.api.SearchTransactions(m.currentSearch)
 			if err != nil {
 				return m, nil
 			}
@@ -139,6 +172,18 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						var cmds []tea.Cmd
 						cmds = append(cmds,
 							Cmd(FilterMsg{query: value}),
+							Cmd(ViewTransactionsMsg{}))
+						return cmds
+					}}))
+				return m, tea.Batch(cmds...)
+			case "s":
+				cmds = append(cmds, Cmd(PromptMsg{
+					Prompt: "Search query: ",
+					Value:  "",
+					Callback: func(value string) []tea.Cmd {
+						var cmds []tea.Cmd
+						cmds = append(cmds,
+							Cmd(SearchMsg{query: value}),
 							Cmd(ViewTransactionsMsg{}))
 						return cmds
 					}}))

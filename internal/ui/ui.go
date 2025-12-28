@@ -258,6 +258,9 @@ func (m modelUI) View() string {
 		if m.transactions.currentFilter != "" {
 			header = header + " | Filter: " + m.transactions.currentFilter
 		}
+		if m.transactions.currentSearch != "" {
+			header = header + " | Search: " + m.transactions.currentSearch
+		}
 		s = s + promptStyle.Render(header) + "\n"
 	}
 
