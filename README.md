@@ -17,19 +17,56 @@ _Warning: This project is in early development and may not be fully functional._
 
 ## Installation
 
-To install the dependencies:
+To install the dependencies, ensure you have Go installed, then run:
 
 ```bash
 go mod tidy
 ```
 
+To build  `ffiii-tui`:
+
+```sh
+go build
+```
+
 ## Usage
 
-Provide examples or explain how to use your application here.
-
 ```bash
-# Example command to start the application
-go run main.go
+./ffiii-tui
+# or
+./ffiii-tui --config path/to/your/config.yaml
+# or
+./ffiii-tui -k YOUR_API_KEY -u https://your-firefly-instance.com/api/v1
+```
+
+## Configuration
+
+The tool requires a configuration YAML file that specifies:
+
+- Firefly III API credentials, including:
+  - `firefly.api_key`: Your Firefly III API key. [How to get an API key](https://docs.firefly-iii.org/how-to/firefly-iii/features/api/#personal-access-tokens)
+  - `firefly.api_url`: The base URL for the Firefly III API.
+
+Example configuration (config_example.yaml):
+
+```yaml
+firefly:
+  api_key: YOUR_API_KEY
+  api_url: https://your-firefly-instance.com/api/v1
+```
+
+To initialize a sample configuration file, run:
+
+```sh
+./ffiii-tui init-config
+```
+
+The new configuration file will be created at `./config.yaml`.
+
+You can also specify API key, and API URL directly when initializing the config:
+
+```sh
+./ffiii-tui init-config -k YOUR_API_KEY -u https://your-firefly-instance.com/api/v1
 ```
 
 ## Dependencies
@@ -44,7 +81,6 @@ Main dependencies include:
 ## Contributing
 
 Please feel free to submit issues or pull requests.
-
 
 ## License
 
