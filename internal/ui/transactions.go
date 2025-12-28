@@ -27,15 +27,16 @@ type RefreshTransactionsMsg struct{}
 type RefreshExpensesMsg struct{}
 
 type modelTransactions struct {
-	table        table.Model
-	transactions []firefly.Transaction
-	api          *firefly.Api
-	currentAsset string
-	focus        bool
+	table         table.Model
+	transactions  []firefly.Transaction
+	api           *firefly.Api
+	currentAsset  string
+	currentFilter string
+	focus         bool
 }
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
-	transactions, err := api.ListTransactions("", "", "")
+	transactions, err := api.ListTransactions("", "")
 	if err != nil {
 		fmt.Println("Error fetching transactions:", err)
 		os.Exit(1)
@@ -74,28 +75,15 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case FilterMsg:
-		value := msg.query
-		if value == "" {
-			rows, columns := getRows(m.transactions)
-			m.table.SetRows(rows)
-			m.table.SetColumns(columns)
-			return m, nil
-		}
-		transactions, err := m.api.SearchTransactions(value)
-		if err != nil {
-			return m, nil
-		}
-		rows, columns := getRows(transactions)
-		m.table.SetRows(rows)
-		m.table.SetColumns(columns)
-		cmds = append(cmds, tea.Printf("Filtered"))
+		m.currentFilter = msg.query
+		cmds = append(cmds, Cmd(RefreshTransactionsMsg{}))
 	case FilterAssetMsg:
 		value := msg.account
 		m.currentAsset = value
 		if value != "" {
 			transactions := []firefly.Transaction{}
 			for _, tx := range m.transactions {
-				if tx.Source == value || tx.Destination == value {
+				if tx.Source.Name == value || tx.Destination.Name == value {
 					transactions = append(transactions, tx)
 				}
 			}
@@ -108,12 +96,22 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.table.SetColumns(columns)
 		}
 	case RefreshTransactionsMsg:
-		transactions, err := m.api.ListTransactions("", "", "")
-		if err != nil {
-			return m, nil
+		var err error
+		transactions := []firefly.Transaction{}
+		if m.currentFilter != "" {
+			transactions, err = m.api.SearchTransactions(m.currentFilter)
+			if err != nil {
+				return m, nil
+			}
+		} else {
+			transactions, err = m.api.ListTransactions("", "")
+			if err != nil {
+				return m, nil
+			}
 		}
 		m.transactions = transactions
 		cmds = append(cmds, Cmd(FilterAssetMsg{account: m.currentAsset}))
+
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
 		m.table.SetWidth(msg.Width - h)
@@ -131,8 +129,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "r":
 				cmds = append(cmds,
 					Cmd(RefreshTransactionsMsg{}),
-					Cmd(RefreshAssetsMsg{}),
-					Cmd(RefreshExpensesMsg{}))
+					Cmd(RefreshAssetsMsg{}))
 				return m, tea.Batch(cmds...)
 			case "f":
 				cmds = append(cmds, Cmd(PromptMsg{
@@ -150,11 +147,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, Cmd(ViewNewMsg{}))
 			case "N":
 				row := m.table.SelectedRow()
-                id, err := strconv.Atoi(row[0])
-                if err != nil {
-                    break
-                }
-				trx := m.transactions[id-1]
+				id, err := strconv.Atoi(row[0])
+				if err != nil {
+					break
+				}
+				trx := m.transactions[id]
 				cmds = append(cmds, Cmd(NewTransactionMsg{
 					transaction: trx,
 				}), Cmd(ViewNewMsg{}))
@@ -213,22 +210,9 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 
 	rows := []table.Row{}
 	// Populate rows from transactions
-	for id, tx := range transactions {
-
-		// Parse amounts
-		fAmount, err := strconv.ParseFloat(tx.Amount, 64)
-		if err != nil {
-			amount = "N/A"
-		} else {
-			amount = fmt.Sprintf("%.2f", fAmount)
-		}
-
-		fForeignAmount, err := strconv.ParseFloat(tx.ForeignAmount, 64)
-		if err != nil {
-			foreignAmount = "N/A"
-		} else {
-			foreignAmount = fmt.Sprintf("%.2f", fForeignAmount)
-		}
+	for _, tx := range transactions {
+		amount = fmt.Sprintf("%.2f", tx.Amount)
+		foreignAmount = fmt.Sprintf("%.2f", tx.ForeignAmount)
 
 		// Convert from string to desired date format
 		// YYYY-MM-DD HH:MM:SS
@@ -246,12 +230,12 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 		}
 
 		row := table.Row{
-			fmt.Sprintf("%d", id+1),
+			fmt.Sprintf("%d", tx.ID),
 			Type,
 			date.Format("2006-01-02"),
-			tx.Source,
-			tx.Destination,
-			tx.Category,
+			tx.Source.Name,
+			tx.Destination.Name,
+			tx.Category.Name,
 			tx.Currency,
 			amount,
 			tx.ForeignCurrency,
@@ -262,15 +246,15 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 		rows = append(rows, row)
 
 		// Update max widths
-		sourceLen := len(tx.Source)
+		sourceLen := len(tx.Source.Name)
 		if sourceLen > sourceWidth {
 			sourceWidth = sourceLen
 		}
-		destinationLen := len(tx.Destination)
+		destinationLen := len(tx.Destination.Name)
 		if destinationLen > destinationWidth {
 			destinationWidth = destinationLen
 		}
-		categoryLen := len(tx.Category)
+		categoryLen := len(tx.Category.Name)
 		if categoryLen > categoryWidth {
 			categoryWidth = categoryLen
 		}

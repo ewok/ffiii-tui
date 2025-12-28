@@ -48,24 +48,34 @@ var (
 	triggerDestinationCounter byte
 )
 
-func resetNewTransactionDefaults() {
+func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewTransaction {
 	now := time.Now()
-	year = fmt.Sprint(now.Year())
-	month = fmt.Sprintf("%02d", now.Month())
-	day = fmt.Sprintf("%02d", now.Day())
 
-	source = firefly.Account{}
-	destination = firefly.Account{}
-	transactionType = "withdrawal"
-	amount = ""
-	foreignAmount = ""
-	category = firefly.Category{}
-}
-
-func newModelNewTransaction(api *firefly.Api) modelNewTransaction {
-	resetNewTransactionDefaults()
-
-	now := time.Now()
+	if trx.Type != "" {
+		transactionType = trx.Type
+		year = trx.Date[0:4]
+		month = trx.Date[5:7]
+		day = trx.Date[8:10]
+		source = trx.Source
+		destination = trx.Destination
+		category = trx.Category
+		if trx.Amount != 0 {
+			amount = fmt.Sprintf("%.2f", trx.Amount)
+		}
+		if trx.ForeignAmount != 0 {
+			foreignAmount = fmt.Sprintf("%.2f", trx.ForeignAmount)
+		}
+	} else {
+		transactionType = "withdrawal"
+		year = fmt.Sprint(now.Year())
+		month = fmt.Sprintf("%02d", now.Month())
+		day = fmt.Sprintf("%02d", now.Day())
+		source = firefly.Account{}
+		destination = firefly.Account{}
+		category = firefly.Category{}
+		amount = ""
+		foreignAmount = ""
+	}
 
 	years := []string{}
 	for y := range 10 {
@@ -280,24 +290,9 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RefreshNewCategoryMsg:
 		triggerCategoryCounter++
 	case NewTransactionMsg:
-		// transactionType = msg.transaction.Type
-		year = msg.transaction.Date[0:4]
-		month = msg.transaction.Date[5:7]
-		day = msg.transaction.Date[8:10]
-		switch msg.transaction.Type {
-		case "withdrawal":
-			source = m.api.GetAssetByName(msg.transaction.Source)
-			destination = m.api.GetExpenseByName(msg.transaction.Destination)
-		case "deposit":
-			source = m.api.GetRevenueByName(msg.transaction.Source)
-			destination = m.api.GetAssetByName(msg.transaction.Destination)
-		case "transfer":
-			source = m.api.GetAssetByName(msg.transaction.Source)
-			destination = m.api.GetAssetByName(msg.transaction.Destination)
-		}
-		category = m.api.GetCategoryByName(msg.transaction.Category)
-		amount = msg.transaction.Amount
-		foreignAmount = msg.transaction.ForeignAmount
+		newModel := newModelNewTransaction(m.api, msg.transaction)
+		cmds = append(cmds, Cmd(ViewNewMsg{}))
+		return newModel, tea.Batch(cmds...)
 	}
 
 	if !m.focus {
@@ -410,7 +405,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 		case "ctrl+r":
-			newModel := newModelNewTransaction(m.api)
+			newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 			cmds = append(cmds, Cmd(ViewNewMsg{}))
 			return newModel, tea.Batch(cmds...)
 		case "enter":
@@ -433,7 +428,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						foreignCurrencyCode = destination.CurrencyCode
 					}
 				default:
-					newModel := newModelNewTransaction(m.api)
+					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 					return newModel, nil
 				}
 
@@ -456,11 +451,11 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						},
 					},
 				}); err != nil {
-					newModel := newModelNewTransaction(m.api)
+					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 					return newModel, nil
 
 				} else {
-					newModel := newModelNewTransaction(m.api)
+					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 					cmds = append(cmds,
 						Cmd(RefreshAssetsMsg{}),
 						Cmd(RefreshTransactionsMsg{}),

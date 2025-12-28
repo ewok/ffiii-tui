@@ -269,21 +269,78 @@ func (api *Api) listAccounts(accountType string, page int) ([]apiAccount, error)
 }
 
 func (api *Api) GetAssetByName(name string) Account {
-	return api.getAccountByName(name, "asset")
+	for _, account := range api.Assets {
+		if account.Name == name {
+			return account
+		}
+	}
+	return Account{}
 }
 
 func (api *Api) GetExpenseByName(name string) Account {
-	return api.getAccountByName(name, "expense")
+	for _, account := range api.Expenses {
+		if account.Name == name {
+			return account
+		}
+	}
+	return Account{}
 }
 
 func (api *Api) GetLiabilityByName(name string) Account {
-	return api.getAccountByName(name, "liability")
+	for _, account := range api.Liabilities {
+		if account.Name == name {
+			return account
+		}
+	}
+	return Account{}
 }
 
 func (api *Api) GetRevenueByName(name string) Account {
-	return api.getAccountByName(name, "revenue")
+	for _, account := range api.Revenues {
+		if account.Name == name {
+			return account
+		}
+	}
+	return Account{}
 }
 
 func (api *Api) getAccountByName(name string, accountType string) Account {
+	switch accountType {
+	case "asset":
+		return api.GetAssetByName(name)
+	case "expense":
+		return api.GetExpenseByName(name)
+	case "liability":
+		return api.GetLiabilityByName(name)
+	case "revenue":
+		return api.GetRevenueByName(name)
+	default:
+		return Account{}
+	}
+}
+
+func (api *Api) GetAccountByID(ID string) Account {
+	// FIXME: ugly
+	// Search in Assets, Expenses, Liabilities, Revenues
+	for _, account := range api.Assets {
+		if account.ID == ID {
+			return account
+		}
+	}
+	for _, account := range api.Expenses {
+		if account.ID == ID {
+			return account
+		}
+	}
+	for _, account := range api.Liabilities {
+		if account.ID == ID {
+			return account
+		}
+	}
+	for _, account := range api.Revenues {
+		if account.ID == ID {
+			return account
+		}
+	}
 	return Account{}
 }

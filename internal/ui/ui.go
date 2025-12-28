@@ -76,7 +76,7 @@ func Show(api *firefly.Api) {
 	m := modelUI{
 		api:          api,
 		transactions: newModelTransactions(api),
-		new:          newModelNewTransaction(api),
+		new:          newModelNewTransaction(api, firefly.Transaction{}),
 		assets:       newModelAssets(api),
 		categories:   newModelCategories(api),
 		expenses:     newModelExpenses(api),
@@ -251,7 +251,14 @@ func (m modelUI) View() string {
 	if promptVisible {
 		s = s + promptStyleFocused.Render(" "+m.prompt.View()) + "\n"
 	} else {
-		s = s + promptStyle.Render(" ffiii-tui") + "\n"
+		header := " ffiii-tui"
+		if m.transactions.currentAsset != "" {
+			header = header + " | Asset: " + m.transactions.currentAsset
+		}
+		if m.transactions.currentFilter != "" {
+			header = header + " | Filter: " + m.transactions.currentFilter
+		}
+		s = s + promptStyle.Render(header) + "\n"
 	}
 
 	switch m.state {

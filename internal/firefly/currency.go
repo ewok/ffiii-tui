@@ -31,23 +31,6 @@ func (c Currency) GetCode() string {
 	return strings.ToUpper(c.Code)
 }
 
-func NewCurrency(code string) Currency {
-	return Currency{Code: strings.ToUpper(code)}
-}
-
-// {
-//   "data": [
-//     {
-//       "id": "2",
-//       "attributes": {
-//         "enabled": true,
-//         "code": "AMS",
-//         "name": "Ankh-Morpork dollar",
-//       }
-//     }
-//   ]
-// }
-
 type apiCurrency struct {
 	ID         string          `json:"id"`
 	Attributes apiCurrencyAttr `json:"attributes"`
@@ -150,4 +133,13 @@ func (api *Api) listCurrencies(page int) ([]Currency, error) {
 	}
 
 	return currencies, nil
+}
+
+func (api *Api) GetCurrencyByCode(code string) Currency {
+	for _, cur := range api.Currencies {
+		if strings.EqualFold(cur.Code, code) {
+			return cur
+		}
+	}
+	return Currency{}
 }

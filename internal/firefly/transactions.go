@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -16,14 +17,15 @@ const transactionsEndpoint = "%s/transactions?page=%d&limit=%d&start=%s&end=%s"
 const searchTransactionsEndpoint = "%s/search/transactions?page=%d&limit=%d&query=%s"
 
 type Transaction struct {
+	ID              uint
 	TransactionID   string
 	Type            string
 	Date            string
 	Source          Account
 	Destination     Account
 	Category        Category
-	Currency        Currency
-	ForeignCurrency Currency
+	Currency        string
+	ForeignCurrency string
 	Amount          float64
 	ForeignAmount   float64
 	Description     string
@@ -119,8 +121,9 @@ type apiSubTransaction struct {
 	HasAttachments               bool    `json:"has_attachments"`
 }
 
-func (api *Api) ListTransactions(start, end, account string) ([]Transaction, error) {
+func (api *Api) ListTransactions(start, end string) ([]Transaction, error) {
 	transactions := []Transaction{}
+	id := 0
 	page := 1
 	for {
 		txs, err := api.listTransactions(page, 50, start, end)
@@ -132,25 +135,31 @@ func (api *Api) ListTransactions(start, end, account string) ([]Transaction, err
 		}
 		for _, t := range txs {
 			for _, subTx := range t.Attributes.Transactions {
+				amount, err := strconv.ParseFloat(subTx.Amount, 64)
+				if err != nil {
+					amount = 0
+				}
+				foreignAmount, err := strconv.ParseFloat(subTx.ForeignAmount, 64)
+				if err != nil {
+					foreignAmount = 0
+				}
+
 				transaction := Transaction{
+					ID:              uint(id),
 					TransactionID:   t.ID,
 					Type:            subTx.Type,
 					Date:            subTx.Date,
-					Source:          subTx.SourceName,
-					Destination:     subTx.DestinationName,
-					Category:        subTx.CategoryName,
+					Source:          api.GetAccountByID(subTx.SourceID),
+					Destination:     api.GetAccountByID(subTx.DestinationID),
+					Category:        api.GetCategoryByID(subTx.CategoryID),
 					Currency:        subTx.CurrencyCode,
 					ForeignCurrency: subTx.ForeignCurrencyCode,
-					Amount:          subTx.Amount,
-					ForeignAmount:   subTx.ForeignAmount,
+					Amount:          amount,
+					ForeignAmount:   foreignAmount,
 					Description:     subTx.Description,
 				}
-				if account != "" {
-					if subTx.SourceName != account && subTx.DestinationName != account {
-						continue
-					}
-				}
 				transactions = append(transactions, transaction)
+				id++
 			}
 		}
 		page++
@@ -235,6 +244,7 @@ func (api *Api) listTransactions(page, limit int, start, end string) ([]ApiTrans
 
 func (api *Api) SearchTransactions(query string) ([]Transaction, error) {
 	transactions := []Transaction{}
+	id := 0
 	page := 1
 	for {
 		txs, err := api.searchTransactions(page, 50, query)
@@ -246,20 +256,30 @@ func (api *Api) SearchTransactions(query string) ([]Transaction, error) {
 		}
 		for _, t := range txs {
 			for _, subTx := range t.Attributes.Transactions {
+				amount, err := strconv.ParseFloat(subTx.Amount, 64)
+				if err != nil {
+					amount = 0
+				}
+				foreignAmount, err := strconv.ParseFloat(subTx.ForeignAmount, 64)
+				if err != nil {
+					foreignAmount = 0
+				}
 				transaction := Transaction{
+					ID:              uint(id),
 					TransactionID:   t.ID,
 					Type:            subTx.Type,
 					Date:            subTx.Date,
-					Source:          subTx.SourceName,
-					Destination:     subTx.DestinationName,
-					Category:        subTx.CategoryName,
+					Source:          api.GetAccountByID(subTx.SourceID),
+					Destination:     api.GetAccountByID(subTx.DestinationID),
+					Category:        api.GetCategoryByID(subTx.CategoryID),
 					Currency:        subTx.CurrencyCode,
 					ForeignCurrency: subTx.ForeignCurrencyCode,
-					Amount:          subTx.Amount,
-					ForeignAmount:   subTx.ForeignAmount,
+					Amount:          amount,
+					ForeignAmount:   foreignAmount,
 					Description:     subTx.Description,
 				}
 				transactions = append(transactions, transaction)
+				id++
 			}
 		}
 		page++
