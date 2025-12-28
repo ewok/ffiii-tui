@@ -114,6 +114,12 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return cmds
 					}}))
 				return m, tea.Batch(cmds...)
+			case "f":
+				i, ok := m.list.SelectedItem().(categoryItem)
+				if ok {
+					cmds = append(cmds, Cmd(FilterItemMsg{category: i.name}))
+				}
+				return m, tea.Batch(cmds...)
 			case "a":
 				cmds = append(cmds, Cmd(ViewAssetsMsg{}))
 			case "e":

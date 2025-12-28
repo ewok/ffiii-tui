@@ -20,8 +20,9 @@ import (
 type FilterMsg struct {
 	query string
 }
-type FilterAssetMsg struct {
-	account string
+type FilterItemMsg struct {
+	account  string
+	category string
 }
 type SearchMsg struct {
 	query string
@@ -34,7 +35,7 @@ type modelTransactions struct {
 	table         table.Model
 	transactions  []firefly.Transaction
 	api           *firefly.Api
-	currentAsset  string
+	currentItem   string
 	currentSearch string
 	currentFilter string
 	focus         bool
@@ -83,7 +84,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentSearch = msg.query
 		cmds = append(cmds, Cmd(RefreshTransactionsMsg{}))
 	case FilterMsg:
-		m.currentAsset = ""
+		m.currentItem = ""
 		value := msg.query
 		m.currentFilter = value
 		if value != "" {
@@ -109,15 +110,28 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.table.SetRows(rows)
 			m.table.SetColumns(columns)
 		}
-	case FilterAssetMsg:
+	case FilterItemMsg:
 		m.currentFilter = ""
-		value := msg.account
-		m.currentAsset = value
+
+		value := ""
+		if msg.account != "" {
+			value = msg.account
+		} else if msg.category != "" {
+			value = msg.category
+		}
+		m.currentItem = value
+
 		if value != "" {
 			transactions := []firefly.Transaction{}
 			for _, tx := range m.transactions {
-				if tx.Source.Name == value || tx.Destination.Name == value {
+				if msg.category != "" && tx.Category.Name == value {
 					transactions = append(transactions, tx)
+					continue
+				}
+				if msg.account != "" {
+					if tx.Source.Name == value || tx.Destination.Name == value {
+						transactions = append(transactions, tx)
+					}
 				}
 			}
 			rows, columns := getRows(transactions)
@@ -143,7 +157,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.transactions = transactions
-		cmds = append(cmds, Cmd(FilterAssetMsg{account: m.currentAsset}))
+		cmds = append(cmds, Cmd(FilterItemMsg{account: m.currentItem}))
 
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
@@ -203,7 +217,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "a":
 				cmds = append(cmds, Cmd(ViewAssetsMsg{}))
 			case "ctrl+a":
-				cmds = append(cmds, Cmd(FilterAssetMsg{account: ""}))
+				cmds = append(cmds, Cmd(FilterItemMsg{account: ""}))
 			case "c":
 				cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
 			case "e":

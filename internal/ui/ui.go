@@ -252,8 +252,8 @@ func (m modelUI) View() string {
 		s = s + promptStyleFocused.Render(" "+m.prompt.View()) + "\n"
 	} else {
 		header := " ffiii-tui"
-		if m.transactions.currentAsset != "" {
-			header = header + " | Asset: " + m.transactions.currentAsset
+		if m.transactions.currentItem != "" {
+			header = header + " | Item: " + m.transactions.currentItem
 		}
 		if m.transactions.currentFilter != "" {
 			header = header + " | Filter: " + m.transactions.currentFilter

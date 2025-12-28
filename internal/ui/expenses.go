@@ -19,11 +19,11 @@ type NewExpenseMsg struct {
 	account string
 }
 
-type expensesItem struct {
+type expenseItem struct {
 	id, name string
 }
 
-func (i expensesItem) FilterValue() string { return i.name }
+func (i expenseItem) FilterValue() string { return i.name }
 
 type expensesItemDelegate struct{}
 
@@ -31,7 +31,7 @@ func (d expensesItemDelegate) Height() int                             { return 
 func (d expensesItemDelegate) Spacing() int                            { return 0 }
 func (d expensesItemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d expensesItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(expensesItem)
+	i, ok := listItem.(expenseItem)
 	if !ok {
 		return
 	}
@@ -114,6 +114,12 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return cmds
 					}}))
 				return m, tea.Batch(cmds...)
+			case "f":
+				i, ok := m.list.SelectedItem().(expenseItem)
+				if ok {
+					cmds = append(cmds, Cmd(FilterItemMsg{account: i.name}))
+				}
+				return m, tea.Batch(cmds...)
 			case "a":
 				cmds = append(cmds, Cmd(ViewAssetsMsg{}))
 			case "c":
@@ -151,7 +157,7 @@ func (m *modelExpenses) Blur() {
 func getExpensesItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Expenses {
-		items = append(items, expensesItem{id: i.ID, name: i.Name})
+		items = append(items, expenseItem{id: i.ID, name: i.Name})
 	}
 	return items
 }

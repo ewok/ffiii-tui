@@ -87,13 +87,13 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "f":
 				i, ok := m.list.SelectedItem().(assetItem)
 				if ok {
-					cmds = append(cmds, Cmd(FilterAssetMsg{account: i.account}))
+					cmds = append(cmds, Cmd(FilterItemMsg{account: i.account}))
 				}
 				return m, tea.Batch(cmds...)
 			case "enter":
 				i, ok := m.list.SelectedItem().(assetItem)
 				if ok {
-					cmds = append(cmds, Cmd(FilterAssetMsg{account: i.account}))
+					cmds = append(cmds, Cmd(FilterItemMsg{account: i.account}))
 				}
 				cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 			case "n":
