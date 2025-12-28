@@ -61,9 +61,13 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 		category = trx.Category
 		if trx.Amount != 0 {
 			amount = fmt.Sprintf("%.2f", trx.Amount)
+		} else {
+			amount = "0"
 		}
 		if trx.ForeignAmount != 0 {
 			foreignAmount = fmt.Sprintf("%.2f", trx.ForeignAmount)
+		} else {
+			foreignAmount = ""
 		}
 	} else {
 		transactionType = "withdrawal"
