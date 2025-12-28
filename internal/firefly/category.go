@@ -180,3 +180,7 @@ func (api *Api) listCategories(page int) ([]Category, error) {
 
 	return categories, nil
 }
+
+func (api *Api) GetCategoryByName(name string) Category {
+	return Category{}
+}

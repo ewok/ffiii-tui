@@ -267,3 +267,23 @@ func (api *Api) listAccounts(accountType string, page int) ([]apiAccount, error)
 
 	return accounts, nil
 }
+
+func (api *Api) GetAssetByName(name string) Account {
+	return api.getAccountByName(name, "asset")
+}
+
+func (api *Api) GetExpenseByName(name string) Account {
+	return api.getAccountByName(name, "expense")
+}
+
+func (api *Api) GetLiabilityByName(name string) Account {
+	return api.getAccountByName(name, "liability")
+}
+
+func (api *Api) GetRevenueByName(name string) Account {
+	return api.getAccountByName(name, "revenue")
+}
+
+func (api *Api) getAccountByName(name string, accountType string) Account {
+	return Account{}
+}

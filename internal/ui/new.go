@@ -23,6 +23,10 @@ type RefreshNewAssetMsg struct{}
 type RefreshNewExpenseMsg struct{}
 type RefreshNewRevenueMsg struct{}
 
+type NewTransactionMsg struct {
+	transaction firefly.Transaction
+}
+
 type modelNewTransaction struct {
 	form  *huh.Form // huh.Form is just a tea.Model
 	api   *firefly.Api
@@ -30,15 +34,15 @@ type modelNewTransaction struct {
 }
 
 var (
-	source                    firefly.Account
-	destination               firefly.Account
 	transactionType           string
-	amount                    string
-	foreignAmount             string
-	category                  firefly.Category
 	year                      string
 	month                     string
 	day                       string
+	source                    firefly.Account
+	destination               firefly.Account
+	category                  firefly.Category
+	amount                    string
+	foreignAmount             string
 	triggerCategoryCounter    byte
 	triggerSourceCounter      byte
 	triggerDestinationCounter byte
@@ -252,7 +256,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case RefreshNewAssetMsg:
 		switch transactionType {
 		case "withdrawal":
@@ -275,6 +279,25 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case RefreshNewCategoryMsg:
 		triggerCategoryCounter++
+	case NewTransactionMsg:
+		// transactionType = msg.transaction.Type
+		year = msg.transaction.Date[0:4]
+		month = msg.transaction.Date[5:7]
+		day = msg.transaction.Date[8:10]
+		switch msg.transaction.Type {
+		case "withdrawal":
+			source = m.api.GetAssetByName(msg.transaction.Source)
+			destination = m.api.GetExpenseByName(msg.transaction.Destination)
+		case "deposit":
+			source = m.api.GetRevenueByName(msg.transaction.Source)
+			destination = m.api.GetAssetByName(msg.transaction.Destination)
+		case "transfer":
+			source = m.api.GetAssetByName(msg.transaction.Source)
+			destination = m.api.GetAssetByName(msg.transaction.Destination)
+		}
+		category = m.api.GetCategoryByName(msg.transaction.Category)
+		amount = msg.transaction.Amount
+		foreignAmount = msg.transaction.ForeignAmount
 	}
 
 	if !m.focus {

@@ -19,13 +19,13 @@ type Transaction struct {
 	TransactionID   string
 	Type            string
 	Date            string
-	Source          string
-	Destination     string
-	Category        string
-	Currency        string
-	ForeignCurrency string
-	Amount          string
-	ForeignAmount   string
+	Source          Account
+	Destination     Account
+	Category        Category
+	Currency        Currency
+	ForeignCurrency Currency
+	Amount          float64
+	ForeignAmount   float64
 	Description     string
 }
 

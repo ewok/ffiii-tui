@@ -148,6 +148,16 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(cmds...)
 			case "n":
 				cmds = append(cmds, Cmd(ViewNewMsg{}))
+			case "N":
+				row := m.table.SelectedRow()
+                id, err := strconv.Atoi(row[0])
+                if err != nil {
+                    break
+                }
+				trx := m.transactions[id-1]
+				cmds = append(cmds, Cmd(NewTransactionMsg{
+					transaction: trx,
+				}), Cmd(ViewNewMsg{}))
 			case "a":
 				cmds = append(cmds, Cmd(ViewAssetsMsg{}))
 			case "ctrl+a":
@@ -203,7 +213,7 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 
 	rows := []table.Row{}
 	// Populate rows from transactions
-	for _, tx := range transactions {
+	for id, tx := range transactions {
 
 		// Parse amounts
 		fAmount, err := strconv.ParseFloat(tx.Amount, 64)
@@ -236,6 +246,7 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 		}
 
 		row := table.Row{
+			fmt.Sprintf("%d", id+1),
 			Type,
 			date.Format("2006-01-02"),
 			tx.Source,
@@ -282,6 +293,7 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 	}
 
 	return rows, []table.Column{
+		{Title: "ID", Width: 4},
 		{Title: "Type", Width: 2},
 		{Title: "Date", Width: 10},
 		{Title: "Source", Width: sourceWidth},
