@@ -14,9 +14,12 @@ import (
 )
 
 type Category struct {
-	ID    string
-	Name  string
-	Notes string
+	ID           string
+	Name         string
+	Notes        string
+	Spent        float64
+	Earned       float64
+	CurrencyCode string
 }
 
 type apiCategory struct {
@@ -26,8 +29,9 @@ type apiCategory struct {
 }
 
 type apiCategoryAttr struct {
-	Name  string `json:"name"`
-	Notes string `json:"notes"`
+	Name         string `json:"name"`
+	Notes        string `json:"notes"`
+	CurrencyCode string `json:"primary_currency_code"`
 }
 
 type apiCategoriesResponse struct {
@@ -98,12 +102,50 @@ func (api *Api) CreateCategory(name, notes string) error {
 	return nil
 }
 
+func (api *Api) UpdateCategoriesInsights() error {
+
+	// TODO: Need error reporting
+	tSpent := make(map[string]float64)
+	spentInsights, err := api.GetInsights("expense/category")
+	if err == nil {
+		for _, item := range spentInsights {
+			tSpent[item.ID] = (-1) * item.DifferenceFloat
+		}
+	}
+	tEarned := make(map[string]float64)
+	earnedInsights, err := api.GetInsights("income/category")
+	if err == nil {
+		for _, item := range earnedInsights {
+			tEarned[item.ID] = item.DifferenceFloat
+		}
+	}
+
+	for i, category := range api.Categories {
+		if val, ok := tSpent[category.ID]; ok {
+			api.Categories[i].Spent = val
+		} else {
+			api.Categories[i].Spent = 0
+		}
+
+		if val, ok := tEarned[category.ID]; ok {
+			api.Categories[i].Earned = val
+		} else {
+			api.Categories[i].Earned = 0
+		}
+	}
+
+	return nil
+}
+
 func (api *Api) UpdateCategories() error {
 	categories, err := api.ListCategories()
 	if err != nil {
 		return err
 	}
 	api.Categories = categories
+
+	api.UpdateCategoriesInsights()
+
 	return nil
 }
 
@@ -112,14 +154,14 @@ func (api *Api) ListCategories() ([]Category, error) {
 	page := 1
 
 	for {
-		catsPage, err := api.listCategories(page)
+		cats, err := api.listCategories(page)
 		if err != nil {
 			return nil, err
 		}
-		if len(catsPage) == 0 {
+		if len(cats) == 0 {
 			break
 		}
-		categories = append(categories, catsPage...)
+		categories = append(categories, cats...)
 		page++
 	}
 
@@ -171,10 +213,12 @@ func (api *Api) listCategories(page int) ([]Category, error) {
 
 	categories := []Category{}
 	for _, apiCat := range apiResp.Data {
+
 		categories = append(categories, Category{
-			ID:    apiCat.ID,
-			Name:  apiCat.Attributes.Name,
-			Notes: apiCat.Attributes.Notes,
+			ID:           apiCat.ID,
+			Name:         apiCat.Attributes.Name,
+			Notes:        apiCat.Attributes.Notes,
+			CurrencyCode: apiCat.Attributes.CurrencyCode,
 		})
 	}
 

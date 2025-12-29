@@ -121,12 +121,12 @@ type apiSubTransaction struct {
 	HasAttachments               bool    `json:"has_attachments"`
 }
 
-func (api *Api) ListTransactions(start, end string) ([]Transaction, error) {
+func (api *Api) ListTransactions() ([]Transaction, error) {
 	transactions := []Transaction{}
 	id := 0
 	page := 1
 	for {
-		txs, err := api.listTransactions(page, 50, start, end)
+		txs, err := api.listTransactions(page, 50)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list transactions: %v", err)
 		}
@@ -167,18 +167,15 @@ func (api *Api) ListTransactions(start, end string) ([]Transaction, error) {
 	return transactions, nil
 }
 
-func (api *Api) listTransactions(page, limit int, start, end string) ([]ApiTransaction, error) {
+func (api *Api) listTransactions(page, limit int) ([]ApiTransaction, error) {
 
-	if start == "" {
-		// First day of the current month
-		start = time.Now().AddDate(0, 0, -time.Now().Day()+1).Format("2006-01-02")
-	}
-	if end == "" {
-		// Last day of the current month
-		end = time.Now().AddDate(0, 1, -time.Now().Day()).Format("2006-01-02")
-	}
-
-	endpoint := fmt.Sprintf(transactionsEndpoint, api.Config.ApiUrl, page, limit, start, end)
+	endpoint := fmt.Sprintf(
+		transactionsEndpoint,
+		api.Config.ApiUrl,
+		page,
+		limit,
+		api.StartDate.Format("2006-01-02"),
+		api.EndDate.Format("2006-01-02"))
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {

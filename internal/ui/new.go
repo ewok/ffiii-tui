@@ -112,18 +112,18 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 
 						switch transactionType {
 						case "withdrawal":
-							for _, account := range api.Assets {
+							for _, account := range api.Accounts["asset"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
 						case "transfer":
-							for _, account := range api.Assets {
+							for _, account := range api.Accounts["asset"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
-							for _, account := range api.Liabilities {
+							for _, account := range api.Accounts["liability"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
 						case "deposit":
-							for _, account := range api.Revenues {
+							for _, account := range api.Accounts["revenue"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
 						}
@@ -137,18 +137,18 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 						options := []huh.Option[firefly.Account]{}
 						switch transactionType {
 						case "withdrawal":
-							for _, account := range api.Expenses {
+							for _, account := range api.Accounts["expense"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
 						case "transfer":
-							for _, account := range api.Assets {
+							for _, account := range api.Accounts["asset"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
-							for _, account := range api.Liabilities {
+							for _, account := range api.Accounts["liability"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
 						case "deposit":
-							for _, account := range api.Assets {
+							for _, account := range api.Accounts["asset"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
 						}
@@ -466,9 +466,9 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 					cmds = append(cmds,
+						Cmd(ViewTransactionsMsg{}),
 						Cmd(RefreshAssetsMsg{}),
-						Cmd(RefreshTransactionsMsg{}),
-						Cmd(ViewTransactionsMsg{}))
+						Cmd(RefreshTransactionsMsg{}))
 					return newModel, tea.Sequence(cmds...)
 				}
 

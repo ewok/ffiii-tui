@@ -7,55 +7,54 @@ package ui
 import (
 	"ffiii-tui/internal/firefly"
 	"fmt"
-	"io"
-	"strings"
+	"slices"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type RefreshCategoriesMsg struct{}
+type RefreshCategoryInsightsMsg struct{}
 type NewCategoryMsg struct {
 	category string
 }
 
 type categoryItem struct {
-	id, name, notes string
+	category, currency string
+	spent              float64
+	earned             float64
 }
 
-func (i categoryItem) FilterValue() string { return i.name }
-
-type categoryItemDelegate struct{}
-
-func (d categoryItemDelegate) Height() int                             { return 1 }
-func (d categoryItemDelegate) Spacing() int                            { return 0 }
-func (d categoryItemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d categoryItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(categoryItem)
-	if !ok {
-		return
+func (i categoryItem) Title() string { return i.category }
+func (i categoryItem) Description() string {
+	s := ""
+	if i.spent != 0 {
+		s += fmt.Sprintf("Spent: %.2f %s", i.spent, i.currency)
 	}
-
-	fn := itemStyle.Render
-	if index == m.Index() {
-		fn = func(s ...string) string {
-			return selectedItemStyle.Render("| " + strings.Join(s, " "))
+	if i.earned != 0 {
+		if s != "" {
+			s += " | "
 		}
+		s += fmt.Sprintf("Earned: %.2f %s", i.earned, i.currency)
 	}
-
-	fmt.Fprint(w, fn(i.name))
+	if s == "" {
+		s = "No transactions"
+	}
+	return s
 }
+func (i categoryItem) FilterValue() string { return i.category }
 
 type modelCategories struct {
-	list  list.Model
-	api   *firefly.Api
-	focus bool
+	list   list.Model
+	api    *firefly.Api
+	focus  bool
+	sorted int
 }
 
 func newModelCategories(api *firefly.Api) modelCategories {
-	items := getCategoriesItems(api)
+	items := getCategoriesItems(api, 0)
 
-	m := modelCategories{list: list.New(items, categoryItemDelegate{}, 0, 0), api: api}
+	m := modelCategories{list: list.New(items, list.NewDefaultDelegate(), 0, 0), api: api}
 	m.list.Title = "Categories"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	m.list.SetFilteringEnabled(false)
@@ -72,9 +71,13 @@ func (m modelCategories) Init() tea.Cmd {
 func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
+	case RefreshCategoryInsightsMsg:
+		return m, tea.Sequence(Cmd(m.api.UpdateCategoriesInsights()),
+			m.list.SetItems(getCategoriesItems(m.api, m.sorted)))
 	case RefreshCategoriesMsg:
-		m.api.UpdateCategories()
-		return m, m.list.SetItems(getCategoriesItems(m.api))
+		return m, tea.Sequence(
+			Cmd(m.api.UpdateCategories()),
+			m.list.SetItems(getCategoriesItems(m.api, m.sorted)))
 	case NewCategoryMsg:
 		err := m.api.CreateCategory(msg.category, "")
 		if err == nil {
@@ -98,7 +101,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if m.focus {
 			switch msg.String() {
-			case "esc", "q", "ctrl+c":
+			case "esc", "q":
 				return m, Cmd(ViewTransactionsMsg{})
 			case "n":
 				return m, Cmd(PromptMsg{
@@ -115,7 +118,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "f":
 				i, ok := m.list.SelectedItem().(categoryItem)
 				if ok {
-					return m, Cmd(FilterItemMsg{category: i.name})
+					return m, Cmd(FilterItemMsg{category: i.category})
 				}
 				// TODO: report
 				return m, nil
@@ -126,7 +129,19 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "i":
 				return m, Cmd(ViewRevenuesMsg{})
 			case "r":
+				return m, Cmd(RefreshCategoryInsightsMsg{})
+			case "R":
 				return m, Cmd(RefreshCategoriesMsg{})
+			case "s":
+				switch m.sorted {
+				case 0:
+					m.sorted = -1
+				case -1:
+					m.sorted = 1
+				case 1:
+					m.sorted = 0
+				}
+				return m, m.list.SetItems(getCategoriesItems(m.api, m.sorted))
 			}
 		}
 	}
@@ -150,10 +165,31 @@ func (m *modelCategories) Blur() {
 	m.focus = false
 }
 
-func getCategoriesItems(api *firefly.Api) []list.Item {
+func getCategoriesItems(api *firefly.Api, sorted int) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Categories {
-		items = append(items, categoryItem{id: i.ID, name: i.Name, notes: i.Notes})
+		if sorted < 0 && i.Spent == 0 {
+			continue
+		}
+		if sorted > 0 && i.Earned == 0 {
+			continue
+		}
+		items = append(items, categoryItem{
+			category: i.Name,
+			currency: i.CurrencyCode,
+			spent:    i.Spent,
+			earned:   i.Earned,
+		})
 	}
+	if sorted < 0 {
+		slices.SortFunc(items, func(a, b list.Item) int {
+			return int(b.(categoryItem).spent) - int(a.(categoryItem).spent)
+		})
+	} else if sorted > 0 {
+		slices.SortFunc(items, func(a, b list.Item) int {
+			return int(b.(categoryItem).earned) - int(a.(categoryItem).earned)
+		})
+	}
+
 	return items
 }
