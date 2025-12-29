@@ -29,7 +29,6 @@ type SearchMsg struct {
 }
 
 type RefreshTransactionsMsg struct{}
-type RefreshExpensesMsg struct{}
 
 type modelTransactions struct {
 	table         table.Model
@@ -42,7 +41,7 @@ type modelTransactions struct {
 }
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
-	transactions, err := api.ListTransactions("", "")
+	transactions, err := api.ListTransactions()
 	if err != nil {
 		fmt.Println("Error fetching transactions:", err)
 		os.Exit(1)
@@ -141,21 +140,23 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.table.SetColumns(columns)
 		}
 	case RefreshTransactionsMsg:
-		var err error
-		transactions := []firefly.Transaction{}
-		if m.currentSearch != "" {
-			transactions, err = m.api.SearchTransactions(m.currentSearch)
-			if err != nil {
-				return m, nil
+		return m, Cmd(func() tea.Msg {
+			var err error
+			transactions := []firefly.Transaction{}
+			if m.currentSearch != "" {
+				transactions, err = m.api.SearchTransactions(m.currentSearch)
+				if err != nil {
+					return nil
+				}
+			} else {
+				transactions, err = m.api.ListTransactions()
+				if err != nil {
+					return nil
+				}
 			}
-		} else {
-			transactions, err = m.api.ListTransactions("", "")
-			if err != nil {
-				return m, nil
-			}
-		}
-		m.transactions = transactions
-		return m, Cmd(FilterItemMsg{account: m.currentItem})
+			m.transactions = transactions
+			return FilterItemMsg{account: m.currentItem}
+		}())
 
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
@@ -224,11 +225,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, Cmd(ViewRevenuesMsg{})
 			case "t":
 				return m, Cmd(ViewFullTransactionViewMsg{})
-			// enter
-			// case "enter":
-			// 	return m, tea.Batch(
-			// 		tea.Printf("Let's go to %s!", m.table.SelectedRow()[1]),
-			// 	)
+				// enter
+				// case "enter":
+				// 	return m, tea.Batch(
+				// 		tea.Printf("Let's go to %s!", m.table.SelectedRow()[1]),
+				// 	)
 			case "q":
 				return m, tea.Quit
 			}
@@ -339,9 +340,9 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 		{Title: "Source", Width: sourceWidth},
 		{Title: "Destination", Width: destinationWidth},
 		{Title: "Category", Width: categoryWidth},
-		{Title: "Currency", Width: 5},
+		{Title: "Currency", Width: 3},
 		{Title: "Amount", Width: amountWidth},
-		{Title: "Foreign Currency", Width: 5},
+		{Title: "Foreign Currency", Width: 4},
 		{Title: "Foreign Amount", Width: foreignAmountWidth},
 		{Title: "Description", Width: descriptionWidth},
 		{Title: "TxID", Width: transactionIDWidth},

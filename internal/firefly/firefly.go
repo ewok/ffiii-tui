@@ -6,7 +6,7 @@ package firefly
 
 import (
 	"fmt"
-	"sync"
+	"time"
 )
 
 // ApiConfig holds configuration for the Firefly III API.
@@ -14,18 +14,19 @@ type Api struct {
 	// Config contains the API configuration details.
 	Config ApiConfig
 
-	// TODO: Merge it into one to improve performance
-	// Assets holds the list of asset accounts.
-	Assets []Account
+	Accounts map[string][]Account
 
-	// Expenses holds the list of expense accounts.
-	Expenses []Account
-
-	// Liabilities holds the list of liability accounts.
-	Liabilities []Account
-
-	// Revenues holds the list of revenue accounts.
-	Revenues []Account
+	// // Assets holds the list of asset accounts.
+	// Assets []Account
+	//
+	// // Expenses holds the list of expense accounts.
+	// Expenses []Account
+	//
+	// // Liabilities holds the list of liability accounts.
+	// Liabilities []Account
+	//
+	// // Revenues holds the list of revenue accounts.
+	// Revenues []Account
 
 	// Categories holds the list of categories.
 	Categories []Category
@@ -35,6 +36,10 @@ type Api struct {
 
 	// User
 	User User
+
+	// Date range
+	StartDate time.Time
+	EndDate   time.Time
 }
 
 // NewApi creates a new Api instance with the provided configuration.
@@ -46,6 +51,9 @@ type Api struct {
 func NewApi(config ApiConfig) (*Api, error) {
 	api := &Api{Config: config}
 
+	api.StartDate = time.Now().AddDate(0, 0, -time.Now().Day()+1)
+	api.EndDate = time.Now().AddDate(0, 1, -time.Now().Day())
+
 	// Test connection and get current user
 	userEmail, err := api.GetCurrentUser()
 	if err != nil {
@@ -55,29 +63,21 @@ func NewApi(config ApiConfig) (*Api, error) {
 		Email: userEmail,
 	}
 
-	// Initial data fetch
-	var wg sync.WaitGroup
-	updateFuncs := []func() error{
-		api.UpdateAssets,
-		api.UpdateExpenses,
-		api.UpdateLiabilities,
-		api.UpdateRevenues,
-		api.UpdateCategories,
-		api.UpdateCurrencies,
-	}
+	api.Accounts = make(map[string][]Account, 0)
 
-	wg.Add(len(updateFuncs))
-
-	for _, updateFunc := range updateFuncs {
-		go func(f func() error) {
-			defer wg.Done()
-			if err := f(); err != nil {
-				fmt.Println("Error during update:", err)
-			}
-		}(updateFunc)
-	}
-
-	wg.Wait()
+	api.UpdateAccounts("all")
+	api.UpdateCategories()
+	api.UpdateCurrencies()
 
 	return api, nil
+}
+
+func (api *Api) PreviousPeriod() {
+	api.StartDate = time.Date(api.StartDate.Year(), api.StartDate.Month()-1, 1, 0, 0, 0, 0, api.StartDate.Location())
+	api.EndDate = api.StartDate.AddDate(0, 1, 0).Add(-time.Nanosecond)
+}
+
+func (api *Api) NextPeriod() {
+	api.StartDate = time.Date(api.StartDate.Year(), api.StartDate.Month()+1, 1, 0, 0, 0, 0, api.StartDate.Location())
+	api.EndDate = api.StartDate.AddDate(0, 1, 0).Add(-time.Nanosecond)
 }

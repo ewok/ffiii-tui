@@ -105,6 +105,22 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
+		case "[":
+			m.api.PreviousPeriod()
+			return m, tea.Batch(
+				Cmd(RefreshTransactionsMsg{}),
+				Cmd(RefreshCategoryInsightsMsg{}),
+				Cmd(RefreshExpenseInsightsMsg{}),
+				Cmd(RefreshRevenueInsightsMsg{}),
+			)
+		case "]":
+			m.api.NextPeriod()
+			return m, tea.Batch(
+				Cmd(RefreshTransactionsMsg{}),
+				Cmd(RefreshCategoryInsightsMsg{}),
+				Cmd(RefreshExpenseInsightsMsg{}),
+				Cmd(RefreshRevenueInsightsMsg{}),
+			)
 		}
 	case tea.WindowSizeMsg:
 		promptStyle = baseStyle.
@@ -252,7 +268,10 @@ func (m modelUI) View() string {
 	if promptVisible {
 		s = s + promptStyleFocused.Render(" "+m.prompt.View()) + "\n"
 	} else {
-		header := " ffiii-tui"
+		header := fmt.Sprintf(
+			" ffiii-tui | Period: %s - %s",
+			m.api.StartDate.Format("2006-01-02"),
+			m.api.EndDate.Format("2006-01-02"))
 		if m.transactions.currentItem != "" {
 			header = header + " | Item: " + m.transactions.currentItem
 		}

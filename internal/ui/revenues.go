@@ -7,55 +7,40 @@ package ui
 import (
 	"ffiii-tui/internal/firefly"
 	"fmt"
-	"io"
-	"strings"
+	"slices"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type RefreshRevenuesMsg struct{}
+type RefreshRevenueInsightsMsg struct{}
 type NewRevenueMsg struct {
 	account string
 }
 
 type revenueItem struct {
-	id, name string
+	account, currency string
+	earned            float64
 }
 
-func (i revenueItem) FilterValue() string { return i.name }
-
-type revenuesItemDelegate struct{}
-
-func (d revenuesItemDelegate) Height() int                             { return 1 }
-func (d revenuesItemDelegate) Spacing() int                            { return 0 }
-func (d revenuesItemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d revenuesItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(revenueItem)
-	if !ok {
-		return
-	}
-
-	fn := itemStyle.Render
-	if index == m.Index() {
-		fn = func(s ...string) string {
-			return selectedItemStyle.Render("| " + strings.Join(s, " "))
-		}
-	}
-
-	fmt.Fprint(w, fn(i.name))
+func (i revenueItem) Title() string { return i.account }
+func (i revenueItem) Description() string {
+	return fmt.Sprintf("Earned: %.2f %s", i.earned, i.currency)
 }
+func (i revenueItem) FilterValue() string { return i.account }
 
 type modelRevenues struct {
-	list  list.Model
-	api   *firefly.Api
-	focus bool
+	list   list.Model
+	api    *firefly.Api
+	focus  bool
+	sorted bool
 }
 
 func newModelRevenues(api *firefly.Api) modelRevenues {
-	items := getRevenuesItems(api)
+	items := getRevenuesItems(api, false)
 
-	m := modelRevenues{list: list.New(items, revenuesItemDelegate{}, 0, 0), api: api}
+	m := modelRevenues{list: list.New(items, list.NewDefaultDelegate(), 0, 0), api: api}
 	m.list.Title = "Revenues"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	m.list.SetFilteringEnabled(false)
@@ -72,9 +57,14 @@ func (m modelRevenues) Init() tea.Cmd {
 func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
+	case RefreshRevenueInsightsMsg:
+		return m, tea.Sequence(
+			Cmd(m.api.UpdateRevenueInsights()),
+			m.list.SetItems(getRevenuesItems(m.api, m.sorted)))
 	case RefreshRevenuesMsg:
-		m.api.UpdateRevenues()
-		return m, m.list.SetItems(getRevenuesItems(m.api))
+		return m, tea.Sequence(
+			Cmd(m.api.UpdateAccounts("revenue")),
+			m.list.SetItems(getRevenuesItems(m.api, m.sorted)))
 	case NewRevenueMsg:
 		err := m.api.CreateAccount(msg.account, "revenue", "")
 		// TODO: Report error to user
@@ -114,7 +104,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "f":
 				i, ok := m.list.SelectedItem().(revenueItem)
 				if ok {
-					return m, Cmd(FilterItemMsg{account: i.name})
+					return m, Cmd(FilterItemMsg{account: i.account})
 				}
 				return m, nil
 			case "a":
@@ -124,7 +114,12 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "e":
 				return m, Cmd(ViewExpensesMsg{})
 			case "r":
+				return m, Cmd(RefreshRevenueInsightsMsg{})
+			case "R":
 				return m, Cmd(RefreshRevenuesMsg{})
+			case "s":
+				m.sorted = !m.sorted
+				return m, m.list.SetItems(getRevenuesItems(m.api, m.sorted))
 			}
 		}
 	}
@@ -147,10 +142,21 @@ func (m *modelRevenues) Blur() {
 	m.focus = false
 }
 
-func getRevenuesItems(api *firefly.Api) []list.Item {
+func getRevenuesItems(api *firefly.Api, sorted bool) []list.Item {
 	items := []list.Item{}
-	for _, i := range api.Revenues {
-		items = append(items, revenueItem{id: i.ID, name: i.Name})
+	for _, i := range api.Accounts["revenue"] {
+		if sorted && i.Earned == 0 {
+			continue
+		}
+		items = append(items, revenueItem{
+			account:  i.Name,
+			currency: i.CurrencyCode,
+			earned:   i.Earned})
+	}
+	if sorted {
+		slices.SortFunc(items, func(a, b list.Item) int {
+			return int(b.(revenueItem).earned) - int(a.(revenueItem).earned)
+		})
 	}
 	return items
 }

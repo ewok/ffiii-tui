@@ -7,55 +7,40 @@ package ui
 import (
 	"ffiii-tui/internal/firefly"
 	"fmt"
-	"io"
-	"strings"
+	"slices"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type RefreshEspensesMsg struct{}
+type RefreshExpensesMsg struct{}
+type RefreshExpenseInsightsMsg struct{}
 type NewExpenseMsg struct {
 	account string
 }
 
 type expenseItem struct {
-	id, name string
+	account, currency string
+	spent             float64
 }
 
-func (i expenseItem) FilterValue() string { return i.name }
-
-type expensesItemDelegate struct{}
-
-func (d expensesItemDelegate) Height() int                             { return 1 }
-func (d expensesItemDelegate) Spacing() int                            { return 0 }
-func (d expensesItemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d expensesItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(expenseItem)
-	if !ok {
-		return
-	}
-
-	fn := itemStyle.Render
-	if index == m.Index() {
-		fn = func(s ...string) string {
-			return selectedItemStyle.Render("| " + strings.Join(s, " "))
-		}
-	}
-
-	fmt.Fprint(w, fn(i.name))
+func (i expenseItem) Title() string { return i.account }
+func (i expenseItem) Description() string {
+	return fmt.Sprintf("Spent: %.2f %s", i.spent, i.currency)
 }
+func (i expenseItem) FilterValue() string { return i.account }
 
 type modelExpenses struct {
-	list  list.Model
-	api   *firefly.Api
-	focus bool
+	list   list.Model
+	api    *firefly.Api
+	focus  bool
+	sorted bool
 }
 
 func newModelExpenses(api *firefly.Api) modelExpenses {
-	items := getExpensesItems(api)
+	items := getExpensesItems(api, false)
 
-	m := modelExpenses{list: list.New(items, expensesItemDelegate{}, 0, 0), api: api}
+	m := modelExpenses{list: list.New(items, list.NewDefaultDelegate(), 0, 0), api: api}
 	m.list.Title = "Expenses"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	m.list.SetFilteringEnabled(false)
@@ -72,9 +57,13 @@ func (m modelExpenses) Init() tea.Cmd {
 func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
+	case RefreshExpenseInsightsMsg:
+		return m, tea.Sequence(Cmd(m.api.UpdateExpenseInsights()),
+			m.list.SetItems(getExpensesItems(m.api, m.sorted)))
 	case RefreshExpensesMsg:
-		m.api.UpdateExpenses()
-		return m, m.list.SetItems(getExpensesItems(m.api))
+		return m, tea.Sequence(
+			Cmd(m.api.UpdateAccounts("expense")),
+			m.list.SetItems(getExpensesItems(m.api, m.sorted)))
 	case NewExpenseMsg:
 		err := m.api.CreateAccount(msg.account, "expense", "")
 		// TODO: Report error to user
@@ -114,7 +103,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "f":
 				i, ok := m.list.SelectedItem().(expenseItem)
 				if ok {
-					return m, Cmd(FilterItemMsg{account: i.name})
+					return m, Cmd(FilterItemMsg{account: i.account})
 				}
 				return m, nil
 			case "a":
@@ -122,9 +111,14 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "c":
 				return m, Cmd(ViewCategoriesMsg{})
 			case "r":
+				return m, Cmd(RefreshExpenseInsightsMsg{})
+			case "R":
 				return m, Cmd(RefreshExpensesMsg{})
 			case "i":
 				return m, Cmd(ViewRevenuesMsg{})
+			case "s":
+				m.sorted = !m.sorted
+				return m, m.list.SetItems(getExpensesItems(m.api, m.sorted))
 			}
 		}
 	}
@@ -147,10 +141,23 @@ func (m *modelExpenses) Blur() {
 	m.focus = false
 }
 
-func getExpensesItems(api *firefly.Api) []list.Item {
+func getExpensesItems(api *firefly.Api, sorted bool) []list.Item {
 	items := []list.Item{}
-	for _, i := range api.Expenses {
-		items = append(items, expenseItem{id: i.ID, name: i.Name})
+	for _, i := range api.Accounts["expense"] {
+		if sorted && i.Spent == 0 {
+			continue
+		}
+		items = append(items, expenseItem{
+			account:  i.Name,
+			currency: i.CurrencyCode,
+			spent:    i.Spent,
+		})
 	}
+	if sorted {
+		slices.SortFunc(items, func(a, b list.Item) int {
+			return int(b.(expenseItem).spent) - int(a.(expenseItem).spent)
+		})
+	}
+
 	return items
 }

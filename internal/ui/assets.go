@@ -20,11 +20,12 @@ type NewAssetMsg struct {
 }
 
 type assetItem struct {
-	account, balance, currency string
+	account, currency string
+	balance           float64
 }
 
 func (i assetItem) Title() string       { return i.account }
-func (i assetItem) Description() string { return fmt.Sprintf("%s %s", i.balance, i.currency) }
+func (i assetItem) Description() string { return fmt.Sprintf("%.2f %s", i.balance, i.currency) }
 func (i assetItem) FilterValue() string { return i.account }
 
 type modelAssets struct {
@@ -57,8 +58,9 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case RefreshAssetsMsg:
-		m.api.UpdateAssets()
-		return m, m.list.SetItems(getAssetsItems(m.api))
+		return m, tea.Sequence(
+			Cmd(m.api.UpdateAccounts("asset")),
+			m.list.SetItems(getAssetsItems(m.api)))
 	case NewAssetMsg:
 		err := m.api.CreateAccount(msg.account, "asset", msg.currency)
 		// TODO: Report error to user
@@ -150,8 +152,12 @@ func (m *modelAssets) Blur() {
 
 func getAssetsItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
-	for _, i := range api.Assets {
-		items = append(items, assetItem{account: i.Name, balance: fmt.Sprintf("%.2f", i.Balance), currency: i.CurrencyCode})
+	for _, i := range api.Accounts["asset"] {
+		items = append(items, assetItem{
+			account:  i.Name,
+			balance:  i.Balance,
+			currency: i.CurrencyCode})
 	}
+
 	return items
 }

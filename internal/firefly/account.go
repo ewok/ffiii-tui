@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,6 +23,9 @@ type Account struct {
 	Name         string
 	CurrencyCode string
 	Balance      float64
+	Type         string
+	Spent        float64
+	Earned       float64
 }
 
 type apiAccount struct {
@@ -34,6 +38,7 @@ type apiAccountAttr struct {
 	Name           string `json:"name"`
 	CurrencyCode   string `json:"currency_code"`
 	CurrentBalance string `json:"current_balance"`
+	Type           string `json:"type"`
 }
 
 func (api *Api) CreateAccount(name string, accountType string, currencyCode string) error {
@@ -111,20 +116,68 @@ func (api *Api) CreateAccount(name string, accountType string, currencyCode stri
 	return nil
 }
 
-func (api *Api) UpdateAssets() error {
-	assets, err := api.ListAccounts("asset")
+func (api *Api) UpdateExpenseInsights() error {
+
+	// TODO: Need error reporting
+	tSpent := make(map[string]float64)
+	spentInsights, err := api.GetInsights("expense/expense")
+	if err == nil {
+		for _, item := range spentInsights {
+			tSpent[item.ID] = (-1) * item.DifferenceFloat
+		}
+	}
+
+	expenses := api.Accounts["expense"]
+	for i, account := range expenses {
+		if val, ok := tSpent[account.ID]; ok {
+			expenses[i].Spent = val
+		} else {
+			expenses[i].Spent = 0
+		}
+	}
+	api.Accounts["expense"] = expenses
+
+	return nil
+}
+
+func (api *Api) UpdateRevenueInsights() error {
+
+	tEarned := make(map[string]float64)
+	earnedInsights, err := api.GetInsights("income/revenue")
+	if err == nil {
+		for _, item := range earnedInsights {
+			tEarned[item.ID] = item.DifferenceFloat
+		}
+	}
+
+	revenues := api.Accounts["revenue"]
+	for i, account := range revenues {
+		if val, ok := tEarned[account.ID]; ok {
+			revenues[i].Earned = val
+		} else {
+			revenues[i].Earned = 0
+		}
+	}
+	api.Accounts["revenue"] = revenues
+
+	return nil
+}
+
+func (api *Api) UpdateAccounts(accType string) error {
+	accounts, err := api.ListAccounts(accType)
 	if err != nil {
 		return err
 	}
 
-	api.Assets = make([]Account, 0)
-	for _, account := range assets {
+	accs := make(map[string][]Account, 0)
+
+	for _, account := range accounts {
 		balance, err := strconv.ParseFloat(account.Attributes.CurrentBalance, 64)
 		if err != nil {
 			balance = 0.0
 		}
 
-		api.Assets = append(api.Assets, Account{
+		accs[account.Attributes.Type] = append(accs[account.Attributes.Type], Account{
 			ID:           account.ID,
 			Name:         account.Attributes.Name,
 			CurrencyCode: account.Attributes.CurrencyCode,
@@ -132,55 +185,13 @@ func (api *Api) UpdateAssets() error {
 		})
 	}
 
-	return nil
-}
+	maps.Copy(api.Accounts, accs)
 
-func (api *Api) UpdateExpenses() error {
-	expenses, err := api.ListAccounts("expense")
-	if err != nil {
-		return err
+	if accType == "expense" {
+		api.UpdateExpenseInsights()
 	}
-
-	api.Expenses = make([]Account, 0)
-	for _, account := range expenses {
-		api.Expenses = append(api.Expenses, Account{
-			ID:   account.ID,
-			Name: account.Attributes.Name,
-		})
-	}
-
-	return nil
-}
-
-func (api *Api) UpdateLiabilities() error {
-	liabilities, err := api.ListAccounts("liability")
-	if err != nil {
-		return err
-	}
-
-	api.Liabilities = make([]Account, 0)
-	for _, account := range liabilities {
-		api.Liabilities = append(api.Liabilities, Account{
-			ID:   account.ID,
-			Name: account.Attributes.Name,
-		})
-	}
-
-	return nil
-}
-
-func (api *Api) UpdateRevenues() error {
-	revenues, err := api.ListAccounts("revenue")
-	if err != nil {
-		return err
-	}
-
-	api.Revenues = make([]Account, 0)
-	for _, account := range revenues {
-		api.Revenues = append(api.Revenues, Account{
-			ID:   account.ID,
-			Name: account.Attributes.Name,
-		})
+	if accType == "revenue" {
+		api.UpdateRevenueInsights()
 	}
 
 	return nil
@@ -268,78 +279,12 @@ func (api *Api) listAccounts(accountType string, page int) ([]apiAccount, error)
 	return accounts, nil
 }
 
-func (api *Api) GetAssetByName(name string) Account {
-	for _, account := range api.Assets {
-		if account.Name == name {
-			return account
-		}
-	}
-	return Account{}
-}
-
-func (api *Api) GetExpenseByName(name string) Account {
-	for _, account := range api.Expenses {
-		if account.Name == name {
-			return account
-		}
-	}
-	return Account{}
-}
-
-func (api *Api) GetLiabilityByName(name string) Account {
-	for _, account := range api.Liabilities {
-		if account.Name == name {
-			return account
-		}
-	}
-	return Account{}
-}
-
-func (api *Api) GetRevenueByName(name string) Account {
-	for _, account := range api.Revenues {
-		if account.Name == name {
-			return account
-		}
-	}
-	return Account{}
-}
-
-func (api *Api) getAccountByName(name string, accountType string) Account {
-	switch accountType {
-	case "asset":
-		return api.GetAssetByName(name)
-	case "expense":
-		return api.GetExpenseByName(name)
-	case "liability":
-		return api.GetLiabilityByName(name)
-	case "revenue":
-		return api.GetRevenueByName(name)
-	default:
-		return Account{}
-	}
-}
-
 func (api *Api) GetAccountByID(ID string) Account {
-	// FIXME: ugly
-	// Search in Assets, Expenses, Liabilities, Revenues
-	for _, account := range api.Assets {
-		if account.ID == ID {
-			return account
-		}
-	}
-	for _, account := range api.Expenses {
-		if account.ID == ID {
-			return account
-		}
-	}
-	for _, account := range api.Liabilities {
-		if account.ID == ID {
-			return account
-		}
-	}
-	for _, account := range api.Revenues {
-		if account.ID == ID {
-			return account
+	for _, groups := range api.Accounts {
+		for _, account := range groups {
+			if account.ID == ID {
+				return account
+			}
 		}
 	}
 	return Account{}
