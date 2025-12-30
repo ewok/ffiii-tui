@@ -58,7 +58,8 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case RefreshExpenseInsightsMsg:
-		return m, tea.Sequence(Cmd(m.api.UpdateExpenseInsights()),
+		return m, tea.Sequence(
+			Cmd(m.api.UpdateExpenseInsights()),
 			m.list.SetItems(getExpensesItems(m.api, m.sorted)))
 	case RefreshExpensesMsg:
 		return m, tea.Sequence(
@@ -144,13 +145,15 @@ func (m *modelExpenses) Blur() {
 func getExpensesItems(api *firefly.Api, sorted bool) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Accounts["expense"] {
-		if sorted && i.Spent == 0 {
+		spent := api.GetExpenseDiff(i.ID)
+
+		if sorted && spent == 0 {
 			continue
 		}
 		items = append(items, expenseItem{
 			account:  i.Name,
 			currency: i.CurrencyCode,
-			spent:    i.Spent,
+			spent:    spent,
 		})
 	}
 	if sorted {

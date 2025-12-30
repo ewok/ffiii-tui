@@ -168,17 +168,19 @@ func (m *modelCategories) Blur() {
 func getCategoriesItems(api *firefly.Api, sorted int) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Categories {
-		if sorted < 0 && i.Spent == 0 {
+		spent := i.GetSpent(api)
+		earned := i.GetEarned(api)
+		if sorted < 0 && spent == 0 {
 			continue
 		}
-		if sorted > 0 && i.Earned == 0 {
+		if sorted > 0 && earned == 0 {
 			continue
 		}
 		items = append(items, categoryItem{
 			category: i.Name,
 			currency: i.CurrencyCode,
-			spent:    i.Spent,
-			earned:   i.Earned,
+			spent:    spent,
+			earned:   earned,
 		})
 	}
 	if sorted < 0 {

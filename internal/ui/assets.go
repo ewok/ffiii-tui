@@ -14,6 +14,7 @@ import (
 )
 
 type RefreshAssetsMsg struct{}
+
 type NewAssetMsg struct {
 	account  string
 	currency string

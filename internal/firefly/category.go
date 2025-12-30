@@ -17,8 +17,6 @@ type Category struct {
 	ID           string
 	Name         string
 	Notes        string
-	Spent        float64
-	Earned       float64
 	CurrencyCode string
 }
 
@@ -102,37 +100,51 @@ func (api *Api) CreateCategory(name, notes string) error {
 	return nil
 }
 
+func (c *Category) GetSpent(api *Api) float64 {
+	if insight, ok := api.categoryInsights[c.ID]; ok {
+		return insight.Spent
+	}
+	return 0
+}
+
+func (c *Category) GetEarned(api *Api) float64 {
+	if insight, ok := api.categoryInsights[c.ID]; ok {
+		return insight.Earned
+	}
+	return 0
+}
+
 func (api *Api) UpdateCategoriesInsights() error {
 
 	// TODO: Need error reporting
-	tSpent := make(map[string]float64)
+	insights := make(map[string]categoryInsight)
+
 	spentInsights, err := api.GetInsights("expense/category")
 	if err == nil {
 		for _, item := range spentInsights {
-			tSpent[item.ID] = (-1) * item.DifferenceFloat
+			insights[item.ID] = categoryInsight{
+				Spent:  (-1) * item.DifferenceFloat,
+				Earned: 0,
+			}
 		}
 	}
-	tEarned := make(map[string]float64)
+
 	earnedInsights, err := api.GetInsights("income/category")
 	if err == nil {
 		for _, item := range earnedInsights {
-			tEarned[item.ID] = item.DifferenceFloat
+			if val, ok := insights[item.ID]; ok {
+				val.Earned = item.DifferenceFloat
+				insights[item.ID] = val
+			} else {
+				insights[item.ID] = categoryInsight{
+					Spent:  0,
+					Earned: item.DifferenceFloat,
+				}
+			}
 		}
 	}
 
-	for i, category := range api.Categories {
-		if val, ok := tSpent[category.ID]; ok {
-			api.Categories[i].Spent = val
-		} else {
-			api.Categories[i].Spent = 0
-		}
-
-		if val, ok := tEarned[category.ID]; ok {
-			api.Categories[i].Earned = val
-		} else {
-			api.Categories[i].Earned = 0
-		}
-	}
+	api.categoryInsights = insights
 
 	return nil
 }

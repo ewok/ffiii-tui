@@ -24,8 +24,6 @@ type Account struct {
 	CurrencyCode string
 	Balance      float64
 	Type         string
-	Spent        float64
-	Earned       float64
 }
 
 type apiAccount struct {
@@ -116,49 +114,50 @@ func (api *Api) CreateAccount(name string, accountType string, currencyCode stri
 	return nil
 }
 
+func (api *Api) GetExpenseDiff(ID string) float64 {
+	if insight, ok := api.expenseInsights[ID]; ok {
+		return insight.Diff
+	}
+	return 0
+}
+
+func (api *Api) GetRevenueDiff(ID string) float64 {
+	if insight, ok := api.revenueInsights[ID]; ok {
+		return insight.Diff
+	}
+	return 0
+}
+
 func (api *Api) UpdateExpenseInsights() error {
 
 	// TODO: Need error reporting
-	tSpent := make(map[string]float64)
+	insights := make(map[string]accountInsight)
 	spentInsights, err := api.GetInsights("expense/expense")
 	if err == nil {
 		for _, item := range spentInsights {
-			tSpent[item.ID] = (-1) * item.DifferenceFloat
+			insights[item.ID] = accountInsight{
+				Diff: (-1) * item.DifferenceFloat,
+			}
 		}
 	}
-
-	expenses := api.Accounts["expense"]
-	for i, account := range expenses {
-		if val, ok := tSpent[account.ID]; ok {
-			expenses[i].Spent = val
-		} else {
-			expenses[i].Spent = 0
-		}
-	}
-	api.Accounts["expense"] = expenses
+	api.expenseInsights = insights
 
 	return nil
 }
 
 func (api *Api) UpdateRevenueInsights() error {
 
-	tEarned := make(map[string]float64)
+	insights := make(map[string]accountInsight)
 	earnedInsights, err := api.GetInsights("income/revenue")
 	if err == nil {
 		for _, item := range earnedInsights {
-			tEarned[item.ID] = item.DifferenceFloat
+			insights[item.ID] = accountInsight{
+				Diff: item.DifferenceFloat,
+			}
 		}
 	}
 
-	revenues := api.Accounts["revenue"]
-	for i, account := range revenues {
-		if val, ok := tEarned[account.ID]; ok {
-			revenues[i].Earned = val
-		} else {
-			revenues[i].Earned = 0
-		}
-	}
-	api.Accounts["revenue"] = revenues
+	api.revenueInsights = insights
 
 	return nil
 }
@@ -187,10 +186,13 @@ func (api *Api) UpdateAccounts(accType string) error {
 
 	maps.Copy(api.Accounts, accs)
 
-	if accType == "expense" {
+	switch accType {
+	case "expense":
 		api.UpdateExpenseInsights()
-	}
-	if accType == "revenue" {
+	case "revenue":
+		api.UpdateRevenueInsights()
+	case "all":
+		api.UpdateExpenseInsights()
 		api.UpdateRevenueInsights()
 	}
 

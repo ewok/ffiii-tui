@@ -110,16 +110,16 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(
 				Cmd(RefreshTransactionsMsg{}),
 				Cmd(RefreshCategoryInsightsMsg{}),
-				Cmd(RefreshExpenseInsightsMsg{}),
 				Cmd(RefreshRevenueInsightsMsg{}),
+				Cmd(RefreshExpenseInsightsMsg{}),
 			)
 		case "]":
 			m.api.NextPeriod()
 			return m, tea.Batch(
 				Cmd(RefreshTransactionsMsg{}),
 				Cmd(RefreshCategoryInsightsMsg{}),
-				Cmd(RefreshExpenseInsightsMsg{}),
 				Cmd(RefreshRevenueInsightsMsg{}),
+				Cmd(RefreshExpenseInsightsMsg{}),
 			)
 		}
 	case tea.WindowSizeMsg:
