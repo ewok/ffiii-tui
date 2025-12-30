@@ -145,13 +145,15 @@ func (m *modelRevenues) Blur() {
 func getRevenuesItems(api *firefly.Api, sorted bool) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Accounts["revenue"] {
-		if sorted && i.Earned == 0 {
+		earned := api.GetRevenueDiff(i.ID)
+		if sorted && earned == 0 {
 			continue
 		}
 		items = append(items, revenueItem{
 			account:  i.Name,
 			currency: i.CurrencyCode,
-			earned:   i.Earned})
+			earned:   earned,
+		})
 	}
 	if sorted {
 		slices.SortFunc(items, func(a, b list.Item) int {

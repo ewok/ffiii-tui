@@ -15,21 +15,12 @@ type Api struct {
 	Config ApiConfig
 
 	Accounts map[string][]Account
-
-	// // Assets holds the list of asset accounts.
-	// Assets []Account
-	//
-	// // Expenses holds the list of expense accounts.
-	// Expenses []Account
-	//
-	// // Liabilities holds the list of liability accounts.
-	// Liabilities []Account
-	//
-	// // Revenues holds the list of revenue accounts.
-	// Revenues []Account
+	expenseInsights map[string]accountInsight
+	revenueInsights map[string]accountInsight
 
 	// Categories holds the list of categories.
 	Categories []Category
+	categoryInsights map[string]categoryInsight
 
 	// Currencies
 	Currencies []Currency

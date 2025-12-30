@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-type InsightItem struct {
+type insightItem struct {
 	ID              string  `json:"id"`
 	Name            string  `json:"name"`
 	Difference      string  `json:"difference"`
@@ -21,7 +21,16 @@ type InsightItem struct {
 	CurrencyCode    string  `json:"currency_code"`
 }
 
-func (api *Api) GetInsights(ep string) ([]InsightItem, error) {
+type accountInsight struct {
+	Diff float64
+}
+
+type categoryInsight struct {
+	Spent  float64
+	Earned float64
+}
+
+func (api *Api) GetInsights(ep string) ([]insightItem, error) {
 	endpoint := fmt.Sprintf(
 		"%s/insight/%s?start=%s&end=%s",
 		api.Config.ApiUrl,
@@ -64,7 +73,7 @@ func (api *Api) GetInsights(ep string) ([]InsightItem, error) {
 		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
 	}
 
-	var items []InsightItem
+	var items []insightItem
 	err = json.Unmarshal(body, &items)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
