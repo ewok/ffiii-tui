@@ -309,107 +309,115 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "n":
 			switch m.form.GetFocusedField().GetKey() {
 			case "source_name":
+				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Account])
+				if !ok || !f.GetFiltering() {
+					switch transactionType {
+					case "withdrawal", "transfer":
 
-				switch transactionType {
-				case "withdrawal", "transfer":
-					return m, Cmd(PromptMsg{
-						Prompt: "New Asset(name,currency): ",
-						Value:  "",
-						Callback: func(value string) tea.Cmd {
-							var cmds []tea.Cmd
-							if value != "" {
-								split := strings.SplitN(value, ",", 2)
-								if len(split) >= 2 {
-									acc := strings.TrimSpace(split[0])
-									cur := strings.TrimSpace(split[1])
-									if acc != "" && cur != "" {
-										cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
-									} else {
-										// TODO: Report error to user
+						return m, Cmd(PromptMsg{
+							Prompt: "New Asset(name,currency): ",
+							Value:  "",
+							Callback: func(value string) tea.Cmd {
+								var cmds []tea.Cmd
+								if value != "" {
+									split := strings.SplitN(value, ",", 2)
+									if len(split) >= 2 {
+										acc := strings.TrimSpace(split[0])
+										cur := strings.TrimSpace(split[1])
+										if acc != "" && cur != "" {
+											cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
+										} else {
+											// TODO: Report error to user
+										}
 									}
 								}
-							}
-							cmds = append(cmds,
-								Cmd(RefreshNewAssetMsg{}),
-								Cmd(ViewNewMsg{}))
-							return tea.Sequence(cmds...)
-						}})
-				case "deposit":
-					return m, Cmd(PromptMsg{
-						Prompt: "New Revenue: ",
-						Value:  "",
-						Callback: func(value string) tea.Cmd {
-							var cmds []tea.Cmd
-							if value != "" {
-								cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
-							}
-							cmds = append(cmds,
-								Cmd(RefreshNewRevenueMsg{}),
-								Cmd(ViewNewMsg{}))
-							return tea.Sequence(cmds...)
-						}})
-				default:
-					return m, nil
+								cmds = append(cmds,
+									Cmd(RefreshNewAssetMsg{}),
+									Cmd(ViewNewMsg{}))
+								return tea.Sequence(cmds...)
+							}})
+					case "deposit":
+						return m, Cmd(PromptMsg{
+							Prompt: "New Revenue: ",
+							Value:  "",
+							Callback: func(value string) tea.Cmd {
+								var cmds []tea.Cmd
+								if value != "" {
+									cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
+								}
+								cmds = append(cmds,
+									Cmd(RefreshNewRevenueMsg{}),
+									Cmd(ViewNewMsg{}))
+								return tea.Sequence(cmds...)
+							}})
+					default:
+						return m, nil
+					}
 				}
 
 			case "destination_name":
-
-				switch transactionType {
-				case "withdrawal":
-					return m, Cmd(PromptMsg{
-						Prompt: "New Expense: ",
-						Value:  "",
-						Callback: func(value string) tea.Cmd {
-							var cmds []tea.Cmd
-							if value != "" {
-								cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
-							}
-							cmds = append(cmds,
-								Cmd(RefreshNewExpenseMsg{}),
-								Cmd(ViewNewMsg{}))
-							return tea.Sequence(cmds...)
-						}})
-				case "transfer", "deposit":
-					return m, Cmd(PromptMsg{
-						Prompt: "New Asset(name,currency): ",
-						Value:  "",
-						Callback: func(value string) tea.Cmd {
-							var cmds []tea.Cmd
-							if value != "" {
-								split := strings.SplitN(value, ",", 2)
-								if len(split) >= 2 {
-									acc := strings.TrimSpace(split[0])
-									cur := strings.TrimSpace(split[1])
-									if acc != "" && cur != "" {
-										cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
-									} else {
-										// TODO: Report error to user
+				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Account])
+				if !ok || !f.GetFiltering() {
+					switch transactionType {
+					case "withdrawal":
+						return m, Cmd(PromptMsg{
+							Prompt: "New Expense: ",
+							Value:  "",
+							Callback: func(value string) tea.Cmd {
+								var cmds []tea.Cmd
+								if value != "" {
+									cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
+								}
+								cmds = append(cmds,
+									Cmd(RefreshNewExpenseMsg{}),
+									Cmd(ViewNewMsg{}))
+								return tea.Sequence(cmds...)
+							}})
+					case "transfer", "deposit":
+						return m, Cmd(PromptMsg{
+							Prompt: "New Asset(name,currency): ",
+							Value:  "",
+							Callback: func(value string) tea.Cmd {
+								var cmds []tea.Cmd
+								if value != "" {
+									split := strings.SplitN(value, ",", 2)
+									if len(split) >= 2 {
+										acc := strings.TrimSpace(split[0])
+										cur := strings.TrimSpace(split[1])
+										if acc != "" && cur != "" {
+											cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
+										} else {
+											// TODO: Report error to user
+										}
 									}
 								}
-							}
-							cmds = append(cmds,
-								Cmd(RefreshNewAssetMsg{}),
-								Cmd(ViewNewMsg{}))
-							return tea.Sequence(cmds...)
-						}})
-				default:
-					return m, nil
+								cmds = append(cmds,
+									Cmd(RefreshNewAssetMsg{}),
+									Cmd(ViewNewMsg{}))
+								return tea.Sequence(cmds...)
+							}})
+					default:
+						return m, nil
+					}
 				}
 
 			case "category_name":
-				return m, Cmd(PromptMsg{
-					Prompt: "New Category: ",
-					Value:  "",
-					Callback: func(value string) tea.Cmd {
-						var cmds []tea.Cmd
-						if value != "" {
-							cmds = append(cmds, Cmd(NewCategoryMsg{category: value}))
-						}
-						cmds = append(cmds,
-							Cmd(RefreshNewCategoryMsg{}),
-							Cmd(ViewNewMsg{}))
-						return tea.Sequence(cmds...)
-					}})
+				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Category])
+				if !ok || !f.GetFiltering() {
+					return m, Cmd(PromptMsg{
+						Prompt: "New Category: ",
+						Value:  "",
+						Callback: func(value string) tea.Cmd {
+							var cmds []tea.Cmd
+							if value != "" {
+								cmds = append(cmds, Cmd(NewCategoryMsg{category: value}))
+							}
+							cmds = append(cmds,
+								Cmd(RefreshNewCategoryMsg{}),
+								Cmd(ViewNewMsg{}))
+							return tea.Sequence(cmds...)
+						}})
+				}
 			}
 		case "esc":
 			return m, Cmd(ViewTransactionsMsg{})
