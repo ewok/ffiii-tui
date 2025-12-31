@@ -64,13 +64,10 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list.SetItems(getAssetsItems(m.api)))
 	case NewAssetMsg:
 		err := m.api.CreateAccount(msg.account, "asset", msg.currency)
-		// TODO: Report error to user
 		if err != nil {
-			cmd = tea.Println("Error creating asset:", err)
-		} else {
-			cmd = Cmd(RefreshAssetsMsg{})
+			return m, Notify(err.Error(), Warning)
 		}
-		return m, cmd
+		return m, Cmd(RefreshAssetsMsg{})
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
@@ -89,13 +86,13 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "f":
 				i, ok := m.list.SelectedItem().(assetItem)
 				if ok {
-					return m, Cmd(FilterItemMsg{account: i.account})
+					return m, Cmd(FilterMsg{account: i.account})
 				}
 				return m, nil
 			case "enter":
 				i, ok := m.list.SelectedItem().(assetItem)
 				if ok {
-					cmds = append(cmds, Cmd(FilterItemMsg{account: i.account}))
+					cmds = append(cmds, Cmd(FilterMsg{account: i.account}))
 				}
 				cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 				return m, tea.Sequence(cmds...)
@@ -105,17 +102,19 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Value:  "",
 					Callback: func(value string) tea.Cmd {
 						var cmds []tea.Cmd
-						if value != "" {
+						if value != "None" {
 							split := strings.SplitN(value, ",", 2)
 							if len(split) >= 2 {
 								acc := strings.TrimSpace(split[0])
 								cur := strings.TrimSpace(split[1])
 								if acc != "" && cur != "" {
 									cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
+									panic("sdf")
 								} else {
-									// TODO: Report error to user
+									cmds = append(cmds, Notify("Invalid asset name or currency", Warning))
 								}
 							}
+							cmds = append(cmds, Notify("Invalid asset name or currency", Warning))
 						}
 						cmds = append(cmds, Cmd(ViewAssetsMsg{}))
 						return tea.Sequence(cmds...)
@@ -129,6 +128,10 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, Cmd(ViewRevenuesMsg{})
 			case "r":
 				return m, Cmd(RefreshAssetsMsg{})
+			case "t":
+				return m, Cmd(ViewTransactionsMsg{})
+			case "ctrl+a":
+				return m, Cmd(FilterMsg{reset: true})
 			}
 		}
 	}

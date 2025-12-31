@@ -317,7 +317,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						Value:  "",
 						Callback: func(value string) tea.Cmd {
 							var cmds []tea.Cmd
-							if value != "" {
+							if value != "None" {
 								cmds = append(cmds, Cmd(NewCategoryMsg{category: value}))
 							}
 							cmds = append(cmds,
@@ -345,15 +345,13 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								Value:  "",
 								Callback: func(value string) tea.Cmd {
 									var cmds []tea.Cmd
-									if value != "" {
+									if value != "None" && value != "" {
 										split := strings.SplitN(value, ",", 2)
 										if len(split) >= 2 {
 											acc := strings.TrimSpace(split[0])
 											cur := strings.TrimSpace(split[1])
 											if acc != "" && cur != "" {
 												cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
-											} else {
-												// TODO: Report error to user
 											}
 										}
 									}
@@ -371,7 +369,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								Value:  "",
 								Callback: func(value string) tea.Cmd {
 									var cmds []tea.Cmd
-									if value != "" {
+									if value != "None" && value != "" {
 										cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
 									}
 									cmds = append(cmds,
@@ -388,7 +386,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								Value:  "",
 								Callback: func(value string) tea.Cmd {
 									var cmds []tea.Cmd
-									if value != "" {
+									if value != "None" && value != "" {
 										cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
 									}
 									cmds = append(cmds,
@@ -431,7 +429,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				default:
 					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
-					return newModel, nil
+					return newModel, Notify("Wrong transaction type(should not appear)", Critical)
 				}
 
 				if err := m.api.CreateTransaction(firefly.NewTransaction{
@@ -454,7 +452,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					},
 				}); err != nil {
 					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
-					return newModel, nil
+					return newModel, Notify(err.Error(), Warning)
 
 				} else {
 					newModel := newModelNewTransaction(m.api, firefly.Transaction{})

@@ -80,12 +80,10 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list.SetItems(getCategoriesItems(m.api, m.sorted)))
 	case NewCategoryMsg:
 		err := m.api.CreateCategory(msg.category, "")
-		if err == nil {
-			return m, Cmd(RefreshCategoriesMsg{})
-
+		if err != nil {
+			return m, Notify(err.Error(), Warning)
 		}
-		// TODO: report
-		return m, nil
+		return m, Cmd(RefreshCategoriesMsg{})
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
@@ -109,7 +107,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Value:  "",
 					Callback: func(value string) tea.Cmd {
 						var cmds []tea.Cmd
-						if value != "" {
+						if value != "None" {
 							cmds = append(cmds, Cmd(NewCategoryMsg{category: value}))
 						}
 						cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
@@ -118,9 +116,8 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "f":
 				i, ok := m.list.SelectedItem().(categoryItem)
 				if ok {
-					return m, Cmd(FilterItemMsg{category: i.category})
+					return m, Cmd(FilterMsg{category: i.category})
 				}
-				// TODO: report
 				return m, nil
 			case "a":
 				return m, Cmd(ViewAssetsMsg{})
@@ -142,6 +139,10 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.sorted = 0
 				}
 				return m, m.list.SetItems(getCategoriesItems(m.api, m.sorted))
+			case "t":
+				return m, Cmd(ViewTransactionsMsg{})
+			case "ctrl+a":
+				return m, Cmd(FilterMsg{reset: true})
 			}
 		}
 	}

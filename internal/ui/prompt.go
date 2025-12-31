@@ -5,6 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 package ui
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -55,9 +57,13 @@ func (m modelPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "enter":
-			return m, m.callback(m.input.Value())
-		case "esc", "ctrl+c":
-			return m, m.callback("")
+			value := strings.TrimSpace(m.input.Value())
+			if value == "" {
+				value = "None"
+			}
+			return m, m.callback(value)
+		case "esc":
+			return m, m.callback("None")
 		default:
 			m.input, cmd = m.input.Update(msg)
 		}
