@@ -14,12 +14,12 @@ type Api struct {
 	// Config contains the API configuration details.
 	Config ApiConfig
 
-	Accounts map[string][]Account
+	Accounts        map[string][]Account
 	expenseInsights map[string]accountInsight
 	revenueInsights map[string]accountInsight
 
 	// Categories holds the list of categories.
-	Categories []Category
+	Categories       []Category
 	categoryInsights map[string]categoryInsight
 
 	// Currencies

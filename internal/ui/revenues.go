@@ -67,11 +67,10 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list.SetItems(getRevenuesItems(m.api, m.sorted)))
 	case NewRevenueMsg:
 		err := m.api.CreateAccount(msg.account, "revenue", "")
-		// TODO: Report error to user
-		if err == nil {
-			return m, Cmd(RefreshRevenuesMsg{})
+		if err != nil {
+			return m, Notify(err.Error(), Warning)
 		}
-		return m, nil
+		return m, Cmd(RefreshRevenuesMsg{})
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
@@ -95,7 +94,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Value:  "",
 					Callback: func(value string) tea.Cmd {
 						var cmds []tea.Cmd
-						if value != "" {
+						if value != "None" {
 							cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
 						}
 						cmds = append(cmds, Cmd(ViewRevenuesMsg{}))
@@ -104,7 +103,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "f":
 				i, ok := m.list.SelectedItem().(revenueItem)
 				if ok {
-					return m, Cmd(FilterItemMsg{account: i.account})
+					return m, Cmd(FilterMsg{account: i.account})
 				}
 				return m, nil
 			case "a":
@@ -120,6 +119,10 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "s":
 				m.sorted = !m.sorted
 				return m, m.list.SetItems(getRevenuesItems(m.api, m.sorted))
+			case "t":
+				return m, Cmd(ViewTransactionsMsg{})
+			case "ctrl+a":
+				return m, Cmd(FilterMsg{reset: true})
 			}
 		}
 	}

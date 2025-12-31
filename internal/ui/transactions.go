@@ -18,11 +18,10 @@ import (
 )
 
 type FilterMsg struct {
-	query string
-}
-type FilterItemMsg struct {
 	account  string
 	category string
+	query    string
+	reset    bool
 }
 type SearchMsg struct {
 	query string
@@ -31,13 +30,14 @@ type SearchMsg struct {
 type RefreshTransactionsMsg struct{}
 
 type modelTransactions struct {
-	table         table.Model
-	transactions  []firefly.Transaction
-	api           *firefly.Api
-	currentItem   string
-	currentSearch string
-	currentFilter string
-	focus         bool
+	table           table.Model
+	transactions    []firefly.Transaction
+	api             *firefly.Api
+	currentAccount  string
+	currentCategory string
+	currentSearch   string
+	currentFilter   string
+	focus           bool
 }
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
@@ -78,16 +78,85 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case SearchMsg:
-		m.currentSearch = msg.query
+		if msg.query == "None" && m.currentSearch == "" {
+			return m, nil
+		}
+		if msg.query == "None" {
+			m.currentSearch = ""
+		} else {
+			m.currentSearch = msg.query
+		}
 		return m, Cmd(RefreshTransactionsMsg{})
 	case FilterMsg:
-		m.currentItem = ""
-		value := msg.query
-		m.currentFilter = value
+		// Reset flag
+		if msg.reset {
+			m.currentAccount = ""
+			m.currentCategory = ""
+			m.currentFilter = ""
+		}
+
+		// Clear filters if user set to "None"
+		if msg.account == "None" {
+			m.currentAccount = ""
+		}
+		if msg.category == "None" {
+			m.currentCategory = ""
+		}
+		if msg.query == "None" {
+			m.currentFilter = ""
+		}
+
+		// Reset other filters if the same filter is applied again
+		if msg.account != "" && msg.account != "None" {
+			if msg.account == m.currentAccount {
+				m.currentCategory = ""
+				m.currentFilter = ""
+			}
+			m.currentAccount = msg.account
+		}
+		if msg.category != "" && msg.category != "None" {
+			if msg.category == m.currentCategory {
+				m.currentAccount = ""
+				m.currentFilter = ""
+			}
+			m.currentCategory = msg.category
+		}
+		if msg.query != "" && msg.query != "None" {
+			if msg.query == m.currentFilter {
+				m.currentAccount = ""
+				m.currentCategory = ""
+			}
+			m.currentFilter = msg.query
+		}
+
+		transactions := m.transactions
+
+		value := m.currentAccount
 		if value != "" {
-			transactions := []firefly.Transaction{}
-			for _, tx := range m.transactions {
-				// if fields contain the filter value
+			txs := []firefly.Transaction{}
+			for _, tx := range transactions {
+				if tx.Source.Name == value || tx.Destination.Name == value {
+					txs = append(txs, tx)
+				}
+			}
+			transactions = txs
+		}
+
+		value = m.currentCategory
+		if value != "" {
+			txs := []firefly.Transaction{}
+			for _, tx := range transactions {
+				if tx.Category.Name == value {
+					txs = append(txs, tx)
+				}
+			}
+			transactions = txs
+		}
+
+		value = m.currentFilter
+		if value != "" {
+			txs := []firefly.Transaction{}
+			for _, tx := range transactions {
 				if CaseInsensitiveContains(tx.Description, value) ||
 					CaseInsensitiveContains(tx.Source.Name, value) ||
 					CaseInsensitiveContains(tx.Destination.Name, value) ||
@@ -96,49 +165,16 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					strings.Contains(fmt.Sprintf("%.2f", tx.Amount), value) ||
 					CaseInsensitiveContains(tx.ForeignCurrency, value) ||
 					strings.Contains(fmt.Sprintf("%.2f", tx.ForeignAmount), value) {
-					transactions = append(transactions, tx)
+					txs = append(txs, tx)
 				}
 			}
-			rows, columns := getRows(transactions)
-			m.table.SetRows(rows)
-			m.table.SetColumns(columns)
-		} else {
-			rows, columns := getRows(m.transactions)
-			m.table.SetRows(rows)
-			m.table.SetColumns(columns)
+			transactions = txs
 		}
-	case FilterItemMsg:
-		m.currentFilter = ""
 
-		value := ""
-		if msg.account != "" {
-			value = msg.account
-		} else if msg.category != "" {
-			value = msg.category
-		}
-		m.currentItem = value
+		rows, columns := getRows(transactions)
+		m.table.SetRows(rows)
+		m.table.SetColumns(columns)
 
-		if value != "" {
-			transactions := []firefly.Transaction{}
-			for _, tx := range m.transactions {
-				if msg.category != "" && tx.Category.Name == value {
-					transactions = append(transactions, tx)
-					continue
-				}
-				if msg.account != "" {
-					if tx.Source.Name == value || tx.Destination.Name == value {
-						transactions = append(transactions, tx)
-					}
-				}
-			}
-			rows, columns := getRows(transactions)
-			m.table.SetRows(rows)
-			m.table.SetColumns(columns)
-		} else {
-			rows, columns := getRows(m.transactions)
-			m.table.SetRows(rows)
-			m.table.SetColumns(columns)
-		}
 	case RefreshTransactionsMsg:
 		return m, Cmd(func() tea.Msg {
 			var err error
@@ -155,7 +191,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			m.transactions = transactions
-			return FilterItemMsg{account: m.currentItem}
+			return FilterMsg{
+				account:  m.currentAccount,
+				category: m.currentCategory,
+				query:    m.currentFilter,
+			}
 		}())
 
 	case tea.WindowSizeMsg:
@@ -181,11 +221,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Cmd(RefreshExpensesMsg{}),
 					Cmd(RefreshRevenuesMsg{}),
 					Cmd(RefreshCategoriesMsg{}),
-					)
+				)
 			case "f":
 				return m, Cmd(PromptMsg{
 					Prompt: "Filter query: ",
-					Value:  "",
+					Value:  m.currentFilter,
 					Callback: func(value string) tea.Cmd {
 						var cmds []tea.Cmd
 						cmds = append(cmds,
@@ -196,7 +236,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "s":
 				return m, Cmd(PromptMsg{
 					Prompt: "Search query: ",
-					Value:  "",
+					Value:  m.currentSearch,
 					Callback: func(value string) tea.Cmd {
 						var cmds []tea.Cmd
 						cmds = append(cmds,
@@ -220,7 +260,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "a":
 				return m, Cmd(ViewAssetsMsg{})
 			case "ctrl+a":
-				return m, Cmd(FilterItemMsg{account: ""})
+				return m, Cmd(FilterMsg{reset: true})
 			case "c":
 				return m, Cmd(ViewCategoriesMsg{})
 			case "e":

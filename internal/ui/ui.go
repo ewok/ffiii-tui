@@ -67,6 +67,7 @@ type modelUI struct {
 	expenses     modelExpenses
 	revenues     modelRevenues
 	prompt       modelPrompt
+	notify       modelNotify
 }
 
 func Show(api *firefly.Api) {
@@ -87,6 +88,7 @@ func Show(api *firefly.Api) {
 			Callback: func(value string) tea.Cmd {
 				return Cmd(ViewTransactionsMsg{})
 			}}),
+		notify: newNotify(NotifyMsg{Message: ""}),
 	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
@@ -259,6 +261,14 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.prompt = promptModel
 	cmds = append(cmds, cmd)
 
+	nModel, cmd = m.notify.Update(msg)
+	notifyModel, ok := nModel.(modelNotify)
+	if !ok {
+		panic("Somthing bad happened")
+	}
+	m.notify = notifyModel
+	cmds = append(cmds, cmd)
+
 	return m, tea.Batch(cmds...)
 }
 
@@ -267,19 +277,27 @@ func (m modelUI) View() string {
 
 	if promptVisible {
 		s = s + promptStyleFocused.Render(" "+m.prompt.View()) + "\n"
+	} else if m.notify.text != "" {
+		s = s + promptStyleFocused.Render(" Notification: "+m.notify.View()) + "\n"
 	} else {
 		header := fmt.Sprintf(
 			" ffiii-tui | Period: %s - %s",
 			m.api.StartDate.Format("2006-01-02"),
 			m.api.EndDate.Format("2006-01-02"))
-		if m.transactions.currentItem != "" {
-			header = header + " | Item: " + m.transactions.currentItem
+		if m.transactions.currentAccount != "" {
+			header = header + " | Account: " + m.transactions.currentAccount
+		}
+		if m.transactions.currentCategory != "" {
+			header = header + " | Category: " + m.transactions.currentCategory
 		}
 		if m.transactions.currentFilter != "" {
 			header = header + " | Filter: " + m.transactions.currentFilter
 		}
 		if m.transactions.currentSearch != "" {
 			header = header + " | Search: " + m.transactions.currentSearch
+		}
+		if m.notify.text != "" {
+			header = header + "\n" + " Notification: " + m.notify.View()
 		}
 		s = s + promptStyle.Render(header) + "\n"
 	}
