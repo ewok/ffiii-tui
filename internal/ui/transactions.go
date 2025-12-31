@@ -177,7 +177,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "r":
 				return m, tea.Sequence(
 					Cmd(RefreshTransactionsMsg{}),
-					Cmd(RefreshAssetsMsg{}))
+					Cmd(RefreshAssetsMsg{}),
+					Cmd(RefreshExpensesMsg{}),
+					Cmd(RefreshRevenuesMsg{}),
+					Cmd(RefreshCategoriesMsg{}),
+					)
 			case "f":
 				return m, Cmd(PromptMsg{
 					Prompt: "Filter query: ",

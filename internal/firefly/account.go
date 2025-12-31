@@ -181,6 +181,7 @@ func (api *Api) UpdateAccounts(accType string) error {
 			Name:         account.Attributes.Name,
 			CurrencyCode: account.Attributes.CurrencyCode,
 			Balance:      balance,
+			Type:         account.Attributes.Type,
 		})
 	}
 

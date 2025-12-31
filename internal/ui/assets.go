@@ -157,7 +157,8 @@ func getAssetsItems(api *firefly.Api) []list.Item {
 		items = append(items, assetItem{
 			account:  i.Name,
 			balance:  i.Balance,
-			currency: i.CurrencyCode})
+			currency: i.CurrencyCode,
+		})
 	}
 
 	return items

@@ -307,103 +307,11 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "n":
-			switch m.form.GetFocusedField().GetKey() {
-			case "source_name":
-				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Account])
-				if !ok || !f.GetFiltering() {
-					switch transactionType {
-					case "withdrawal", "transfer":
-
-						return m, Cmd(PromptMsg{
-							Prompt: "New Asset(name,currency): ",
-							Value:  "",
-							Callback: func(value string) tea.Cmd {
-								var cmds []tea.Cmd
-								if value != "" {
-									split := strings.SplitN(value, ",", 2)
-									if len(split) >= 2 {
-										acc := strings.TrimSpace(split[0])
-										cur := strings.TrimSpace(split[1])
-										if acc != "" && cur != "" {
-											cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
-										} else {
-											// TODO: Report error to user
-										}
-									}
-								}
-								cmds = append(cmds,
-									Cmd(RefreshNewAssetMsg{}),
-									Cmd(ViewNewMsg{}))
-								return tea.Sequence(cmds...)
-							}})
-					case "deposit":
-						return m, Cmd(PromptMsg{
-							Prompt: "New Revenue: ",
-							Value:  "",
-							Callback: func(value string) tea.Cmd {
-								var cmds []tea.Cmd
-								if value != "" {
-									cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
-								}
-								cmds = append(cmds,
-									Cmd(RefreshNewRevenueMsg{}),
-									Cmd(ViewNewMsg{}))
-								return tea.Sequence(cmds...)
-							}})
-					default:
-						return m, nil
-					}
-				}
-
-			case "destination_name":
-				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Account])
-				if !ok || !f.GetFiltering() {
-					switch transactionType {
-					case "withdrawal":
-						return m, Cmd(PromptMsg{
-							Prompt: "New Expense: ",
-							Value:  "",
-							Callback: func(value string) tea.Cmd {
-								var cmds []tea.Cmd
-								if value != "" {
-									cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
-								}
-								cmds = append(cmds,
-									Cmd(RefreshNewExpenseMsg{}),
-									Cmd(ViewNewMsg{}))
-								return tea.Sequence(cmds...)
-							}})
-					case "transfer", "deposit":
-						return m, Cmd(PromptMsg{
-							Prompt: "New Asset(name,currency): ",
-							Value:  "",
-							Callback: func(value string) tea.Cmd {
-								var cmds []tea.Cmd
-								if value != "" {
-									split := strings.SplitN(value, ",", 2)
-									if len(split) >= 2 {
-										acc := strings.TrimSpace(split[0])
-										cur := strings.TrimSpace(split[1])
-										if acc != "" && cur != "" {
-											cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
-										} else {
-											// TODO: Report error to user
-										}
-									}
-								}
-								cmds = append(cmds,
-									Cmd(RefreshNewAssetMsg{}),
-									Cmd(ViewNewMsg{}))
-								return tea.Sequence(cmds...)
-							}})
-					default:
-						return m, nil
-					}
-				}
-
-			case "category_name":
+			field := m.form.GetFocusedField()
+			switch field.(type) {
+			case *huh.Select[firefly.Category]:
 				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Category])
-				if !ok || !f.GetFiltering() {
+				if ok && !f.GetFiltering() {
 					return m, Cmd(PromptMsg{
 						Prompt: "New Category: ",
 						Value:  "",
@@ -418,7 +326,84 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							return tea.Sequence(cmds...)
 						}})
 				}
+
+			case *huh.Select[firefly.Account]:
+				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Account])
+				if ok && !f.GetFiltering() {
+					var (
+						msg    tea.Msg
+						prompt string
+					)
+
+					a, ok := f.GetValue().(firefly.Account)
+					if ok {
+						switch a.Type {
+						case "asset":
+							prompt = "New Asset(name,currency): "
+							msg = PromptMsg{
+								Prompt: prompt,
+								Value:  "",
+								Callback: func(value string) tea.Cmd {
+									var cmds []tea.Cmd
+									if value != "" {
+										split := strings.SplitN(value, ",", 2)
+										if len(split) >= 2 {
+											acc := strings.TrimSpace(split[0])
+											cur := strings.TrimSpace(split[1])
+											if acc != "" && cur != "" {
+												cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
+											} else {
+												// TODO: Report error to user
+											}
+										}
+									}
+									cmds = append(cmds,
+										Cmd(RefreshNewAssetMsg{}),
+										Cmd(ViewNewMsg{}),
+									)
+									return tea.Sequence(cmds...)
+								}}
+
+						case "expense":
+							prompt = "New Expense: "
+							msg = PromptMsg{
+								Prompt: "New Expense: ",
+								Value:  "",
+								Callback: func(value string) tea.Cmd {
+									var cmds []tea.Cmd
+									if value != "" {
+										cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
+									}
+									cmds = append(cmds,
+										Cmd(RefreshNewExpenseMsg{}),
+										Cmd(ViewNewMsg{}),
+									)
+									return tea.Sequence(cmds...)
+								}}
+
+						case "revenue":
+							prompt = "New Revenue: "
+							msg = PromptMsg{
+								Prompt: "New Revenue: ",
+								Value:  "",
+								Callback: func(value string) tea.Cmd {
+									var cmds []tea.Cmd
+									if value != "" {
+										cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
+									}
+									cmds = append(cmds,
+										Cmd(RefreshNewRevenueMsg{}),
+										Cmd(ViewNewMsg{}),
+									)
+									return tea.Sequence(cmds...)
+								}}
+						}
+
+						return m, Cmd(msg)
+					}
+				}
 			}
+
 		case "esc":
 			return m, Cmd(ViewTransactionsMsg{})
 		case "ctrl+r":
