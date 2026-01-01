@@ -24,13 +24,14 @@ type RefreshNewExpenseMsg struct{}
 type RefreshNewRevenueMsg struct{}
 
 type NewTransactionMsg struct {
-	transaction firefly.Transaction
+	Transaction firefly.Transaction
 }
 
 type modelNewTransaction struct {
-	form  *huh.Form // huh.Form is just a tea.Model
-	api   *firefly.Api
-	focus bool
+	form   *huh.Form // huh.Form is just a tea.Model
+	api    *firefly.Api
+	focus  bool
+	keymap TransactionFormKeyMap
 }
 
 var (
@@ -87,7 +88,8 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 	}
 
 	return modelNewTransaction{
-		api: api,
+		api:    api,
+		keymap: DefaultTransactionFormKeyMap(),
 		form: huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
@@ -292,7 +294,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RefreshNewCategoryMsg:
 		triggerCategoryCounter++
 	case NewTransactionMsg:
-		newModel := newModelNewTransaction(m.api, msg.transaction)
+		newModel := newModelNewTransaction(m.api, msg.Transaction)
 		return newModel, Cmd(ViewNewMsg{})
 	}
 
@@ -318,7 +320,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						Callback: func(value string) tea.Cmd {
 							var cmds []tea.Cmd
 							if value != "None" {
-								cmds = append(cmds, Cmd(NewCategoryMsg{category: value}))
+								cmds = append(cmds, Cmd(NewCategoryMsg{Category: value}))
 							}
 							cmds = append(cmds,
 								Cmd(RefreshNewCategoryMsg{}),
@@ -351,7 +353,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 											acc := strings.TrimSpace(split[0])
 											cur := strings.TrimSpace(split[1])
 											if acc != "" && cur != "" {
-												cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
+												cmds = append(cmds, Cmd(NewAssetMsg{Account: acc, Currency: cur}))
 											}
 										}
 									}
@@ -370,7 +372,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								Callback: func(value string) tea.Cmd {
 									var cmds []tea.Cmd
 									if value != "None" && value != "" {
-										cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
+										cmds = append(cmds, Cmd(NewExpenseMsg{Account: value}))
 									}
 									cmds = append(cmds,
 										Cmd(RefreshNewExpenseMsg{}),
@@ -387,7 +389,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								Callback: func(value string) tea.Cmd {
 									var cmds []tea.Cmd
 									if value != "None" && value != "" {
-										cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
+										cmds = append(cmds, Cmd(NewRevenueMsg{Account: value}))
 									}
 									cmds = append(cmds,
 										Cmd(RefreshNewRevenueMsg{}),

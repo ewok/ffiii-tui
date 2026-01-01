@@ -8,7 +8,10 @@ import (
 	"ffiii-tui/internal/firefly"
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/viper"
@@ -29,7 +32,7 @@ var (
 				BorderStyle(lipgloss.ThickBorder())
 	promptStyle         = baseStyle
 	promptStyleFocused  = baseStyleFocused
-	topSize             = 3
+	topSize             = 4
 	promptVisible       = false
 	fullTransactionView = false
 )
@@ -37,10 +40,10 @@ var (
 type state uint
 
 const (
-	transactionView state = iota
+	transactionsView state = iota
 	periodView
 	newView
-	assetView
+	assetsView
 	categoryView
 	expensesView
 	revenuesView
@@ -68,11 +71,17 @@ type modelUI struct {
 	revenues     modelRevenues
 	prompt       modelPrompt
 	notify       modelNotify
+
+	keymap UIKeyMap
+	help   help.Model
 }
 
 func Show(api *firefly.Api) {
 
 	fullTransactionView = viper.GetBool("ui.full_view")
+	h := help.New()
+	h.Styles.FullKey = lipgloss.NewStyle().PaddingLeft(1)
+	h.Styles.ShortKey = lipgloss.NewStyle().PaddingLeft(1)
 
 	m := modelUI{
 		api:          api,
@@ -89,6 +98,8 @@ func Show(api *firefly.Api) {
 				return Cmd(ViewTransactionsMsg{})
 			}}),
 		notify: newNotify(NotifyMsg{Message: ""}),
+		keymap: DefaultUIKeyMap(),
+		help:   h,
 	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
@@ -104,10 +115,10 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
+		switch {
+		case key.Matches(msg, m.keymap.Quit):
 			return m, tea.Quit
-		case "[":
+		case key.Matches(msg, m.keymap.PreviousPeriod):
 			m.api.PreviousPeriod()
 			return m, tea.Batch(
 				Cmd(RefreshTransactionsMsg{}),
@@ -115,7 +126,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Cmd(RefreshRevenueInsightsMsg{}),
 				Cmd(RefreshExpenseInsightsMsg{}),
 			)
-		case "]":
+		case key.Matches(msg, m.keymap.NextPeriod):
 			m.api.NextPeriod()
 			return m, tea.Batch(
 				Cmd(RefreshTransactionsMsg{}),
@@ -123,6 +134,18 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Cmd(RefreshRevenueInsightsMsg{}),
 				Cmd(RefreshExpenseInsightsMsg{}),
 			)
+		case key.Matches(msg, m.keymap.ShowShortHelp):
+			m.help.ShowAll = !m.help.ShowAll
+			m.assets.list.Help.ShowAll = m.help.ShowAll
+			m.categories.list.Help.ShowAll = m.help.ShowAll
+			m.expenses.list.Help.ShowAll = m.help.ShowAll
+			m.revenues.list.Help.ShowAll = m.help.ShowAll
+
+			m.assets.list.SetShowHelp(m.help.ShowAll)
+			m.categories.list.SetShowHelp(m.help.ShowAll)
+			m.expenses.list.SetShowHelp(m.help.ShowAll)
+			m.revenues.list.SetShowHelp(m.help.ShowAll)
+			return m, tea.WindowSize()
 		}
 	case tea.WindowSizeMsg:
 		promptStyle = baseStyle.
@@ -130,8 +153,14 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		promptStyleFocused = baseStyleFocused.
 			BorderForeground(lipgloss.Color("#FF5555")).
 			Width(msg.Width - 2)
+		if m.help.ShowAll {
+			topSize = 4 + lipgloss.Height(m.HelpView())
+		} else {
+			topSize = 4
+		}
+
 	case ViewTransactionsMsg:
-		m.state = transactionView
+		m.SetState(transactionsView)
 		promptVisible = false
 		m.transactions.Focus()
 		m.assets.Blur()
@@ -141,7 +170,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.prompt.Blur()
 		m.new.Blur()
 	case ViewAssetsMsg:
-		m.state = assetView
+		m.SetState(assetsView)
 		promptVisible = false
 		m.transactions.Blur()
 		m.assets.Focus()
@@ -151,7 +180,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.prompt.Blur()
 		m.new.Blur()
 	case ViewNewMsg:
-		m.state = newView
+		m.SetState(newView)
 		promptVisible = false
 		m.transactions.Blur()
 		m.assets.Blur()
@@ -161,7 +190,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.prompt.Blur()
 		m.new.Focus()
 	case ViewCategoriesMsg:
-		m.state = categoryView
+		m.SetState(categoryView)
 		promptVisible = false
 		m.transactions.Blur()
 		m.assets.Blur()
@@ -170,7 +199,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.revenues.Blur()
 		m.prompt.Blur()
 	case ViewExpensesMsg:
-		m.state = expensesView
+		m.SetState(expensesView)
 		promptVisible = false
 		m.transactions.Blur()
 		m.assets.Blur()
@@ -180,7 +209,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.prompt.Blur()
 		m.new.Blur()
 	case ViewRevenuesMsg:
-		m.state = revenuesView
+		m.SetState(revenuesView)
 		promptVisible = false
 		m.transactions.Blur()
 		m.assets.Blur()
@@ -282,8 +311,8 @@ func (m modelUI) View() string {
 	} else {
 		header := fmt.Sprintf(
 			" ffiii-tui | Period: %s - %s",
-			m.api.StartDate.Format("2006-01-02"),
-			m.api.EndDate.Format("2006-01-02"))
+			m.api.StartDate.Format(time.DateOnly),
+			m.api.EndDate.Format(time.DateOnly))
 		if m.transactions.currentAccount != "" {
 			header = header + " | Account: " + m.transactions.currentAccount
 		}
@@ -303,7 +332,7 @@ func (m modelUI) View() string {
 	}
 
 	switch m.state {
-	case transactionView:
+	case transactionsView:
 		if fullTransactionView {
 			s = s + baseStyleFocused.Render(m.transactions.View())
 		} else {
@@ -311,7 +340,7 @@ func (m modelUI) View() string {
 				baseStyle.Render(m.assets.View()),
 				baseStyleFocused.Render(m.transactions.View()))
 		}
-	case assetView:
+	case assetsView:
 		s = s + lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			baseStyleFocused.Render(m.assets.View()),
@@ -341,5 +370,30 @@ func (m modelUI) View() string {
 			baseStyleFocused.Render(m.revenues.View()),
 			baseStyle.Render(m.transactions.View()))
 	}
-	return s
+	return s + "\n" + m.help.Styles.ShortKey.Render(m.HelpView())
+
+}
+
+func (m *modelUI) SetState(s state) {
+	m.state = s
+}
+
+func (m *modelUI) HelpView() string {
+	help := ""
+	switch m.state {
+	case transactionsView:
+		help += m.help.View(m.transactions.keymap)
+	case assetsView:
+		help += m.help.View(m.assets.keymap)
+	case categoryView:
+		help += m.help.View(m.categories.keymap)
+	case expensesView:
+		help += m.help.View(m.expenses.keymap)
+	case revenuesView:
+		help += m.help.View(m.revenues.keymap)
+	}
+	if m.help.ShowAll {
+		help = lipgloss.JoinHorizontal(lipgloss.Left, help, m.help.View(m.keymap))
+	}
+	return help
 }

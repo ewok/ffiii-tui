@@ -11,13 +11,14 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type RefreshAssetsMsg struct{}
 
 type NewAssetMsg struct {
-	account  string
-	currency string
+	Account  string
+	Currency string
 }
 
 type assetItem struct {
@@ -30,19 +31,24 @@ func (i assetItem) Description() string { return fmt.Sprintf("%.2f %s", i.balanc
 func (i assetItem) FilterValue() string { return i.account }
 
 type modelAssets struct {
-	list  list.Model
-	api   *firefly.Api
-	focus bool
+	list   list.Model
+	api    *firefly.Api
+	focus  bool
+	keymap AssetKeyMap
 }
 
 func newModelAssets(api *firefly.Api) modelAssets {
 	items := getAssetsItems(api)
 
-	m := modelAssets{list: list.New(items, list.NewDefaultDelegate(), 0, 0), api: api}
+	m := modelAssets{
+		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
+		api:    api,
+		keymap: DefaultAssetKeyMap(),
+	}
 	m.list.Title = "Assets"
-	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	m.list.SetShowStatusBar(false)
 	m.list.SetFilteringEnabled(false)
+	m.list.SetShowHelp(false)
 	m.list.DisableQuitKeybindings()
 
 	return m
@@ -63,7 +69,7 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Cmd(m.api.UpdateAccounts("asset")),
 			m.list.SetItems(getAssetsItems(m.api)))
 	case NewAssetMsg:
-		err := m.api.CreateAccount(msg.account, "asset", msg.currency)
+		err := m.api.CreateAccount(msg.Account, "asset", msg.Currency)
 		if err != nil {
 			return m, Notify(err.Error(), Warning)
 		}
@@ -86,13 +92,13 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "f":
 				i, ok := m.list.SelectedItem().(assetItem)
 				if ok {
-					return m, Cmd(FilterMsg{account: i.account})
+					return m, Cmd(FilterMsg{Account: i.account})
 				}
 				return m, nil
 			case "enter":
 				i, ok := m.list.SelectedItem().(assetItem)
 				if ok {
-					cmds = append(cmds, Cmd(FilterMsg{account: i.account}))
+					cmds = append(cmds, Cmd(FilterMsg{Account: i.account}))
 				}
 				cmds = append(cmds, Cmd(ViewTransactionsMsg{}))
 				return m, tea.Sequence(cmds...)
@@ -108,7 +114,7 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								acc := strings.TrimSpace(split[0])
 								cur := strings.TrimSpace(split[1])
 								if acc != "" && cur != "" {
-									cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
+									cmds = append(cmds, Cmd(NewAssetMsg{Account: acc, Currency: cur}))
 									panic("sdf")
 								} else {
 									cmds = append(cmds, Notify("Invalid asset name or currency", Warning))
@@ -131,7 +137,7 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "t":
 				return m, Cmd(ViewTransactionsMsg{})
 			case "ctrl+a":
-				return m, Cmd(FilterMsg{reset: true})
+				return m, Cmd(FilterMsg{Reset: true})
 			}
 		}
 	}
@@ -141,7 +147,7 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelAssets) View() string {
-	return m.list.View()
+	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
 }
 
 func (m *modelAssets) Focus() {

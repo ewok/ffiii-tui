@@ -18,13 +18,13 @@ import (
 )
 
 type FilterMsg struct {
-	account  string
-	category string
-	query    string
-	reset    bool
+	Account  string
+	Category string
+	Query    string
+	Reset    bool
 }
 type SearchMsg struct {
-	query string
+	Query string
 }
 
 type RefreshTransactionsMsg struct{}
@@ -38,6 +38,7 @@ type modelTransactions struct {
 	currentSearch   string
 	currentFilter   string
 	focus           bool
+	keymap          TransactionsKeyMap
 }
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
@@ -66,7 +67,12 @@ func newModelTransactions(api *firefly.Api) modelTransactions {
 		Bold(false)
 	t.SetStyles(s)
 
-	m := modelTransactions{table: t, transactions: transactions, api: api}
+	m := modelTransactions{
+		table:        t,
+		transactions: transactions,
+		api:          api,
+		keymap:       DefaultTransactionsKeyMap(),
+	}
 	return m
 }
 
@@ -78,55 +84,55 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case SearchMsg:
-		if msg.query == "None" && m.currentSearch == "" {
+		if msg.Query == "None" && m.currentSearch == "" {
 			return m, nil
 		}
-		if msg.query == "None" {
+		if msg.Query == "None" {
 			m.currentSearch = ""
 		} else {
-			m.currentSearch = msg.query
+			m.currentSearch = msg.Query
 		}
 		return m, Cmd(RefreshTransactionsMsg{})
 	case FilterMsg:
 		// Reset flag
-		if msg.reset {
+		if msg.Reset {
 			m.currentAccount = ""
 			m.currentCategory = ""
 			m.currentFilter = ""
 		}
 
 		// Clear filters if user set to "None"
-		if msg.account == "None" {
+		if msg.Account == "None" {
 			m.currentAccount = ""
 		}
-		if msg.category == "None" {
+		if msg.Category == "None" {
 			m.currentCategory = ""
 		}
-		if msg.query == "None" {
+		if msg.Query == "None" {
 			m.currentFilter = ""
 		}
 
 		// Reset other filters if the same filter is applied again
-		if msg.account != "" && msg.account != "None" {
-			if msg.account == m.currentAccount {
+		if msg.Account != "" && msg.Account != "None" {
+			if msg.Account == m.currentAccount {
 				m.currentCategory = ""
 				m.currentFilter = ""
 			}
-			m.currentAccount = msg.account
+			m.currentAccount = msg.Account
 		}
-		if msg.category != "" && msg.category != "None" {
-			if msg.category == m.currentCategory {
+		if msg.Category != "" && msg.Category != "None" {
+			if msg.Category == m.currentCategory {
 				m.currentAccount = ""
 				m.currentFilter = ""
 			}
-			m.currentCategory = msg.category
+			m.currentCategory = msg.Category
 		}
-		if msg.query != "" && msg.query != "None" {
-			if msg.query == m.currentFilter {
+		if msg.Query != "" && msg.Query != "None" {
+			if msg.Query == m.currentFilter {
 				m.currentAccount = ""
 				m.currentCategory = ""
 			}
-			m.currentFilter = msg.query
+			m.currentFilter = msg.Query
 		}
 
 		transactions := m.transactions
@@ -192,9 +198,9 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.transactions = transactions
 			return FilterMsg{
-				account:  m.currentAccount,
-				category: m.currentCategory,
-				query:    m.currentFilter,
+				Account:  m.currentAccount,
+				Category: m.currentCategory,
+				Query:    m.currentFilter,
 			}
 		}())
 
@@ -229,7 +235,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Callback: func(value string) tea.Cmd {
 						var cmds []tea.Cmd
 						cmds = append(cmds,
-							Cmd(FilterMsg{query: value}),
+							Cmd(FilterMsg{Query: value}),
 							Cmd(ViewTransactionsMsg{}))
 						return tea.Sequence(cmds...)
 					}})
@@ -240,7 +246,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Callback: func(value string) tea.Cmd {
 						var cmds []tea.Cmd
 						cmds = append(cmds,
-							Cmd(SearchMsg{query: value}),
+							Cmd(SearchMsg{Query: value}),
 							Cmd(ViewTransactionsMsg{}),
 						)
 						return tea.Sequence(cmds...)
@@ -248,6 +254,9 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "n":
 				return m, Cmd(ViewNewMsg{})
 			case "N":
+				if len(m.table.Rows()) < 1 {
+					return m, Notify("No transactions.", Warning)
+				}
 				row := m.table.SelectedRow()
 				id, err := strconv.Atoi(row[0])
 				if err != nil {
@@ -255,12 +264,12 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				trx := m.transactions[id]
 				return m, tea.Sequence(
-					Cmd(NewTransactionMsg{transaction: trx}),
+					Cmd(NewTransactionMsg{Transaction: trx}),
 					Cmd(ViewNewMsg{}))
 			case "a":
 				return m, Cmd(ViewAssetsMsg{})
 			case "ctrl+a":
-				return m, Cmd(FilterMsg{reset: true})
+				return m, Cmd(FilterMsg{Reset: true})
 			case "c":
 				return m, Cmd(ViewCategoriesMsg{})
 			case "e":
