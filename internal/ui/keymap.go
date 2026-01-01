@@ -59,9 +59,10 @@ type CategoryKeyMap struct {
 }
 
 type TransactionFormKeyMap struct {
-	Reset  key.Binding
-	Cancel key.Binding
-	Submit key.Binding
+	Reset      key.Binding
+	Cancel     key.Binding
+	Submit     key.Binding
+	NewElement key.Binding
 }
 
 type TransactionsKeyMap struct {
@@ -263,6 +264,10 @@ func DefaultTransactionFormKeyMap() TransactionFormKeyMap {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "submit"),
 		),
+		NewElement: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "new element"),
+		),
 	}
 }
 
@@ -378,6 +383,15 @@ func (k TransactionsKeyMap) ShortHelp() []key.Binding {
 	}
 }
 
+func (k TransactionFormKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.Submit,
+		k.Cancel,
+		k.Reset,
+		k.NewElement,
+	}
+}
+
 func (k UIKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{
@@ -418,6 +432,12 @@ func (k CategoryKeyMap) FullHelp() [][]key.Binding {
 }
 
 func (k TransactionsKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		k.ShortHelp(),
+	}
+}
+
+func (k TransactionFormKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		k.ShortHelp(),
 	}

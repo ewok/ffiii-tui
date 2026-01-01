@@ -391,6 +391,8 @@ func (m *modelUI) HelpView() string {
 		help += m.help.View(m.expenses.keymap)
 	case revenuesView:
 		help += m.help.View(m.revenues.keymap)
+	case newView:
+		help += m.help.View(m.new.keymap)
 	}
 	if m.help.ShowAll {
 		help = lipgloss.JoinHorizontal(lipgloss.Left, help, m.help.View(m.keymap))
