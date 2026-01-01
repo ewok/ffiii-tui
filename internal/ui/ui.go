@@ -118,6 +118,18 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keymap.Quit):
 			return m, tea.Quit
+		case key.Matches(msg, m.keymap.ShowShortHelp):
+			m.help.ShowAll = !m.help.ShowAll
+			m.assets.list.Help.ShowAll = m.help.ShowAll
+			m.categories.list.Help.ShowAll = m.help.ShowAll
+			m.expenses.list.Help.ShowAll = m.help.ShowAll
+			m.revenues.list.Help.ShowAll = m.help.ShowAll
+
+			m.assets.list.SetShowHelp(m.help.ShowAll)
+			m.categories.list.SetShowHelp(m.help.ShowAll)
+			m.expenses.list.SetShowHelp(m.help.ShowAll)
+			m.revenues.list.SetShowHelp(m.help.ShowAll)
+			return m, tea.WindowSize()
 		case key.Matches(msg, m.keymap.PreviousPeriod):
 			m.api.PreviousPeriod()
 			return m, tea.Batch(
@@ -134,18 +146,6 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Cmd(RefreshRevenueInsightsMsg{}),
 				Cmd(RefreshExpenseInsightsMsg{}),
 			)
-		case key.Matches(msg, m.keymap.ShowShortHelp):
-			m.help.ShowAll = !m.help.ShowAll
-			m.assets.list.Help.ShowAll = m.help.ShowAll
-			m.categories.list.Help.ShowAll = m.help.ShowAll
-			m.expenses.list.Help.ShowAll = m.help.ShowAll
-			m.revenues.list.Help.ShowAll = m.help.ShowAll
-
-			m.assets.list.SetShowHelp(m.help.ShowAll)
-			m.categories.list.SetShowHelp(m.help.ShowAll)
-			m.expenses.list.SetShowHelp(m.help.ShowAll)
-			m.revenues.list.SetShowHelp(m.help.ShowAll)
-			return m, tea.WindowSize()
 		}
 	case tea.WindowSizeMsg:
 		promptStyle = baseStyle.
@@ -309,10 +309,16 @@ func (m modelUI) View() string {
 	} else if m.notify.text != "" {
 		s = s + promptStyleFocused.Render(" Notification: "+m.notify.View()) + "\n"
 	} else {
-		header := fmt.Sprintf(
-			" ffiii-tui | Period: %s - %s",
-			m.api.StartDate.Format(time.DateOnly),
-			m.api.EndDate.Format(time.DateOnly))
+		header := " ffiii-tui"
+
+		if m.transactions.currentSearch != "" {
+			header = header + " | Search: " + m.transactions.currentSearch
+		} else {
+			header = header + fmt.Sprintf(" | Period: %s - %s",
+				m.api.StartDate.Format(time.DateOnly),
+				m.api.EndDate.Format(time.DateOnly))
+
+		}
 		if m.transactions.currentAccount != "" {
 			header = header + " | Account: " + m.transactions.currentAccount
 		}
@@ -321,9 +327,6 @@ func (m modelUI) View() string {
 		}
 		if m.transactions.currentFilter != "" {
 			header = header + " | Filter: " + m.transactions.currentFilter
-		}
-		if m.transactions.currentSearch != "" {
-			header = header + " | Search: " + m.transactions.currentSearch
 		}
 		if m.notify.text != "" {
 			header = header + "\n" + " Notification: " + m.notify.View()

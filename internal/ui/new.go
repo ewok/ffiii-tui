@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 )
@@ -72,7 +73,7 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 		}
 	} else {
 		transactionType = "withdrawal"
-		year = fmt.Sprint(now.Year())
+		year = fmt.Sprintf("%d", now.Year())
 		month = fmt.Sprintf("%02d", now.Month())
 		day = fmt.Sprintf("%02d", now.Day())
 		source = firefly.Account{}
@@ -83,8 +84,9 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 	}
 
 	years := []string{}
+	startYear := now.Year() - 9
 	for y := range 10 {
-		years = append(years, fmt.Sprintf("%d", now.Year()-y))
+		years = append(years, fmt.Sprintf("%d", startYear+y))
 	}
 
 	return modelNewTransaction{
@@ -236,7 +238,7 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 					Title("Year").
 					Options(huh.NewOptions(years...)...).
 					Value(&year).
-					WithHeight(1),
+					WithHeight(3),
 				huh.NewSelect[string]().
 					Key("month").
 					Title("Month").
@@ -307,8 +309,8 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "n":
+		switch {
+		case key.Matches(msg, m.keymap.NewElement):
 			field := m.form.GetFocusedField()
 			switch field.(type) {
 			case *huh.Select[firefly.Category]:
@@ -404,12 +406,12 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-		case "esc":
+		case key.Matches(msg, m.keymap.Cancel):
 			return m, Cmd(ViewTransactionsMsg{})
-		case "ctrl+r":
+		case key.Matches(msg, m.keymap.Reset):
 			newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 			return newModel, Cmd(ViewNewMsg{})
-		case "enter":
+		case key.Matches(msg, m.keymap.Submit):
 			if m.form.State == huh.StateCompleted {
 				description := m.form.GetString("description")
 				if description == "" {
@@ -464,7 +466,6 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						Cmd(RefreshTransactionsMsg{}))
 					return newModel, tea.Sequence(cmds...)
 				}
-
 			}
 		}
 	}
