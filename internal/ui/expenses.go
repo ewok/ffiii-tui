@@ -9,14 +9,16 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type RefreshExpensesMsg struct{}
 type RefreshExpenseInsightsMsg struct{}
 type NewExpenseMsg struct {
-	account string
+	Account string
 }
 
 type expenseItem struct {
@@ -35,16 +37,22 @@ type modelExpenses struct {
 	api    *firefly.Api
 	focus  bool
 	sorted bool
+	keymap ExpenseKeyMap
 }
 
 func newModelExpenses(api *firefly.Api) modelExpenses {
 	items := getExpensesItems(api, false)
 
-	m := modelExpenses{list: list.New(items, list.NewDefaultDelegate(), 0, 0), api: api}
+	m := modelExpenses{
+		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
+		api:    api,
+		keymap: DefaultExpenseKeyMap(),
+	}
 	m.list.Title = "Expenses"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	m.list.SetFilteringEnabled(false)
 	m.list.SetShowStatusBar(false)
+	m.list.SetShowHelp(false)
 	m.list.DisableQuitKeybindings()
 
 	return m
@@ -66,7 +74,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Cmd(m.api.UpdateAccounts("expense")),
 			m.list.SetItems(getExpensesItems(m.api, m.sorted)))
 	case NewExpenseMsg:
-		err := m.api.CreateAccount(msg.account, "expense", "")
+		err := m.api.CreateAccount(msg.Account, "expense", "")
 		if err != nil {
 			return m, Notify(err.Error(), Warning)
 		}
@@ -84,46 +92,46 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.focus {
-			switch msg.String() {
-			case "esc", "q", "ctrl+c":
-				return m, Cmd(ViewTransactionsMsg{})
-			case "n":
-				return m, Cmd(PromptMsg{
-					Prompt: "New Expense: ",
-					Value:  "",
-					Callback: func(value string) tea.Cmd {
-						var cmds []tea.Cmd
-						if value != "None" {
-							cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
-						}
-						cmds = append(cmds, Cmd(ViewExpensesMsg{}))
-						return tea.Sequence(cmds...)
-					}})
-			case "f":
-				i, ok := m.list.SelectedItem().(expenseItem)
-				if ok {
-					return m, Cmd(FilterMsg{account: i.account})
-				}
-				return m, nil
-			case "a":
-				return m, Cmd(ViewAssetsMsg{})
-			case "c":
-				return m, Cmd(ViewCategoriesMsg{})
-			case "r":
-				return m, Cmd(RefreshExpenseInsightsMsg{})
-			case "R":
-				return m, Cmd(RefreshExpensesMsg{})
-			case "i":
-				return m, Cmd(ViewRevenuesMsg{})
-			case "s":
-				m.sorted = !m.sorted
-				return m, m.list.SetItems(getExpensesItems(m.api, m.sorted))
-			case "t":
-				return m, Cmd(ViewTransactionsMsg{})
-			case "ctrl+a":
-				return m, Cmd(FilterMsg{reset: true})
+		switch {
+		case key.Matches(msg, m.keymap.Quit):
+			return m, Cmd(ViewTransactionsMsg{})
+		case key.Matches(msg, m.keymap.New):
+			return m, Cmd(PromptMsg{
+				Prompt: "New Expense: ",
+				Value:  "",
+				Callback: func(value string) tea.Cmd {
+					var cmds []tea.Cmd
+					if value != "None" {
+						cmds = append(cmds, Cmd(NewExpenseMsg{Account: value}))
+					}
+					cmds = append(cmds, Cmd(ViewExpensesMsg{}))
+					return tea.Sequence(cmds...)
+				}})
+		case key.Matches(msg, m.keymap.Filter):
+			i, ok := m.list.SelectedItem().(expenseItem)
+			if ok {
+				return m, Cmd(FilterMsg{Account: i.account})
 			}
+			return m, nil
+		case key.Matches(msg, m.keymap.Refresh):
+			return m, Cmd(RefreshExpenseInsightsMsg{})
+		case key.Matches(msg, m.keymap.Sort):
+			m.sorted = !m.sorted
+			return m, m.list.SetItems(getExpensesItems(m.api, m.sorted))
+		case key.Matches(msg, m.keymap.ResetFilter):
+			return m, Cmd(FilterMsg{Reset: true})
+		case key.Matches(msg, m.keymap.ViewAssets):
+			return m, Cmd(ViewAssetsMsg{})
+		case key.Matches(msg, m.keymap.ViewExpenses):
+			return m, Cmd(ViewTransactionsMsg{})
+		case key.Matches(msg, m.keymap.ViewRevenues):
+			return m, Cmd(ViewRevenuesMsg{})
+		case key.Matches(msg, m.keymap.ViewCategories):
+			return m, Cmd(ViewCategoriesMsg{})
+		case key.Matches(msg, m.keymap.ViewTransactions):
+			return m, Cmd(ViewTransactionsMsg{})
+			// case "R":
+			// 	return m, Cmd(RefreshExpensesMsg{})
 		}
 	}
 
@@ -132,7 +140,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelExpenses) View() string {
-	return m.list.View()
+	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
 }
 
 func (m *modelExpenses) Focus() {

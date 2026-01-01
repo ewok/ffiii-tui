@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 )
@@ -24,13 +25,14 @@ type RefreshNewExpenseMsg struct{}
 type RefreshNewRevenueMsg struct{}
 
 type NewTransactionMsg struct {
-	transaction firefly.Transaction
+	Transaction firefly.Transaction
 }
 
 type modelNewTransaction struct {
-	form  *huh.Form // huh.Form is just a tea.Model
-	api   *firefly.Api
-	focus bool
+	form   *huh.Form // huh.Form is just a tea.Model
+	api    *firefly.Api
+	focus  bool
+	keymap TransactionFormKeyMap
 }
 
 var (
@@ -71,7 +73,7 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 		}
 	} else {
 		transactionType = "withdrawal"
-		year = fmt.Sprint(now.Year())
+		year = fmt.Sprintf("%d", now.Year())
 		month = fmt.Sprintf("%02d", now.Month())
 		day = fmt.Sprintf("%02d", now.Day())
 		source = firefly.Account{}
@@ -82,12 +84,14 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 	}
 
 	years := []string{}
+	startYear := now.Year() - 9
 	for y := range 10 {
-		years = append(years, fmt.Sprintf("%d", now.Year()-y))
+		years = append(years, fmt.Sprintf("%d", startYear+y))
 	}
 
 	return modelNewTransaction{
-		api: api,
+		api:    api,
+		keymap: DefaultTransactionFormKeyMap(),
 		form: huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
@@ -234,7 +238,7 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 					Title("Year").
 					Options(huh.NewOptions(years...)...).
 					Value(&year).
-					WithHeight(1),
+					WithHeight(3),
 				huh.NewSelect[string]().
 					Key("month").
 					Title("Month").
@@ -292,7 +296,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RefreshNewCategoryMsg:
 		triggerCategoryCounter++
 	case NewTransactionMsg:
-		newModel := newModelNewTransaction(m.api, msg.transaction)
+		newModel := newModelNewTransaction(m.api, msg.Transaction)
 		return newModel, Cmd(ViewNewMsg{})
 	}
 
@@ -305,8 +309,8 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "n":
+		switch {
+		case key.Matches(msg, m.keymap.NewElement):
 			field := m.form.GetFocusedField()
 			switch field.(type) {
 			case *huh.Select[firefly.Category]:
@@ -318,7 +322,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						Callback: func(value string) tea.Cmd {
 							var cmds []tea.Cmd
 							if value != "None" {
-								cmds = append(cmds, Cmd(NewCategoryMsg{category: value}))
+								cmds = append(cmds, Cmd(NewCategoryMsg{Category: value}))
 							}
 							cmds = append(cmds,
 								Cmd(RefreshNewCategoryMsg{}),
@@ -351,7 +355,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 											acc := strings.TrimSpace(split[0])
 											cur := strings.TrimSpace(split[1])
 											if acc != "" && cur != "" {
-												cmds = append(cmds, Cmd(NewAssetMsg{account: acc, currency: cur}))
+												cmds = append(cmds, Cmd(NewAssetMsg{Account: acc, Currency: cur}))
 											}
 										}
 									}
@@ -370,7 +374,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								Callback: func(value string) tea.Cmd {
 									var cmds []tea.Cmd
 									if value != "None" && value != "" {
-										cmds = append(cmds, Cmd(NewExpenseMsg{account: value}))
+										cmds = append(cmds, Cmd(NewExpenseMsg{Account: value}))
 									}
 									cmds = append(cmds,
 										Cmd(RefreshNewExpenseMsg{}),
@@ -387,7 +391,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								Callback: func(value string) tea.Cmd {
 									var cmds []tea.Cmd
 									if value != "None" && value != "" {
-										cmds = append(cmds, Cmd(NewRevenueMsg{account: value}))
+										cmds = append(cmds, Cmd(NewRevenueMsg{Account: value}))
 									}
 									cmds = append(cmds,
 										Cmd(RefreshNewRevenueMsg{}),
@@ -402,12 +406,12 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-		case "esc":
+		case key.Matches(msg, m.keymap.Cancel):
 			return m, Cmd(ViewTransactionsMsg{})
-		case "ctrl+r":
+		case key.Matches(msg, m.keymap.Reset):
 			newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 			return newModel, Cmd(ViewNewMsg{})
-		case "enter":
+		case key.Matches(msg, m.keymap.Submit):
 			if m.form.State == huh.StateCompleted {
 				description := m.form.GetString("description")
 				if description == "" {
@@ -462,7 +466,6 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						Cmd(RefreshTransactionsMsg{}))
 					return newModel, tea.Sequence(cmds...)
 				}
-
 			}
 		}
 	}

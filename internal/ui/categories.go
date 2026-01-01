@@ -9,14 +9,16 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type RefreshCategoriesMsg struct{}
 type RefreshCategoryInsightsMsg struct{}
 type NewCategoryMsg struct {
-	category string
+	Category string
 }
 
 type categoryItem struct {
@@ -49,16 +51,22 @@ type modelCategories struct {
 	api    *firefly.Api
 	focus  bool
 	sorted int
+	keymap CategoryKeyMap
 }
 
 func newModelCategories(api *firefly.Api) modelCategories {
 	items := getCategoriesItems(api, 0)
 
-	m := modelCategories{list: list.New(items, list.NewDefaultDelegate(), 0, 0), api: api}
+	m := modelCategories{
+		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
+		api:    api,
+		keymap: DefaultCategoryKeyMap(),
+	}
 	m.list.Title = "Categories"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	m.list.SetFilteringEnabled(false)
 	m.list.SetShowStatusBar(false)
+	m.list.SetShowHelp(false)
 	m.list.DisableQuitKeybindings()
 
 	return m
@@ -79,7 +87,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Cmd(m.api.UpdateCategories()),
 			m.list.SetItems(getCategoriesItems(m.api, m.sorted)))
 	case NewCategoryMsg:
-		err := m.api.CreateCategory(msg.category, "")
+		err := m.api.CreateCategory(msg.Category, "")
 		if err != nil {
 			return m, Notify(err.Error(), Warning)
 		}
@@ -97,54 +105,55 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.focus {
-			switch msg.String() {
-			case "esc", "q":
-				return m, Cmd(ViewTransactionsMsg{})
-			case "n":
-				return m, Cmd(PromptMsg{
-					Prompt: "New Category: ",
-					Value:  "",
-					Callback: func(value string) tea.Cmd {
-						var cmds []tea.Cmd
-						if value != "None" {
-							cmds = append(cmds, Cmd(NewCategoryMsg{category: value}))
-						}
-						cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
-						return tea.Sequence(cmds...)
-					}})
-			case "f":
-				i, ok := m.list.SelectedItem().(categoryItem)
-				if ok {
-					return m, Cmd(FilterMsg{category: i.category})
-				}
-				return m, nil
-			case "a":
-				return m, Cmd(ViewAssetsMsg{})
-			case "e":
-				return m, Cmd(ViewExpensesMsg{})
-			case "i":
-				return m, Cmd(ViewRevenuesMsg{})
-			case "r":
-				return m, Cmd(RefreshCategoryInsightsMsg{})
-			case "R":
-				return m, Cmd(RefreshCategoriesMsg{})
-			case "s":
-				switch m.sorted {
-				case 0:
-					m.sorted = -1
-				case -1:
-					m.sorted = 1
-				case 1:
-					m.sorted = 0
-				}
-				return m, m.list.SetItems(getCategoriesItems(m.api, m.sorted))
-			case "t":
-				return m, Cmd(ViewTransactionsMsg{})
-			case "ctrl+a":
-				return m, Cmd(FilterMsg{reset: true})
+		switch {
+		case key.Matches(msg, m.keymap.Quit):
+			return m, Cmd(ViewTransactionsMsg{})
+		case key.Matches(msg, m.keymap.New):
+			return m, Cmd(PromptMsg{
+				Prompt: "New Category: ",
+				Value:  "",
+				Callback: func(value string) tea.Cmd {
+					var cmds []tea.Cmd
+					if value != "None" {
+						cmds = append(cmds, Cmd(NewCategoryMsg{Category: value}))
+					}
+					cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
+					return tea.Sequence(cmds...)
+				}})
+		case key.Matches(msg, m.keymap.Filter):
+			i, ok := m.list.SelectedItem().(categoryItem)
+			if ok {
+				return m, Cmd(FilterMsg{Category: i.category})
 			}
+			return m, nil
+		case key.Matches(msg, m.keymap.ResetFilter):
+			return m, Cmd(FilterMsg{Reset: true})
+		case key.Matches(msg, m.keymap.Refresh):
+			return m, Cmd(RefreshCategoryInsightsMsg{})
+		case key.Matches(msg, m.keymap.Sort):
+			switch m.sorted {
+			case 0:
+				m.sorted = -1
+			case -1:
+				m.sorted = 1
+			case 1:
+				m.sorted = 0
+			}
+			return m, m.list.SetItems(getCategoriesItems(m.api, m.sorted))
+		case key.Matches(msg, m.keymap.ViewAssets):
+			return m, Cmd(ViewAssetsMsg{})
+		case key.Matches(msg, m.keymap.ViewExpenses):
+			return m, Cmd(ViewExpensesMsg{})
+		case key.Matches(msg, m.keymap.ViewRevenues):
+			return m, Cmd(ViewRevenuesMsg{})
+		case key.Matches(msg, m.keymap.ViewCategories):
+			return m, Cmd(ViewTransactionsMsg{})
+		case key.Matches(msg, m.keymap.ViewTransactions):
+			return m, Cmd(ViewTransactionsMsg{})
+			// case "R":
+			// 	return m, Cmd(RefreshCategoriesMsg{})
 		}
+
 	}
 
 	m.list, cmd = m.list.Update(msg)
@@ -153,7 +162,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelCategories) View() string {
-	return m.list.View()
+	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
 }
 
 func (m *modelCategories) Focus() {

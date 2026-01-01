@@ -12,19 +12,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 type FilterMsg struct {
-	account  string
-	category string
-	query    string
-	reset    bool
+	Account  string
+	Category string
+	Query    string
+	Reset    bool
 }
 type SearchMsg struct {
-	query string
+	Query string
 }
 
 type RefreshTransactionsMsg struct{}
@@ -38,6 +39,7 @@ type modelTransactions struct {
 	currentSearch   string
 	currentFilter   string
 	focus           bool
+	keymap          TransactionsKeyMap
 }
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
@@ -66,7 +68,12 @@ func newModelTransactions(api *firefly.Api) modelTransactions {
 		Bold(false)
 	t.SetStyles(s)
 
-	m := modelTransactions{table: t, transactions: transactions, api: api}
+	m := modelTransactions{
+		table:        t,
+		transactions: transactions,
+		api:          api,
+		keymap:       DefaultTransactionsKeyMap(),
+	}
 	return m
 }
 
@@ -78,55 +85,55 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case SearchMsg:
-		if msg.query == "None" && m.currentSearch == "" {
+		if msg.Query == "None" && m.currentSearch == "" {
 			return m, nil
 		}
-		if msg.query == "None" {
+		if msg.Query == "None" {
 			m.currentSearch = ""
 		} else {
-			m.currentSearch = msg.query
+			m.currentSearch = msg.Query
 		}
 		return m, Cmd(RefreshTransactionsMsg{})
 	case FilterMsg:
 		// Reset flag
-		if msg.reset {
+		if msg.Reset {
 			m.currentAccount = ""
 			m.currentCategory = ""
 			m.currentFilter = ""
 		}
 
 		// Clear filters if user set to "None"
-		if msg.account == "None" {
+		if msg.Account == "None" {
 			m.currentAccount = ""
 		}
-		if msg.category == "None" {
+		if msg.Category == "None" {
 			m.currentCategory = ""
 		}
-		if msg.query == "None" {
+		if msg.Query == "None" {
 			m.currentFilter = ""
 		}
 
 		// Reset other filters if the same filter is applied again
-		if msg.account != "" && msg.account != "None" {
-			if msg.account == m.currentAccount {
+		if msg.Account != "" && msg.Account != "None" {
+			if msg.Account == m.currentAccount {
 				m.currentCategory = ""
 				m.currentFilter = ""
 			}
-			m.currentAccount = msg.account
+			m.currentAccount = msg.Account
 		}
-		if msg.category != "" && msg.category != "None" {
-			if msg.category == m.currentCategory {
+		if msg.Category != "" && msg.Category != "None" {
+			if msg.Category == m.currentCategory {
 				m.currentAccount = ""
 				m.currentFilter = ""
 			}
-			m.currentCategory = msg.category
+			m.currentCategory = msg.Category
 		}
-		if msg.query != "" && msg.query != "None" {
-			if msg.query == m.currentFilter {
+		if msg.Query != "" && msg.Query != "None" {
+			if msg.Query == m.currentFilter {
 				m.currentAccount = ""
 				m.currentCategory = ""
 			}
-			m.currentFilter = msg.query
+			m.currentFilter = msg.Query
 		}
 
 		transactions := m.transactions
@@ -192,9 +199,9 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.transactions = transactions
 			return FilterMsg{
-				account:  m.currentAccount,
-				category: m.currentCategory,
-				query:    m.currentFilter,
+				Account:  m.currentAccount,
+				Category: m.currentCategory,
+				Query:    m.currentFilter,
 			}
 		}())
 
@@ -212,72 +219,77 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.table.Focused() {
-			switch msg.String() {
-			case "r":
-				return m, tea.Sequence(
-					Cmd(RefreshTransactionsMsg{}),
-					Cmd(RefreshAssetsMsg{}),
-					Cmd(RefreshExpensesMsg{}),
-					Cmd(RefreshRevenuesMsg{}),
-					Cmd(RefreshCategoriesMsg{}),
-				)
-			case "f":
-				return m, Cmd(PromptMsg{
-					Prompt: "Filter query: ",
-					Value:  m.currentFilter,
-					Callback: func(value string) tea.Cmd {
-						var cmds []tea.Cmd
-						cmds = append(cmds,
-							Cmd(FilterMsg{query: value}),
-							Cmd(ViewTransactionsMsg{}))
-						return tea.Sequence(cmds...)
-					}})
-			case "s":
-				return m, Cmd(PromptMsg{
-					Prompt: "Search query: ",
-					Value:  m.currentSearch,
-					Callback: func(value string) tea.Cmd {
-						var cmds []tea.Cmd
-						cmds = append(cmds,
-							Cmd(SearchMsg{query: value}),
-							Cmd(ViewTransactionsMsg{}),
-						)
-						return tea.Sequence(cmds...)
-					}})
-			case "n":
-				return m, Cmd(ViewNewMsg{})
-			case "N":
-				row := m.table.SelectedRow()
-				id, err := strconv.Atoi(row[0])
-				if err != nil {
-					return m, nil
-				}
-				trx := m.transactions[id]
-				return m, tea.Sequence(
-					Cmd(NewTransactionMsg{transaction: trx}),
-					Cmd(ViewNewMsg{}))
-			case "a":
-				return m, Cmd(ViewAssetsMsg{})
-			case "ctrl+a":
-				return m, Cmd(FilterMsg{reset: true})
-			case "c":
-				return m, Cmd(ViewCategoriesMsg{})
-			case "e":
-				return m, Cmd(ViewExpensesMsg{})
-			case "i":
-				return m, Cmd(ViewRevenuesMsg{})
-			case "t":
-				return m, Cmd(ViewFullTransactionViewMsg{})
-				// enter
-				// case "enter":
-				// 	return m, tea.Batch(
-				// 		tea.Printf("Let's go to %s!", m.table.SelectedRow()[1]),
-				// 	)
-			case "q":
-				return m, tea.Quit
+		switch {
+		case key.Matches(msg, m.keymap.Quit):
+			return m, tea.Quit
+		case key.Matches(msg, m.keymap.Refresh):
+			return m, tea.Sequence(
+				Cmd(RefreshTransactionsMsg{}),
+				Cmd(RefreshAssetsMsg{}),
+				Cmd(RefreshExpensesMsg{}),
+				Cmd(RefreshRevenuesMsg{}),
+				Cmd(RefreshCategoriesMsg{}),
+			)
+		case key.Matches(msg, m.keymap.Filter):
+			return m, Cmd(PromptMsg{
+				Prompt: "Filter query: ",
+				Value:  m.currentFilter,
+				Callback: func(value string) tea.Cmd {
+					var cmds []tea.Cmd
+					cmds = append(cmds,
+						Cmd(FilterMsg{Query: value}),
+						Cmd(ViewTransactionsMsg{}))
+					return tea.Sequence(cmds...)
+				}})
+		case key.Matches(msg, m.keymap.Search):
+			return m, Cmd(PromptMsg{
+				Prompt: "Search query: ",
+				Value:  m.currentSearch,
+				Callback: func(value string) tea.Cmd {
+					var cmds []tea.Cmd
+					cmds = append(cmds,
+						Cmd(SearchMsg{Query: value}),
+						Cmd(ViewTransactionsMsg{}),
+					)
+					return tea.Sequence(cmds...)
+				}})
+		case key.Matches(msg, m.keymap.New):
+			return m, Cmd(ViewNewMsg{})
+		case key.Matches(msg, m.keymap.NewFromTransaction):
+			if len(m.table.Rows()) < 1 {
+				return m, Notify("No transactions.", Warning)
 			}
+			row := m.table.SelectedRow()
+			if row == nil {
+				return m, Notify("Transaction not selected.", Warning)
+			}
+			id, err := strconv.Atoi(row[0])
+			if err != nil {
+				return m, nil
+			}
+			trx := m.transactions[id]
+			return m, tea.Sequence(
+				Cmd(NewTransactionMsg{Transaction: trx}),
+				Cmd(ViewNewMsg{}))
+		case key.Matches(msg, m.keymap.ResetFilter):
+			return m, Cmd(FilterMsg{Reset: true})
+		case key.Matches(msg, m.keymap.ToggleFullView):
+			return m, Cmd(ViewFullTransactionViewMsg{})
+		case key.Matches(msg, m.keymap.ViewAssets):
+			return m, Cmd(ViewAssetsMsg{})
+		case key.Matches(msg, m.keymap.ViewExpenses):
+			return m, Cmd(ViewExpensesMsg{})
+		case key.Matches(msg, m.keymap.ViewRevenues):
+			return m, Cmd(ViewRevenuesMsg{})
+		case key.Matches(msg, m.keymap.ViewCategories):
+			return m, Cmd(ViewCategoriesMsg{})
+			// enter
+			// case "enter":
+			// 	return m, tea.Batch(
+			// 		tea.Printf("Let's go to %s!", m.table.SelectedRow()[1]),
+			// 	)
 		}
+
 	}
 
 	m.table, cmd = m.table.Update(msg)
