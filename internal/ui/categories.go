@@ -107,19 +107,9 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keymap.Quit):
-			return m, Cmd(ViewTransactionsMsg{})
+			return m, SetView(transactionsView)
 		case key.Matches(msg, m.keymap.New):
-			return m, Cmd(PromptMsg{
-				Prompt: "New Category: ",
-				Value:  "",
-				Callback: func(value string) tea.Cmd {
-					var cmds []tea.Cmd
-					if value != "None" {
-						cmds = append(cmds, Cmd(NewCategoryMsg{Category: value}))
-					}
-					cmds = append(cmds, Cmd(ViewCategoriesMsg{}))
-					return tea.Sequence(cmds...)
-				}})
+			return m, CmdPromptNewCategory(SetView(categoriesView))
 		case key.Matches(msg, m.keymap.Filter):
 			i, ok := m.list.SelectedItem().(categoryItem)
 			if ok {
@@ -129,7 +119,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.ResetFilter):
 			return m, Cmd(FilterMsg{Reset: true})
 		case key.Matches(msg, m.keymap.Refresh):
-			return m, Cmd(RefreshCategoryInsightsMsg{})
+			return m, Cmd(RefreshCategoriesMsg{})
 		case key.Matches(msg, m.keymap.Sort):
 			switch m.sorted {
 			case 0:
@@ -140,16 +130,18 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.sorted = 0
 			}
 			return m, m.list.SetItems(getCategoriesItems(m.api, m.sorted))
-		case key.Matches(msg, m.keymap.ViewAssets):
-			return m, Cmd(ViewAssetsMsg{})
-		case key.Matches(msg, m.keymap.ViewExpenses):
-			return m, Cmd(ViewExpensesMsg{})
-		case key.Matches(msg, m.keymap.ViewRevenues):
-			return m, Cmd(ViewRevenuesMsg{})
-		case key.Matches(msg, m.keymap.ViewCategories):
-			return m, Cmd(ViewTransactionsMsg{})
 		case key.Matches(msg, m.keymap.ViewTransactions):
-			return m, Cmd(ViewTransactionsMsg{})
+			return m, SetView(transactionsView)
+		case key.Matches(msg, m.keymap.ViewAssets):
+			return m, SetView(assetsView)
+		case key.Matches(msg, m.keymap.ViewCategories):
+			return m, SetView(categoriesView)
+		case key.Matches(msg, m.keymap.ViewExpenses):
+			return m, SetView(expensesView)
+		case key.Matches(msg, m.keymap.ViewRevenues):
+			return m, SetView(revenuesView)
+		case key.Matches(msg, m.keymap.ViewLiabilities):
+			return m, SetView(liabilitiesView)
 			// case "R":
 			// 	return m, Cmd(RefreshCategoriesMsg{})
 		}
@@ -204,4 +196,18 @@ func getCategoriesItems(api *firefly.Api, sorted int) []list.Item {
 	}
 
 	return items
+}
+
+func CmdPromptNewCategory(backCmd tea.Cmd) tea.Cmd {
+	return Cmd(PromptMsg{
+		Prompt: "New Category(<name>): ",
+		Value:  "",
+		Callback: func(value string) tea.Cmd {
+			var cmds []tea.Cmd
+			if value != "None" {
+				cmds = append(cmds, Cmd(NewCategoryMsg{Category: value}))
+			}
+			cmds = append(cmds, backCmd)
+			return tea.Sequence(cmds...)
+		}})
 }

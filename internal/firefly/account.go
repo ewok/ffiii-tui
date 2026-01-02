@@ -39,26 +39,50 @@ type apiAccountAttr struct {
 	Type           string `json:"type"`
 }
 
-func (api *Api) CreateAccount(name string, accountType string, currencyCode string) error {
+type NewLiability struct {
+	Name         string `json:"name"`
+	CurrencyCode string `json:"currency_code"`
+	Type         string `json:"liability_type"`
+	Direction    string `json:"liability_direction"`
+}
+
+func (api *Api) CreateAssetAccount(name string, currencyCode string) error {
+	return api.createAccount(map[string]any{
+		"name":              name,
+		"type":              "asset",
+		"currency_code":     strings.ToUpper(currencyCode),
+		"include_net_worth": true,
+		"active":            true,
+		"account_role":      "defaultAsset",
+	})
+}
+
+func (api *Api) CreateExpenseAccount(name string) error {
+	return api.createAccount(map[string]any{
+		"name": name,
+		"type": "expense",
+	})
+}
+
+func (api *Api) CreateRevenueAccount(name string) error {
+	return api.createAccount(map[string]any{
+		"name": name,
+		"type": "revenue",
+	})
+}
+
+func (api *Api) CreateLiabilityAccount(nl NewLiability) error {
+	return api.createAccount(map[string]any{
+		"name":                nl.Name,
+		"type":                "liability",
+		"currency_code":       strings.ToUpper(nl.CurrencyCode),
+		"liability_type":      nl.Type,
+		"liability_direction": nl.Direction,
+	})
+}
+
+func (api *Api) createAccount(payload map[string]any) error {
 	endpoint := fmt.Sprintf("%s/accounts", api.Config.ApiUrl)
-
-	var payload map[string]any
-	if accountType == "asset" {
-		payload = map[string]any{
-			"name":              name,
-			"type":              accountType,
-			"currency_code":     strings.ToUpper(currencyCode),
-			"include_net_worth": true,
-			"active":            true,
-			"account_role":      "defaultAsset",
-		}
-
-	} else {
-		payload = map[string]any{
-			"name": name,
-			"type": accountType,
-		}
-	}
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {

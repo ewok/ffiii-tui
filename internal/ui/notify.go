@@ -60,7 +60,7 @@ func (m modelNotify) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NotifyMsg:
 		var cmd tea.Cmd
 		if msg.Message != "" {
-			cmd = tea.Tick(time.Second*5, func(t time.Time) tea.Msg {
+			cmd = tea.Tick(time.Second*10, func(t time.Time) tea.Msg {
 				return NotifyClearMsg(t)
 			})
 		}

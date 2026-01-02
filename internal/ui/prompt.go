@@ -46,7 +46,7 @@ func (m modelPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case PromptMsg:
 		m = newPrompt(msg)
-		return m, Cmd(ViewPromptMsg{})
+		return m, SetView(promptView)
 	}
 
 	if !m.focus {

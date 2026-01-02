@@ -73,7 +73,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Cmd(m.api.UpdateAccounts("revenue")),
 			m.list.SetItems(getRevenuesItems(m.api, m.sorted)))
 	case NewRevenueMsg:
-		err := m.api.CreateAccount(msg.Account, "revenue", "")
+		err := m.api.CreateRevenueAccount(msg.Account)
 		if err != nil {
 			return m, Notify(err.Error(), Warning)
 		}
@@ -93,19 +93,9 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keymap.Quit):
-			return m, Cmd(ViewTransactionsMsg{})
+			return m, SetView(transactionsView)
 		case key.Matches(msg, m.keymap.New):
-			return m, Cmd(PromptMsg{
-				Prompt: "New Revenue: ",
-				Value:  "",
-				Callback: func(value string) tea.Cmd {
-					var cmds []tea.Cmd
-					if value != "None" {
-						cmds = append(cmds, Cmd(NewRevenueMsg{Account: value}))
-					}
-					cmds = append(cmds, Cmd(ViewRevenuesMsg{}))
-					return tea.Sequence(cmds...)
-				}})
+			return m, CmdPromptNewRevenue(SetView(revenuesView))
 		case key.Matches(msg, m.keymap.Filter):
 			i, ok := m.list.SelectedItem().(revenueItem)
 			if ok {
@@ -113,22 +103,24 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case key.Matches(msg, m.keymap.Refresh):
-			return m, Cmd(RefreshRevenueInsightsMsg{})
+			return m, Cmd(RefreshRevenuesMsg{})
 		case key.Matches(msg, m.keymap.Sort):
 			m.sorted = !m.sorted
 			return m, m.list.SetItems(getRevenuesItems(m.api, m.sorted))
 		case key.Matches(msg, m.keymap.ResetFilter):
 			return m, Cmd(FilterMsg{Reset: true})
-		case key.Matches(msg, m.keymap.ViewAssets):
-			return m, Cmd(ViewAssetsMsg{})
-		case key.Matches(msg, m.keymap.ViewExpenses):
-			return m, Cmd(ViewExpensesMsg{})
-		case key.Matches(msg, m.keymap.ViewRevenues):
-			return m, Cmd(ViewTransactionsMsg{})
-		case key.Matches(msg, m.keymap.ViewCategories):
-			return m, Cmd(ViewCategoriesMsg{})
 		case key.Matches(msg, m.keymap.ViewTransactions):
-			return m, Cmd(ViewTransactionsMsg{})
+			return m, SetView(transactionsView)
+		case key.Matches(msg, m.keymap.ViewAssets):
+			return m, SetView(assetsView)
+		case key.Matches(msg, m.keymap.ViewCategories):
+			return m, SetView(categoriesView)
+		case key.Matches(msg, m.keymap.ViewExpenses):
+			return m, SetView(expensesView)
+		case key.Matches(msg, m.keymap.ViewRevenues):
+			return m, SetView(revenuesView)
+		case key.Matches(msg, m.keymap.ViewLiabilities):
+			return m, SetView(liabilitiesView)
 			// case "R":
 			// 	return m, Cmd(RefreshRevenuesMsg{})
 		}
@@ -171,4 +163,18 @@ func getRevenuesItems(api *firefly.Api, sorted bool) []list.Item {
 		})
 	}
 	return items
+}
+
+func CmdPromptNewRevenue(backCmd tea.Cmd) tea.Cmd {
+	return Cmd(PromptMsg{
+		Prompt: "New Revenue(<name>): ",
+		Value:  "",
+		Callback: func(value string) tea.Cmd {
+			var cmds []tea.Cmd
+			if value != "None" {
+				cmds = append(cmds, Cmd(NewRevenueMsg{Account: value}))
+			}
+			cmds = append(cmds, backCmd)
+			return tea.Sequence(cmds...)
+		}})
 }

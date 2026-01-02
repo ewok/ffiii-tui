@@ -21,11 +21,12 @@ type AssetKeyMap struct {
 	New          key.Binding
 	Refresh      key.Binding
 
+	ViewTransactions key.Binding
 	ViewAssets       key.Binding
+	ViewCategories   key.Binding
 	ViewExpenses     key.Binding
 	ViewRevenues     key.Binding
-	ViewCategories   key.Binding
-	ViewTransactions key.Binding
+	ViewLiabilities  key.Binding
 }
 
 type ExpenseKeyMap struct {
@@ -37,11 +38,12 @@ type ExpenseKeyMap struct {
 	Refresh      key.Binding
 	Sort         key.Binding
 
+	ViewTransactions key.Binding
 	ViewAssets       key.Binding
+	ViewCategories   key.Binding
 	ViewExpenses     key.Binding
 	ViewRevenues     key.Binding
-	ViewCategories   key.Binding
-	ViewTransactions key.Binding
+	ViewLiabilities  key.Binding
 }
 
 type RevenueKeyMap struct {
@@ -53,11 +55,12 @@ type RevenueKeyMap struct {
 	Refresh      key.Binding
 	Sort         key.Binding
 
+	ViewTransactions key.Binding
 	ViewAssets       key.Binding
+	ViewCategories   key.Binding
 	ViewExpenses     key.Binding
 	ViewRevenues     key.Binding
-	ViewCategories   key.Binding
-	ViewTransactions key.Binding
+	ViewLiabilities  key.Binding
 }
 
 type CategoryKeyMap struct {
@@ -69,11 +72,28 @@ type CategoryKeyMap struct {
 	Refresh      key.Binding
 	Sort         key.Binding
 
+	ViewTransactions key.Binding
 	ViewAssets       key.Binding
+	ViewCategories   key.Binding
 	ViewExpenses     key.Binding
 	ViewRevenues     key.Binding
-	ViewCategories   key.Binding
+	ViewLiabilities  key.Binding
+}
+
+type LiabilityKeyMap struct {
+	ShowFullHelp key.Binding
+	Quit         key.Binding
+	Filter       key.Binding
+	ResetFilter  key.Binding
+	New          key.Binding
+	Refresh      key.Binding
+
 	ViewTransactions key.Binding
+	ViewAssets       key.Binding
+	ViewCategories   key.Binding
+	ViewExpenses     key.Binding
+	ViewRevenues     key.Binding
+	ViewLiabilities  key.Binding
 }
 
 type TransactionFormKeyMap struct {
@@ -81,6 +101,7 @@ type TransactionFormKeyMap struct {
 	Cancel     key.Binding
 	Submit     key.Binding
 	NewElement key.Binding
+	Refresh    key.Binding
 }
 
 type TransactionsKeyMap struct {
@@ -94,10 +115,11 @@ type TransactionsKeyMap struct {
 	NewFromTransaction key.Binding
 	ToggleFullView     key.Binding
 
-	ViewAssets     key.Binding
-	ViewExpenses   key.Binding
-	ViewRevenues   key.Binding
-	ViewCategories key.Binding
+	ViewAssets      key.Binding
+	ViewCategories  key.Binding
+	ViewExpenses    key.Binding
+	ViewRevenues    key.Binding
+	ViewLiabilities key.Binding
 }
 
 func DefaultUIKeyMap() UIKeyMap {
@@ -151,9 +173,18 @@ func DefaultAssetKeyMap() AssetKeyMap {
 			key.WithKeys("r"),
 			key.WithHelp("r", "refresh assets"),
 		),
+		ViewTransactions: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("t", "view transactions"),
+		),
 		ViewAssets: key.NewBinding(
 			key.WithKeys("a"),
-			key.WithHelp("a", "toggle assets"),
+			key.WithHelp("a", "view assets"),
+			key.WithDisabled(),
+		),
+		ViewCategories: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "view categories"),
 		),
 		ViewExpenses: key.NewBinding(
 			key.WithKeys("e"),
@@ -163,13 +194,9 @@ func DefaultAssetKeyMap() AssetKeyMap {
 			key.WithKeys("i"),
 			key.WithHelp("i", "view revenues"),
 		),
-		ViewCategories: key.NewBinding(
-			key.WithKeys("c"),
-			key.WithHelp("c", "view categories"),
-		),
-		ViewTransactions: key.NewBinding(
-			key.WithKeys("t"),
-			key.WithHelp("t", "view transactions"),
+		ViewLiabilities: key.NewBinding(
+			key.WithKeys("o"),
+			key.WithHelp("o", "view liabilities"),
 		),
 	}
 }
@@ -181,8 +208,8 @@ func DefaultExpenseKeyMap() ExpenseKeyMap {
 			key.WithHelp("?", "more/less"),
 		),
 		Quit: key.NewBinding(
-			key.WithKeys("q"),
-			key.WithHelp("q", "Back"),
+			key.WithKeys("q", "esc"),
+			key.WithHelp("q/esc", "Back"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("f"),
@@ -204,25 +231,30 @@ func DefaultExpenseKeyMap() ExpenseKeyMap {
 			key.WithKeys("s"),
 			key.WithHelp("s", "sort expenses"),
 		),
+		ViewTransactions: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("t", "view transactions"),
+		),
 		ViewAssets: key.NewBinding(
 			key.WithKeys("a"),
 			key.WithHelp("a", "view assets"),
-		),
-		ViewExpenses: key.NewBinding(
-			key.WithKeys("e"),
-			key.WithHelp("e", "toggle expenses"),
-		),
-		ViewRevenues: key.NewBinding(
-			key.WithKeys("i"),
-			key.WithHelp("i", "view revenues"),
 		),
 		ViewCategories: key.NewBinding(
 			key.WithKeys("c"),
 			key.WithHelp("c", "view categories"),
 		),
-		ViewTransactions: key.NewBinding(
-			key.WithKeys("t"),
-			key.WithHelp("t", "view transactions"),
+		ViewExpenses: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "view expenses"),
+			key.WithDisabled(),
+		),
+		ViewRevenues: key.NewBinding(
+			key.WithKeys("i"),
+			key.WithHelp("i", "view revenues"),
+		),
+		ViewLiabilities: key.NewBinding(
+			key.WithKeys("o"),
+			key.WithHelp("o", "view liabilities"),
 		),
 	}
 }
@@ -234,8 +266,8 @@ func DefaultRevenueKeyMap() RevenueKeyMap {
 			key.WithHelp("?", "more/less"),
 		),
 		Quit: key.NewBinding(
-			key.WithKeys("q"),
-			key.WithHelp("q", "Back"),
+			key.WithKeys("q", "esc"),
+			key.WithHelp("q/esc", "Back"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("f"),
@@ -257,9 +289,17 @@ func DefaultRevenueKeyMap() RevenueKeyMap {
 			key.WithKeys("s"),
 			key.WithHelp("s", "sort revenues"),
 		),
+		ViewTransactions: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("t", "view transactions"),
+		),
 		ViewAssets: key.NewBinding(
 			key.WithKeys("a"),
 			key.WithHelp("a", "view assets"),
+		),
+		ViewCategories: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "view categories"),
 		),
 		ViewExpenses: key.NewBinding(
 			key.WithKeys("e"),
@@ -267,15 +307,12 @@ func DefaultRevenueKeyMap() RevenueKeyMap {
 		),
 		ViewRevenues: key.NewBinding(
 			key.WithKeys("i"),
-			key.WithHelp("i", "toggle revenues"),
+			key.WithHelp("i", "view revenues"),
+			key.WithDisabled(),
 		),
-		ViewCategories: key.NewBinding(
-			key.WithKeys("c"),
-			key.WithHelp("c", "view categories"),
-		),
-		ViewTransactions: key.NewBinding(
-			key.WithKeys("t"),
-			key.WithHelp("t", "view transactions"),
+		ViewLiabilities: key.NewBinding(
+			key.WithKeys("o"),
+			key.WithHelp("o", "view liabilities"),
 		),
 	}
 }
@@ -287,8 +324,8 @@ func DefaultCategoryKeyMap() CategoryKeyMap {
 			key.WithHelp("?", "more/less"),
 		),
 		Quit: key.NewBinding(
-			key.WithKeys("q"),
-			key.WithHelp("q", "Back"),
+			key.WithKeys("q", "esc"),
+			key.WithHelp("q/esc", "Back"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("f"),
@@ -310,9 +347,18 @@ func DefaultCategoryKeyMap() CategoryKeyMap {
 			key.WithKeys("s"),
 			key.WithHelp("s", "sort categories"),
 		),
+		ViewTransactions: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("t", "view transactions"),
+		),
 		ViewAssets: key.NewBinding(
 			key.WithKeys("a"),
 			key.WithHelp("a", "view assets"),
+		),
+		ViewCategories: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "view categories"),
+			key.WithDisabled(),
 		),
 		ViewExpenses: key.NewBinding(
 			key.WithKeys("e"),
@@ -322,13 +368,63 @@ func DefaultCategoryKeyMap() CategoryKeyMap {
 			key.WithKeys("i"),
 			key.WithHelp("i", "view revenues"),
 		),
-		ViewCategories: key.NewBinding(
-			key.WithKeys("c"),
-			key.WithHelp("c", "toggle categories"),
+		ViewLiabilities: key.NewBinding(
+			key.WithKeys("o"),
+			key.WithHelp("o", "view liabilities"),
+		),
+	}
+}
+
+func DefaultLiabilityKeyMap() LiabilityKeyMap {
+	return LiabilityKeyMap{
+		ShowFullHelp: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "more/less"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("q", "esc"),
+			key.WithHelp("q/esc", "Back"),
+		),
+		Filter: key.NewBinding(
+			key.WithKeys("f"),
+			key.WithHelp("f", "filter liabilities(twice for exclusive)"),
+		),
+		ResetFilter: key.NewBinding(
+			key.WithKeys("ctrl+a"),
+			key.WithHelp("ctrl+a", "reset filter"),
+		),
+		New: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "new"),
+		),
+		Refresh: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "refresh liabilities"),
 		),
 		ViewTransactions: key.NewBinding(
 			key.WithKeys("t"),
 			key.WithHelp("t", "view transactions"),
+		),
+		ViewAssets: key.NewBinding(
+			key.WithKeys("a"),
+			key.WithHelp("a", "view assets"),
+		),
+		ViewCategories: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "view categories"),
+		),
+		ViewExpenses: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "view expenses"),
+		),
+		ViewRevenues: key.NewBinding(
+			key.WithKeys("i"),
+			key.WithHelp("i", "view revenues"),
+		),
+		ViewLiabilities: key.NewBinding(
+			key.WithKeys("o"),
+			key.WithHelp("o", "view liabilities"),
+			key.WithDisabled(),
 		),
 	}
 }
@@ -336,8 +432,12 @@ func DefaultCategoryKeyMap() CategoryKeyMap {
 func DefaultTransactionFormKeyMap() TransactionFormKeyMap {
 	return TransactionFormKeyMap{
 		Reset: key.NewBinding(
+			key.WithKeys("ctrl+n"),
+			key.WithHelp("ctrl+n", "reset form"),
+		),
+		Refresh: key.NewBinding(
 			key.WithKeys("ctrl+r"),
-			key.WithHelp("ctrl+r", "reset form"),
+			key.WithHelp("ctrl+r", "refresh data"),
 		),
 		Cancel: key.NewBinding(
 			key.WithKeys("esc"),
@@ -396,6 +496,10 @@ func DefaultTransactionsKeyMap() TransactionsKeyMap {
 			key.WithKeys("a"),
 			key.WithHelp("a", "view assets"),
 		),
+		ViewCategories: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "view categories"),
+		),
 		ViewExpenses: key.NewBinding(
 			key.WithKeys("e"),
 			key.WithHelp("e", "view expenses"),
@@ -404,9 +508,9 @@ func DefaultTransactionsKeyMap() TransactionsKeyMap {
 			key.WithKeys("i"),
 			key.WithHelp("i", "view revenues"),
 		),
-		ViewCategories: key.NewBinding(
-			key.WithKeys("c"),
-			key.WithHelp("c", "view categories"),
+		ViewLiabilities: key.NewBinding(
+			key.WithKeys("o"),
+			key.WithHelp("o", "view liabilities"),
 		),
 	}
 }
@@ -419,8 +523,8 @@ func (k UIKeyMap) ShortHelp() []key.Binding {
 		k.NextPeriod,
 	}
 }
-func (k AssetKeyMap) ShortHelp() []key.Binding {
 
+func (k AssetKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		k.ShowFullHelp,
 		k.Quit,
@@ -468,6 +572,17 @@ func (k CategoryKeyMap) ShortHelp() []key.Binding {
 	}
 }
 
+func (k LiabilityKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.ShowFullHelp,
+		k.Quit,
+		k.Filter,
+		k.ResetFilter,
+		k.New,
+		k.Refresh,
+	}
+}
+
 func (k TransactionsKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		k.ShowFullHelp,
@@ -487,6 +602,7 @@ func (k TransactionFormKeyMap) ShortHelp() []key.Binding {
 		k.Submit,
 		k.Cancel,
 		k.Reset,
+		k.Refresh,
 		k.NewElement,
 	}
 }
@@ -504,11 +620,12 @@ func (k AssetKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		k.ShortHelp(),
 		{
+			k.ViewTransactions,
 			k.ViewAssets,
+			k.ViewCategories,
 			k.ViewExpenses,
 			k.ViewRevenues,
-			k.ViewCategories,
-			k.ViewTransactions,
+			k.ViewLiabilities,
 		},
 	}
 }
@@ -517,11 +634,12 @@ func (k ExpenseKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		k.ShortHelp(),
 		{
+			k.ViewTransactions,
 			k.ViewAssets,
+			k.ViewCategories,
 			k.ViewExpenses,
 			k.ViewRevenues,
-			k.ViewCategories,
-			k.ViewTransactions,
+			k.ViewLiabilities,
 		},
 	}
 }
@@ -530,23 +648,40 @@ func (k RevenueKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		k.ShortHelp(),
 		{
+			k.ViewTransactions,
 			k.ViewAssets,
+			k.ViewCategories,
 			k.ViewExpenses,
 			k.ViewRevenues,
-			k.ViewCategories,
-			k.ViewTransactions,
+			k.ViewLiabilities,
 		},
 	}
 }
+
 func (k CategoryKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		k.ShortHelp(),
 		{
+			k.ViewTransactions,
 			k.ViewAssets,
+			k.ViewCategories,
 			k.ViewExpenses,
 			k.ViewRevenues,
-			k.ViewCategories,
+			k.ViewLiabilities,
+		},
+	}
+}
+
+func (k LiabilityKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		k.ShortHelp(),
+		{
 			k.ViewTransactions,
+			k.ViewAssets,
+			k.ViewCategories,
+			k.ViewExpenses,
+			k.ViewRevenues,
+			k.ViewLiabilities,
 		},
 	}
 }
@@ -556,9 +691,10 @@ func (k TransactionsKeyMap) FullHelp() [][]key.Binding {
 		k.ShortHelp(),
 		{
 			k.ViewAssets,
+			k.ViewCategories,
 			k.ViewExpenses,
 			k.ViewRevenues,
-			k.ViewCategories,
+			k.ViewLiabilities,
 		},
 	}
 }
