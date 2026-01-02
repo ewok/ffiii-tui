@@ -294,7 +294,7 @@ func (api *Api) searchTransactions(page, limit int, query string) ([]ApiTransact
 	}
 
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/vnd.api+json")
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
 
 	client := &http.Client{Timeout: time.Duration(api.Config.TimeoutSeconds) * time.Second}

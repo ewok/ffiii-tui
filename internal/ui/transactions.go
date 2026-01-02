@@ -7,6 +7,7 @@ package ui
 import (
 	"ffiii-tui/internal/firefly"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -187,14 +188,20 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var err error
 			transactions := []firefly.Transaction{}
 			if m.currentSearch != "" {
-				transactions, err = m.api.SearchTransactions(m.currentSearch)
+				transactions, err = m.api.SearchTransactions(url.QueryEscape(m.currentSearch))
 				if err != nil {
-					return nil
+					return NotifyMsg{
+						Message: err.Error(),
+						Level:   Warning,
+					}
 				}
 			} else {
 				transactions, err = m.api.ListTransactions()
 				if err != nil {
-					return nil
+					return NotifyMsg{
+						Message: err.Error(),
+						Level:   Warning,
+					}
 				}
 			}
 			m.transactions = transactions
