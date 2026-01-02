@@ -167,7 +167,7 @@ func getRevenuesItems(api *firefly.Api, sorted bool) []list.Item {
 
 func CmdPromptNewRevenue(backCmd tea.Cmd) tea.Cmd {
 	return Cmd(PromptMsg{
-		Prompt: "New Revenue: ",
+		Prompt: "New Revenue(<name>): ",
 		Value:  "",
 		Callback: func(value string) tea.Cmd {
 			var cmds []tea.Cmd

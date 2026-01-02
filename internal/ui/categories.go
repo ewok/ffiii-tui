@@ -200,7 +200,7 @@ func getCategoriesItems(api *firefly.Api, sorted int) []list.Item {
 
 func CmdPromptNewCategory(backCmd tea.Cmd) tea.Cmd {
 	return Cmd(PromptMsg{
-		Prompt: "New Category: ",
+		Prompt: "New Category(<name>): ",
 		Value:  "",
 		Callback: func(value string) tea.Cmd {
 			var cmds []tea.Cmd

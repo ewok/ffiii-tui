@@ -161,7 +161,7 @@ func getAssetsItems(api *firefly.Api) []list.Item {
 
 func CmdPromptNewAsset(backCmd tea.Cmd) tea.Cmd {
 	return Cmd(PromptMsg{
-		Prompt: "New Asset(name,currency): ",
+		Prompt: "New Asset(<name>,<currency>): ",
 		Value:  "",
 		Callback: func(value string) tea.Cmd {
 			var cmds []tea.Cmd

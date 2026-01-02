@@ -223,7 +223,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keymap.Refresh):
-			return m, tea.Sequence(
+			return m, tea.Batch(
 				Cmd(RefreshTransactionsMsg{}),
 				Cmd(RefreshAssetsMsg{}),
 				Cmd(RefreshExpensesMsg{}),

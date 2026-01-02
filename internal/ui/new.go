@@ -93,70 +93,104 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 		keymap: DefaultTransactionFormKeyMap(),
 		form: huh.NewForm(
 			huh.NewGroup(
-				huh.NewSelect[string]().
-					Key("type").
-					Options(huh.NewOptions("withdrawal", "deposit", "transfer")...).
-					Title("Type").
-					Value(&transactionType),
+
+				huh.NewNote().
+					TitleFunc(func() string {
+						s := source.Type
+						d := destination.Type
+						transactionType = ""
+
+						switch {
+						case s == "asset" && (d == "expense" || d == "liabilities"):
+							transactionType = "withdrawal"
+						case s == "asset" && d == "asset":
+							transactionType = "transfer"
+						case s == "revenue":
+							transactionType = "deposit"
+						case s == "liabilities" && d == "expense":
+							transactionType = "withdrawal"
+						case s == "liabilities" && d == "asset":
+							transactionType = "deposit"
+						case s == "liabilities" && d == "liabilities":
+							transactionType = "transfer"
+						default:
+							transactionType = "unknown"
+						}
+
+						return fmt.Sprintf("Current Type: %s", transactionType)
+
+					}, []any{&source, &destination}),
 
 				huh.NewSelect[firefly.Account]().
 					Key("source_name").
 					Title("Source Account").
 					DescriptionFunc(func() string {
-						switch transactionType {
-						case "withdrawal", "transfer":
+						switch source.Type {
+						case "asset", "liabilities":
 							return fmt.Sprintf("Balance: %.2f %s", source.Balance, source.CurrencyCode)
 						}
 						return ""
-					}, []any{&source, &transactionType}).
+					}, &source).
 					Value(&source).
 					OptionsFunc(func() []huh.Option[firefly.Account] {
 						options := []huh.Option[firefly.Account]{}
 
-						switch transactionType {
-						case "withdrawal":
-							for _, account := range api.Accounts["asset"] {
-								options = append(options, huh.NewOption(account.Name, account))
-							}
-						case "transfer":
-							for _, account := range api.Accounts["asset"] {
-								options = append(options, huh.NewOption(account.Name, account))
-							}
-						case "deposit":
-							for _, account := range api.Accounts["revenue"] {
-								options = append(options, huh.NewOption(account.Name, account))
-							}
-							for _, account := range api.Accounts["liability"] {
-								options = append(options, huh.NewOption(account.Name, account))
-							}
+						for _, account := range api.Accounts["asset"] {
+							options = append(options, huh.NewOption(account.Name, account))
+						}
+						for _, account := range api.Accounts["revenue"] {
+							options = append(options, huh.NewOption(account.Name, account))
+						}
+						for _, account := range api.Accounts["liabilities"] {
+							options = append(options, huh.NewOption(account.Name, account))
 						}
 						return options
-					}, []any{&transactionType, &triggerSourceCounter}).WithHeight(5),
+					}, []any{&triggerSourceCounter}).WithHeight(5),
 				huh.NewSelect[firefly.Account]().
 					Key("destination_name").
 					Title("Destination Account Name").
+					DescriptionFunc(func() string {
+						switch source.Type {
+						case "asset", "liabilities":
+							return fmt.Sprintf("Balance: %.2f %s", source.Balance, source.CurrencyCode)
+						}
+						return ""
+					}, &source).
 					Value(&destination).
 					OptionsFunc(func() []huh.Option[firefly.Account] {
 						options := []huh.Option[firefly.Account]{}
-						switch transactionType {
-						case "withdrawal":
+
+						switch source.Type {
+						case "asset":
+							for _, account := range api.Accounts["asset"] {
+								options = append(options, huh.NewOption(account.Name, account))
+							}
 							for _, account := range api.Accounts["expense"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
-							for _, account := range api.Accounts["liability"] {
+							for _, account := range api.Accounts["liabilities"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
-						case "transfer":
+						case "revenue":
 							for _, account := range api.Accounts["asset"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
-						case "deposit":
+							for _, account := range api.Accounts["liabilities"] {
+								options = append(options, huh.NewOption(account.Name, account))
+							}
+						case "liabilities":
 							for _, account := range api.Accounts["asset"] {
+								options = append(options, huh.NewOption(account.Name, account))
+							}
+							for _, account := range api.Accounts["expense"] {
+								options = append(options, huh.NewOption(account.Name, account))
+							}
+							for _, account := range api.Accounts["liabilities"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
 						}
 						return options
-					}, []any{&transactionType, &triggerDestinationCounter}).WithHeight(5),
+					}, []any{&source, &triggerDestinationCounter}).WithHeight(5),
 				huh.NewSelect[firefly.Category]().
 					Key("category_name").
 					Title("Category").
@@ -173,14 +207,14 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 					Title("Amount").
 					Value(&amount).
 					DescriptionFunc(func() string {
-						switch transactionType {
-						case "withdrawal", "transfer":
+						switch source.Type {
+						case "asset", "liabilities":
 							return source.CurrencyCode
-						case "deposit":
+						case "revenue":
 							return destination.CurrencyCode
-						default:
-							return ""
 						}
+						return ""
+
 					}, []any{&source, &destination}).
 					Validate(func(str string) error {
 						var amount float64
@@ -195,7 +229,9 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 					Title("Foreign Amount").
 					Value(&foreignAmount).
 					DescriptionFunc(func() string {
-						if transactionType == "transfer" {
+						s := source.Type
+						d := destination.Type
+						if (s == "asset" || s == "liabilities") && (d == "asset" || d == "liabilities") {
 							if source.CurrencyCode == destination.CurrencyCode {
 								return "N/A"
 							}
@@ -204,7 +240,9 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 						return "N/A"
 					}, []any{&source, &destination}).
 					Validate(func(str string) error {
-						if transactionType == "transfer" {
+						s := source.Type
+						d := destination.Type
+						if (s == "asset" || s == "liabilities") && (d == "asset" || d == "liabilities") {
 							if source.CurrencyCode == destination.CurrencyCode {
 								if str != "" {
 									return errors.New("for transfers between same currency accounts, foreign amount should be empty")
@@ -219,7 +257,7 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 							return nil
 						}
 						if str != "" {
-							return errors.New("foreign amount is only applicable for transfers")
+							return errors.New("foreign amount is only applicable for transactions between asset/liability accounts")
 						}
 						return nil
 					}),
@@ -273,25 +311,12 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case RefreshNewAssetMsg:
-		switch transactionType {
-		case "withdrawal":
-			triggerSourceCounter++
-		case "deposit":
-			triggerDestinationCounter++
-		case "transfer":
-			triggerSourceCounter++
-			triggerDestinationCounter++
-		}
+		triggerSourceCounter++
+		triggerDestinationCounter++
 	case RefreshNewExpenseMsg:
-		switch transactionType {
-		case "withdrawal":
-			triggerDestinationCounter++
-		}
+		triggerDestinationCounter++
 	case RefreshNewRevenueMsg:
-		switch transactionType {
-		case "deposit":
-			triggerSourceCounter++
-		}
+		triggerSourceCounter++
 	case RefreshNewCategoryMsg:
 		triggerCategoryCounter++
 	case NewTransactionMsg:
@@ -315,7 +340,10 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case *huh.Select[firefly.Category]:
 				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Category])
 				if ok && !f.GetFiltering() {
-					return m, CmdPromptNewCategory(SetView(newView))
+					return m, CmdPromptNewCategory(
+						tea.Sequence(
+							SetView(newView),
+							Cmd(RefreshNewCategoryMsg{})))
 				}
 
 			case *huh.Select[firefly.Account]:
@@ -326,15 +354,26 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if ok {
 						switch a.Type {
 						case "asset":
-							return m, CmdPromptNewAsset(SetView(newView))
+							return m, CmdPromptNewAsset(
+								tea.Sequence(
+									SetView(newView),
+									Cmd(RefreshNewAssetMsg{})))
 						case "expense":
-							return m, CmdPromptNewExpense(SetView(newView))
+							return m, CmdPromptNewExpense(
+								tea.Sequence(
+									SetView(newView),
+									Cmd(RefreshNewExpenseMsg{})))
 						case "revenue":
-							return m, CmdPromptNewRevenue(SetView(newView))
+							return m, CmdPromptNewRevenue(
+								tea.Sequence(
+									SetView(newView),
+									Cmd(RefreshNewRevenueMsg{})))
 						case "liability":
-							return m, CmdPromptNewLiability(SetView(newView))
+							return m, CmdPromptNewLiability(
+								tea.Sequence(
+									SetView(newView),
+									Cmd(RefreshNewAssetMsg{})))
 						}
-
 						return m, nil
 					}
 				}
@@ -345,6 +384,11 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Reset):
 			newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 			return newModel, SetView(newView)
+		case key.Matches(msg, m.keymap.Refresh):
+			triggerCategoryCounter++
+			triggerSourceCounter++
+			triggerDestinationCounter++
+			return m, nil
 		case key.Matches(msg, m.keymap.Submit):
 			if m.form.State == huh.StateCompleted {
 				description := m.form.GetString("description")
@@ -353,21 +397,18 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				currencyCode := ""
-				foreignCurrencyCode := ""
-
-				switch transactionType {
-				case "withdrawal":
+				switch source.Type {
+				case "asset", "liabilities":
 					currencyCode = source.CurrencyCode
-				case "deposit":
+				case "revenue":
 					currencyCode = destination.CurrencyCode
-				case "transfer":
-					currencyCode = source.CurrencyCode
+				}
+
+				foreignCurrencyCode := ""
+				if (source.Type == "asset" || source.Type == "liabilities") && (destination.Type == "asset" || destination.Type == "liabilities") {
 					if source.CurrencyCode != destination.CurrencyCode {
 						foreignCurrencyCode = destination.CurrencyCode
 					}
-				default:
-					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
-					return newModel, Notify("Wrong transaction type(should not appear)", Critical)
 				}
 
 				if err := m.api.CreateTransaction(firefly.NewTransaction{
@@ -390,15 +431,21 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					},
 				}); err != nil {
 					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
-					return newModel, Notify(err.Error(), Warning)
+					return newModel, tea.Sequence(
+						Notify(err.Error(), Warning),
+						SetView(transactionsView))
 
 				} else {
 					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 					cmds = append(cmds,
 						SetView(transactionsView),
 						Cmd(RefreshAssetsMsg{}),
-						Cmd(RefreshTransactionsMsg{}))
-					return newModel, tea.Sequence(cmds...)
+						Cmd(RefreshLiabilitiesMsg{}),
+						Cmd(RefreshTransactionsMsg{}),
+						Cmd(RefreshExpenseInsightsMsg{}),
+						Cmd(RefreshRevenueInsightsMsg{}),
+					)
+					return newModel, tea.Batch(cmds...)
 				}
 			}
 		}

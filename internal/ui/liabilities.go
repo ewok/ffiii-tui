@@ -166,7 +166,7 @@ func getLiabilitiesItems(api *firefly.Api) []list.Item {
 
 func CmdPromptNewLiability(backCmd tea.Cmd) tea.Cmd {
 	return Cmd(PromptMsg{
-		Prompt: "New Liabity(name, currency, type: loan|debt|mortage, direction:credit|debit): ",
+        Prompt: "New Liabity(<name>,<currency>,<type:loan|debt|mortage>,<direction:credit|debit>): ",
 		Value:  promptValue,
 		Callback: func(value string) tea.Cmd {
 			var cmds []tea.Cmd

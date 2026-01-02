@@ -170,7 +170,7 @@ func getExpensesItems(api *firefly.Api, sorted bool) []list.Item {
 
 func CmdPromptNewExpense(backCmd tea.Cmd) tea.Cmd {
 	return Cmd(PromptMsg{
-		Prompt: "New Expense: ",
+		Prompt: "New Expense(<name>): ",
 		Value:  "",
 		Callback: func(value string) tea.Cmd {
 			var cmds []tea.Cmd
