@@ -238,7 +238,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					var cmds []tea.Cmd
 					cmds = append(cmds,
 						Cmd(FilterMsg{Query: value}),
-						Cmd(ViewTransactionsMsg{}))
+						SetView(transactionsView))
 					return tea.Sequence(cmds...)
 				}})
 		case key.Matches(msg, m.keymap.Search):
@@ -249,12 +249,12 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					var cmds []tea.Cmd
 					cmds = append(cmds,
 						Cmd(SearchMsg{Query: value}),
-						Cmd(ViewTransactionsMsg{}),
+						SetView(transactionsView),
 					)
 					return tea.Sequence(cmds...)
 				}})
 		case key.Matches(msg, m.keymap.New):
-			return m, Cmd(ViewNewMsg{})
+			return m, SetView(newView)
 		case key.Matches(msg, m.keymap.NewFromTransaction):
 			if len(m.table.Rows()) < 1 {
 				return m, Notify("No transactions.", Warning)
@@ -270,19 +270,21 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			trx := m.transactions[id]
 			return m, tea.Sequence(
 				Cmd(NewTransactionMsg{Transaction: trx}),
-				Cmd(ViewNewMsg{}))
+				SetView(newView))
 		case key.Matches(msg, m.keymap.ResetFilter):
 			return m, Cmd(FilterMsg{Reset: true})
 		case key.Matches(msg, m.keymap.ToggleFullView):
 			return m, Cmd(ViewFullTransactionViewMsg{})
 		case key.Matches(msg, m.keymap.ViewAssets):
-			return m, Cmd(ViewAssetsMsg{})
-		case key.Matches(msg, m.keymap.ViewExpenses):
-			return m, Cmd(ViewExpensesMsg{})
-		case key.Matches(msg, m.keymap.ViewRevenues):
-			return m, Cmd(ViewRevenuesMsg{})
+			return m, SetView(assetsView)
 		case key.Matches(msg, m.keymap.ViewCategories):
-			return m, Cmd(ViewCategoriesMsg{})
+			return m, SetView(categoriesView)
+		case key.Matches(msg, m.keymap.ViewExpenses):
+			return m, SetView(expensesView)
+		case key.Matches(msg, m.keymap.ViewRevenues):
+			return m, SetView(revenuesView)
+		case key.Matches(msg, m.keymap.ViewLiabilities):
+			return m, SetView(liabilitiesView)
 			// enter
 			// case "enter":
 			// 	return m, tea.Batch(

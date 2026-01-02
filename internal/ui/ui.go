@@ -33,7 +33,6 @@ var (
 	promptStyle         = baseStyle
 	promptStyleFocused  = baseStyleFocused
 	topSize             = 4
-	promptVisible       = false
 	fullTransactionView = false
 )
 
@@ -44,20 +43,18 @@ const (
 	periodView
 	newView
 	assetsView
-	categoryView
+	categoriesView
 	expensesView
 	revenuesView
+	liabilitiesView
+	promptView
 )
 
 type (
-	ViewTransactionsMsg        struct{}
-	ViewAssetsMsg              struct{}
-	ViewNewMsg                 struct{}
-	ViewCategoriesMsg          struct{}
-	ViewExpensesMsg            struct{}
-	ViewRevenuesMsg            struct{}
-	ViewPromptMsg              struct{}
 	ViewFullTransactionViewMsg struct{}
+	SetFocusedViewMsg          struct {
+		state state
+	}
 )
 
 type modelUI struct {
@@ -69,6 +66,7 @@ type modelUI struct {
 	categories   modelCategories
 	expenses     modelExpenses
 	revenues     modelRevenues
+	liabilities  modelLiabilities
 	prompt       modelPrompt
 	notify       modelNotify
 
@@ -91,11 +89,12 @@ func Show(api *firefly.Api) {
 		categories:   newModelCategories(api),
 		expenses:     newModelExpenses(api),
 		revenues:     newModelRevenues(api),
+		liabilities:  newModelLiabilities(api),
 		prompt: newPrompt(PromptMsg{
 			Prompt: "",
 			Value:  "",
 			Callback: func(value string) tea.Cmd {
-				return Cmd(ViewTransactionsMsg{})
+				return Cmd(SetFocusedViewMsg{state: transactionsView})
 			}}),
 		notify: newNotify(NotifyMsg{Message: ""}),
 		keymap: DefaultUIKeyMap(),
@@ -108,7 +107,7 @@ func Show(api *firefly.Api) {
 }
 
 func (m modelUI) Init() tea.Cmd {
-	return func() tea.Msg { return ViewTransactionsMsg{} }
+	return SetView(transactionsView)
 }
 
 func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -159,74 +158,49 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			topSize = 4
 		}
 
-	case ViewTransactionsMsg:
-		m.SetState(transactionsView)
-		promptVisible = false
-		m.transactions.Focus()
-		m.assets.Blur()
-		m.categories.Blur()
-		m.expenses.Blur()
-		m.revenues.Blur()
-		m.prompt.Blur()
-		m.new.Blur()
-	case ViewAssetsMsg:
-		m.SetState(assetsView)
-		promptVisible = false
-		m.transactions.Blur()
-		m.assets.Focus()
-		m.categories.Blur()
-		m.expenses.Blur()
-		m.revenues.Blur()
-		m.prompt.Blur()
-		m.new.Blur()
-	case ViewNewMsg:
-		m.SetState(newView)
-		promptVisible = false
-		m.transactions.Blur()
-		m.assets.Blur()
-		m.categories.Blur()
-		m.expenses.Blur()
-		m.revenues.Blur()
-		m.prompt.Blur()
-		m.new.Focus()
-	case ViewCategoriesMsg:
-		m.SetState(categoryView)
-		promptVisible = false
-		m.transactions.Blur()
-		m.assets.Blur()
-		m.categories.Focus()
-		m.expenses.Blur()
-		m.revenues.Blur()
-		m.prompt.Blur()
-	case ViewExpensesMsg:
-		m.SetState(expensesView)
-		promptVisible = false
-		m.transactions.Blur()
-		m.assets.Blur()
-		m.categories.Blur()
-		m.expenses.Focus()
-		m.revenues.Blur()
-		m.prompt.Blur()
-		m.new.Blur()
-	case ViewRevenuesMsg:
-		m.SetState(revenuesView)
-		promptVisible = false
-		m.transactions.Blur()
-		m.assets.Blur()
-		m.categories.Blur()
-		m.expenses.Blur()
-		m.revenues.Focus()
-		m.prompt.Blur()
-		m.new.Blur()
-	case ViewPromptMsg:
-		promptVisible = true
-		m.transactions.Blur()
-		m.assets.Blur()
-		m.categories.Blur()
-		m.expenses.Blur()
-		m.revenues.Blur()
-		m.prompt.Focus()
-		m.new.Blur()
+	case SetFocusedViewMsg:
+		if msg.state == transactionsView {
+			m.transactions.Focus()
+		} else {
+			m.transactions.Blur()
+		}
+		if msg.state == assetsView {
+			m.assets.Focus()
+		} else {
+			m.assets.Blur()
+		}
+		if msg.state == categoriesView {
+			m.categories.Focus()
+		} else {
+			m.categories.Blur()
+		}
+		if msg.state == expensesView {
+			m.expenses.Focus()
+		} else {
+			m.expenses.Blur()
+		}
+		if msg.state == revenuesView {
+			m.revenues.Focus()
+		} else {
+			m.revenues.Blur()
+		}
+		if msg.state == liabilitiesView {
+			m.liabilities.Focus()
+		} else {
+			m.liabilities.Blur()
+		}
+		if msg.state == newView {
+			m.new.Focus()
+		} else {
+			m.new.Blur()
+		}
+		if msg.state == promptView {
+			m.prompt.Focus()
+		} else {
+			m.prompt.Blur()
+			m.SetState(msg.state)
+		}
+
 	case ViewFullTransactionViewMsg:
 		fullTransactionView = !fullTransactionView
 		viper.Set("ui.full_view", fullTransactionView)
@@ -274,6 +248,14 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.revenues = revenuesModel
 	cmds = append(cmds, cmd)
 
+	nModel, cmd = m.liabilities.Update(msg)
+	liabilitiesModel, ok := nModel.(modelLiabilities)
+	if !ok {
+		panic("Somthing bad happened")
+	}
+	m.liabilities = liabilitiesModel
+	cmds = append(cmds, cmd)
+
 	nModel, cmd = m.new.Update(msg)
 	newModel, ok := nModel.(modelNewTransaction)
 	if !ok {
@@ -304,7 +286,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m modelUI) View() string {
 	s := ""
 
-	if promptVisible {
+	if m.prompt.focus {
 		s = s + promptStyleFocused.Render(" "+m.prompt.View()) + "\n"
 	} else if m.notify.text != "" {
 		s = s + promptStyleFocused.Render(" Notification: "+m.notify.View()) + "\n"
@@ -348,16 +330,7 @@ func (m modelUI) View() string {
 			lipgloss.Top,
 			baseStyleFocused.Render(m.assets.View()),
 			baseStyle.Render(m.transactions.View()))
-	case newView:
-		if fullTransactionView {
-			s = s + baseStyleFocused.Render(m.new.View())
-		} else {
-			s = s + lipgloss.JoinHorizontal(
-				lipgloss.Top,
-				baseStyle.Render(m.assets.View()),
-				baseStyleFocused.Render(m.new.View()))
-		}
-	case categoryView:
+	case categoriesView:
 		s = s + lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			baseStyleFocused.Render(m.categories.View()),
@@ -372,13 +345,23 @@ func (m modelUI) View() string {
 			lipgloss.Top,
 			baseStyleFocused.Render(m.revenues.View()),
 			baseStyle.Render(m.transactions.View()))
+	case liabilitiesView:
+		s = s + lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			baseStyleFocused.Render(m.liabilities.View()),
+			baseStyle.Render(m.transactions.View()))
+	case newView:
+		if fullTransactionView {
+			s = s + baseStyleFocused.Render(m.new.View())
+		} else {
+			s = s + lipgloss.JoinHorizontal(
+				lipgloss.Top,
+				baseStyle.Render(m.assets.View()),
+				baseStyleFocused.Render(m.new.View()))
+		}
 	}
 	return s + "\n" + m.help.Styles.ShortKey.Render(m.HelpView())
 
-}
-
-func (m *modelUI) SetState(s state) {
-	m.state = s
 }
 
 func (m *modelUI) HelpView() string {
@@ -388,12 +371,14 @@ func (m *modelUI) HelpView() string {
 		help += m.help.View(m.transactions.keymap)
 	case assetsView:
 		help += m.help.View(m.assets.keymap)
-	case categoryView:
+	case categoriesView:
 		help += m.help.View(m.categories.keymap)
 	case expensesView:
 		help += m.help.View(m.expenses.keymap)
 	case revenuesView:
 		help += m.help.View(m.revenues.keymap)
+	case liabilitiesView:
+		help += m.help.View(m.liabilities.keymap)
 	case newView:
 		help += m.help.View(m.new.keymap)
 	}
@@ -401,4 +386,12 @@ func (m *modelUI) HelpView() string {
 		help = lipgloss.JoinHorizontal(lipgloss.Left, help, m.help.View(m.keymap))
 	}
 	return help
+}
+
+func (m *modelUI) SetState(s state) {
+	m.state = s
+}
+
+func SetView(state state) tea.Cmd {
+	return Cmd(SetFocusedViewMsg{state: state})
 }

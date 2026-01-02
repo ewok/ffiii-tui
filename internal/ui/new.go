@@ -11,7 +11,6 @@ import (
 	"ffiii-tui/internal/firefly"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -123,11 +122,11 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 							for _, account := range api.Accounts["asset"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
-							for _, account := range api.Accounts["liability"] {
-								options = append(options, huh.NewOption(account.Name, account))
-							}
 						case "deposit":
 							for _, account := range api.Accounts["revenue"] {
+								options = append(options, huh.NewOption(account.Name, account))
+							}
+							for _, account := range api.Accounts["liability"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
 						}
@@ -144,11 +143,11 @@ func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewT
 							for _, account := range api.Accounts["expense"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
-						case "transfer":
-							for _, account := range api.Accounts["asset"] {
+							for _, account := range api.Accounts["liability"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
-							for _, account := range api.Accounts["liability"] {
+						case "transfer":
+							for _, account := range api.Accounts["asset"] {
 								options = append(options, huh.NewOption(account.Name, account))
 							}
 						case "deposit":
@@ -297,7 +296,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		triggerCategoryCounter++
 	case NewTransactionMsg:
 		newModel := newModelNewTransaction(m.api, msg.Transaction)
-		return newModel, Cmd(ViewNewMsg{})
+		return newModel, SetView(newView)
 	}
 
 	if !m.focus {
@@ -316,101 +315,36 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case *huh.Select[firefly.Category]:
 				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Category])
 				if ok && !f.GetFiltering() {
-					return m, Cmd(PromptMsg{
-						Prompt: "New Category: ",
-						Value:  "",
-						Callback: func(value string) tea.Cmd {
-							var cmds []tea.Cmd
-							if value != "None" {
-								cmds = append(cmds, Cmd(NewCategoryMsg{Category: value}))
-							}
-							cmds = append(cmds,
-								Cmd(RefreshNewCategoryMsg{}),
-								Cmd(ViewNewMsg{}))
-							return tea.Sequence(cmds...)
-						}})
+					return m, CmdPromptNewCategory(SetView(newView))
 				}
 
 			case *huh.Select[firefly.Account]:
 				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Account])
 				if ok && !f.GetFiltering() {
-					var (
-						msg    tea.Msg
-						prompt string
-					)
 
 					a, ok := f.GetValue().(firefly.Account)
 					if ok {
 						switch a.Type {
 						case "asset":
-							prompt = "New Asset(name,currency): "
-							msg = PromptMsg{
-								Prompt: prompt,
-								Value:  "",
-								Callback: func(value string) tea.Cmd {
-									var cmds []tea.Cmd
-									if value != "None" && value != "" {
-										split := strings.SplitN(value, ",", 2)
-										if len(split) >= 2 {
-											acc := strings.TrimSpace(split[0])
-											cur := strings.TrimSpace(split[1])
-											if acc != "" && cur != "" {
-												cmds = append(cmds, Cmd(NewAssetMsg{Account: acc, Currency: cur}))
-											}
-										}
-									}
-									cmds = append(cmds,
-										Cmd(RefreshNewAssetMsg{}),
-										Cmd(ViewNewMsg{}),
-									)
-									return tea.Sequence(cmds...)
-								}}
-
+							return m, CmdPromptNewAsset(SetView(newView))
 						case "expense":
-							prompt = "New Expense: "
-							msg = PromptMsg{
-								Prompt: "New Expense: ",
-								Value:  "",
-								Callback: func(value string) tea.Cmd {
-									var cmds []tea.Cmd
-									if value != "None" && value != "" {
-										cmds = append(cmds, Cmd(NewExpenseMsg{Account: value}))
-									}
-									cmds = append(cmds,
-										Cmd(RefreshNewExpenseMsg{}),
-										Cmd(ViewNewMsg{}),
-									)
-									return tea.Sequence(cmds...)
-								}}
-
+							return m, CmdPromptNewExpense(SetView(newView))
 						case "revenue":
-							prompt = "New Revenue: "
-							msg = PromptMsg{
-								Prompt: "New Revenue: ",
-								Value:  "",
-								Callback: func(value string) tea.Cmd {
-									var cmds []tea.Cmd
-									if value != "None" && value != "" {
-										cmds = append(cmds, Cmd(NewRevenueMsg{Account: value}))
-									}
-									cmds = append(cmds,
-										Cmd(RefreshNewRevenueMsg{}),
-										Cmd(ViewNewMsg{}),
-									)
-									return tea.Sequence(cmds...)
-								}}
+							return m, CmdPromptNewRevenue(SetView(newView))
+						case "liability":
+							return m, CmdPromptNewLiability(SetView(newView))
 						}
 
-						return m, Cmd(msg)
+						return m, nil
 					}
 				}
 			}
 
 		case key.Matches(msg, m.keymap.Cancel):
-			return m, Cmd(ViewTransactionsMsg{})
+			return m, SetView(transactionsView)
 		case key.Matches(msg, m.keymap.Reset):
 			newModel := newModelNewTransaction(m.api, firefly.Transaction{})
-			return newModel, Cmd(ViewNewMsg{})
+			return newModel, SetView(newView)
 		case key.Matches(msg, m.keymap.Submit):
 			if m.form.State == huh.StateCompleted {
 				description := m.form.GetString("description")
@@ -461,7 +395,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					newModel := newModelNewTransaction(m.api, firefly.Transaction{})
 					cmds = append(cmds,
-						Cmd(ViewTransactionsMsg{}),
+						SetView(transactionsView),
 						Cmd(RefreshAssetsMsg{}),
 						Cmd(RefreshTransactionsMsg{}))
 					return newModel, tea.Sequence(cmds...)

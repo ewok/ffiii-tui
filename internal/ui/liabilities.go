@@ -7,6 +7,7 @@ package ui
 import (
 	"ffiii-tui/internal/firefly"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -15,40 +16,46 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type RefreshAssetsMsg struct{}
+var (
+	promptValue string
+)
 
-type NewAssetMsg struct {
-	Account  string
-	Currency string
+type RefreshLiabilitiesMsg struct{}
+
+type NewLiabilityMsg struct {
+	Account   string
+	Currency  string
+	Type      string
+	Direction string
 }
 
-type assetItem struct {
+type liabilityItem struct {
 	account, currency string
 	balance           float64
 }
 
-func (i assetItem) Title() string { return i.account }
-func (i assetItem) Description() string {
+func (i liabilityItem) Title() string { return i.account }
+func (i liabilityItem) Description() string {
 	return fmt.Sprintf("Balance: %.2f %s", i.balance, i.currency)
 }
-func (i assetItem) FilterValue() string { return i.account }
+func (i liabilityItem) FilterValue() string { return i.account }
 
-type modelAssets struct {
+type modelLiabilities struct {
 	list   list.Model
 	api    *firefly.Api
 	focus  bool
-	keymap AssetKeyMap
+	keymap LiabilityKeyMap
 }
 
-func newModelAssets(api *firefly.Api) modelAssets {
-	items := getAssetsItems(api)
+func newModelLiabilities(api *firefly.Api) modelLiabilities {
+	items := getLiabilitiesItems(api)
 
-	m := modelAssets{
+	m := modelLiabilities{
 		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
 		api:    api,
-		keymap: DefaultAssetKeyMap(),
+		keymap: DefaultLiabilityKeyMap(),
 	}
-	m.list.Title = "Assets"
+	m.list.Title = "Liabilities"
 	m.list.SetShowStatusBar(false)
 	m.list.SetFilteringEnabled(false)
 	m.list.SetShowHelp(false)
@@ -57,26 +64,31 @@ func newModelAssets(api *firefly.Api) modelAssets {
 	return m
 }
 
-func (m modelAssets) Init() tea.Cmd {
+func (m modelLiabilities) Init() tea.Cmd {
 	return nil
 }
 
-func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
-	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case RefreshAssetsMsg:
+	case RefreshLiabilitiesMsg:
 		return m, tea.Sequence(
-			Cmd(m.api.UpdateAccounts("asset")),
-			m.list.SetItems(getAssetsItems(m.api)))
-	case NewAssetMsg:
-		err := m.api.CreateAssetAccount(msg.Account, msg.Currency)
+			Cmd(m.api.UpdateAccounts("liabilities")),
+			m.list.SetItems(getLiabilitiesItems(m.api)))
+	case NewLiabilityMsg:
+		err := m.api.CreateLiabilityAccount(firefly.NewLiability{
+			Name:         msg.Account,
+			CurrencyCode: msg.Currency,
+			Type:         msg.Type,
+			Direction:    msg.Direction,
+		})
 		if err != nil {
 			return m, Notify(err.Error(), Warning)
 		}
-		return m, Cmd(RefreshAssetsMsg{})
+		promptValue = ""
+		return m, Cmd(RefreshLiabilitiesMsg{})
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
@@ -92,22 +104,15 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Quit):
 			return m, SetView(transactionsView)
 		case key.Matches(msg, m.keymap.Filter):
-			i, ok := m.list.SelectedItem().(assetItem)
+			i, ok := m.list.SelectedItem().(liabilityItem)
 			if ok {
 				return m, Cmd(FilterMsg{Account: i.account})
 			}
 			return m, nil
-		case key.Matches(msg, m.keymap.Select):
-			i, ok := m.list.SelectedItem().(assetItem)
-			if ok {
-				cmds = append(cmds, Cmd(FilterMsg{Account: i.account}))
-			}
-			cmds = append(cmds, SetView(transactionsView))
-			return m, tea.Sequence(cmds...)
 		case key.Matches(msg, m.keymap.New):
-			return m, CmdPromptNewAsset(SetView(assetsView))
+			return m, CmdPromptNewLiability(SetView(liabilitiesView))
 		case key.Matches(msg, m.keymap.Refresh):
-			return m, Cmd(RefreshAssetsMsg{})
+			return m, Cmd(RefreshLiabilitiesMsg{})
 		case key.Matches(msg, m.keymap.ResetFilter):
 			return m, Cmd(FilterMsg{Reset: true})
 
@@ -132,24 +137,24 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m modelAssets) View() string {
+func (m modelLiabilities) View() string {
 	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
 }
 
-func (m *modelAssets) Focus() {
+func (m *modelLiabilities) Focus() {
 	m.list.FilterInput.Focus()
 	m.focus = true
 }
 
-func (m *modelAssets) Blur() {
+func (m *modelLiabilities) Blur() {
 	m.list.FilterInput.Blur()
 	m.focus = false
 }
 
-func getAssetsItems(api *firefly.Api) []list.Item {
+func getLiabilitiesItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
-	for _, i := range api.Accounts["asset"] {
-		items = append(items, assetItem{
+	for _, i := range api.Accounts["liabilities"] {
+		items = append(items, liabilityItem{
 			account:  i.Name,
 			balance:  i.Balance,
 			currency: i.CurrencyCode,
@@ -159,25 +164,31 @@ func getAssetsItems(api *firefly.Api) []list.Item {
 	return items
 }
 
-func CmdPromptNewAsset(backCmd tea.Cmd) tea.Cmd {
+func CmdPromptNewLiability(backCmd tea.Cmd) tea.Cmd {
 	return Cmd(PromptMsg{
-		Prompt: "New Asset(name,currency): ",
-		Value:  "",
+		Prompt: "New Liabity(name, currency, type: loan|debt|mortage, direction:credit|debit): ",
+		Value:  promptValue,
 		Callback: func(value string) tea.Cmd {
 			var cmds []tea.Cmd
 			if value != "None" {
-				split := strings.SplitN(value, ",", 2)
-				if len(split) >= 2 {
-					acc := strings.TrimSpace(split[0])
-					cur := strings.TrimSpace(split[1])
+				promptValue = value
+				// String: <name>,<currency>,<type>,<direction>
+				re := regexp.MustCompile(`^\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*$`)
+				matches := re.FindStringSubmatch(value)
+				if len(matches) == 5 {
+					acc := strings.TrimSpace(matches[1])
+					cur := strings.TrimSpace(matches[2])
+					typ := strings.TrimSpace(matches[3])
+					dir := strings.TrimSpace(matches[4])
 					if acc != "" && cur != "" {
-						cmds = append(cmds, Cmd(NewAssetMsg{Account: acc, Currency: cur}))
+						cmds = append(cmds, Cmd(NewLiabilityMsg{Account: acc, Currency: cur, Type: typ, Direction: dir}))
 					} else {
-						cmds = append(cmds, Notify("Invalid asset name or currency", Warning))
+						cmds = append(cmds, Notify("Invalid liability name or currency", Warning))
 					}
 				} else {
-					cmds = append(cmds, Notify("Invalid asset name or currency", Warning))
+					cmds = append(cmds, Notify("Invalid liability request", Warning))
 				}
+
 			}
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
