@@ -56,8 +56,19 @@ Prerequisites:
 		}
 		fmt.Printf("Connected to Firefly III at %s, as %s", apiUrl, ff.User.Email)
 
-		ui.Show(ff)
+		// debug
+		var dump *os.File
+		if viper.GetBool("debug") {
+			var err error
+			dump, err = os.OpenFile("messages.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+			if err != nil {
+				return fmt.Errorf("failed to init messages.log: %w", err)
+			}
+		}
 
+		ui.Show(ff, dump)
+
+		viper.Set("debug", false)
 		viper.WriteConfigAs(viper.ConfigFileUsed())
 
 		return nil
@@ -105,6 +116,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/ffiii-tui/config)")
 	rootCmd.PersistentFlags().StringP("firefly.api_key", "k", "your_firefly_api_key_here", "Firefly III API key")
 	rootCmd.PersistentFlags().StringP("firefly.api_url", "u", "https://your-firefly-iii-instance.com/api/v1", "Firefly III API URL")
+	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
 
 	rootCmd.AddCommand(initConfigCmd)
 }
