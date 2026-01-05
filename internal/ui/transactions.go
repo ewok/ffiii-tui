@@ -170,7 +170,6 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		value = m.currentFilter
 		if value != "" {
 			txs := []firefly.Transaction{}
-			// TODO: change to use splits
 			for _, tx := range transactions {
 				if CaseInsensitiveContains(tx.GroupTitle, value) {
 					txs = append(txs, tx)

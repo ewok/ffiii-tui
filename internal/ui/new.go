@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/huh"
 )
 
+// TODO: Move to model or...?
 var (
 	year                      string
 	month                     string
@@ -273,7 +274,7 @@ func (m modelNewTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					foreignCurrencyCode := ""
 					if (s.source.Type == "asset" || s.source.Type == "liabilities") && (s.destination.Type == "asset" || s.destination.Type == "liabilities") {
 						if s.source.CurrencyCode != s.destination.CurrencyCode {
-							foreignCurrencyCode = destination.CurrencyCode
+							foreignCurrencyCode = s.destination.CurrencyCode
 						}
 					}
 
@@ -397,7 +398,7 @@ func BuildForm(api *firefly.Api) *huh.Form {
 				}, []any{&s.source, &s.destination}).
 				Validate(func(str string) error {
 					var amount float64
-					_, err := strconv.ParseFloat(str, 64)
+					amount, err := strconv.ParseFloat(str, 64)
 					if err != nil || amount < 0 {
 						return errors.New("please enter a valid positive number for amount")
 					}
@@ -429,7 +430,7 @@ func BuildForm(api *firefly.Api) *huh.Form {
 							return nil
 						}
 						var amount float64
-						_, err := strconv.ParseFloat(str, 64)
+						amount, err := strconv.ParseFloat(str, 64)
 						if err != nil || amount < 0 {
 							return errors.New("please enter a valid positive number for amount")
 						}
@@ -500,6 +501,7 @@ func RedrawForm() tea.Cmd {
 }
 
 // Helpers
+// TODO: Refactor this to avoid global var change
 func trxTitle(i int, s *split) (func() string, any) {
 	bindings := []any{&s.source, &s.destination}
 

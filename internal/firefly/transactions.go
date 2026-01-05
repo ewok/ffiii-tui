@@ -14,8 +14,10 @@ import (
 	"time"
 )
 
-const transactionsEndpoint = "%s/transactions?page=%d&limit=%d&start=%s&end=%s"
-const searchTransactionsEndpoint = "%s/search/transactions?page=%d&limit=%d&query=%s"
+const (
+	transactionsEndpoint       = "%s/transactions?page=%d&limit=%d&start=%s&end=%s"
+	searchTransactionsEndpoint = "%s/search/transactions?page=%d&limit=%d&query=%s"
+)
 
 type Transaction struct {
 	ID            uint
@@ -190,7 +192,6 @@ func (api *Api) ListTransactions() ([]Transaction, error) {
 }
 
 func (api *Api) listTransactions(page, limit int) ([]ApiTransaction, error) {
-
 	endpoint := fmt.Sprintf(
 		transactionsEndpoint,
 		api.Config.ApiUrl,
@@ -324,7 +325,6 @@ func (api *Api) SearchTransactions(query string) ([]Transaction, error) {
 }
 
 func (api *Api) searchTransactions(page, limit int, query string) ([]ApiTransaction, error) {
-
 	endpoint := fmt.Sprintf(searchTransactionsEndpoint, api.Config.ApiUrl, page, limit, query)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
@@ -409,27 +409,41 @@ func (t *Transaction) ForeignAmount() float64 {
 }
 
 func (t *Transaction) Description() string {
-	if len(t.Splits) > 1 {
+	l := len(t.Splits)
+	if l > 1 {
 		return t.GroupTitle
 	}
-	return t.Splits[0].Description
+	if l == 1 {
+		return t.Splits[0].Description
+	}
+	return ""
 }
 
 func (t *Transaction) Source() Account {
+	l := len(t.Splits)
 	if t.Type == "withdrawal" || t.Type == "transfer" {
-		return t.Splits[0].Source
+		if l > 0 {
+			return t.Splits[0].Source
+		} else {
+			return Account{Name: "error"}
+		}
 	}
-	if t.Type == "deposit" && len(t.Splits) == 1 {
+	if t.Type == "deposit" && l == 1 {
 		return t.Splits[0].Source
 	}
 	return Account{Name: "multiple"}
 }
 
 func (t *Transaction) Destination() Account {
+	l := len(t.Splits)
 	if t.Type == "deposit" || t.Type == "transfer" {
-		return t.Splits[0].Destination
+		if l > 0 {
+			return t.Splits[0].Destination
+		} else {
+			return Account{Name: "error"}
+		}
 	}
-	if t.Type == "withdrawal" && len(t.Splits) == 1 {
+	if t.Type == "withdrawal" && l == 1 {
 		return t.Splits[0].Destination
 	}
 	return Account{Name: "multiple"}

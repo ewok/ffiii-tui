@@ -64,6 +64,7 @@ Prerequisites:
 			if err != nil {
 				return fmt.Errorf("failed to init messages.log: %w", err)
 			}
+			defer dump.Close()
 		}
 
 		ui.Show(ff, dump)
