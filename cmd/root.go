@@ -17,9 +17,7 @@ import (
 	"ffiii-tui/internal/ui"
 )
 
-var (
-	cfgFile string
-)
+var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -35,7 +33,6 @@ Prerequisites:
 		return initializeConfig(cmd)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		apiKey := viper.GetString("firefly.api_key")
 		if apiKey == "" {
 			return fmt.Errorf("firefly API key is not set")
@@ -56,23 +53,11 @@ Prerequisites:
 		}
 		fmt.Printf("Connected to Firefly III at %s, as %s", apiUrl, ff.User.Email)
 
-		// debug
-		var dump *os.File
-		if viper.GetBool("debug") {
-			var err error
-			dump, err = os.OpenFile("messages.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-			if err != nil {
-				return fmt.Errorf("failed to init messages.log: %w", err)
-			}
-			defer dump.Close()
-		}
-
-		ui.Show(ff, dump)
+		ui.Show(ff)
 
 		viper.Set("debug", false)
-		viper.WriteConfigAs(viper.ConfigFileUsed())
 
-		return nil
+		return viper.WriteConfigAs(viper.ConfigFileUsed())
 	},
 }
 
@@ -81,7 +66,6 @@ var initConfigCmd = &cobra.Command{
 	Short: "Generate a default configuration file",
 	Long:  `Generate a default configuration file for ffiii-tui.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		initViper := viper.New()
 		initViper.Set("firefly.api_key", viper.GetString("firefly.api_key"))
 		initViper.Set("firefly.api_url", viper.GetString("firefly.api_url"))
@@ -123,7 +107,6 @@ func init() {
 }
 
 func initializeConfig(cmd *cobra.Command) error {
-
 	viper.SetEnvPrefix("FFIII_TUI")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "*", "-", "*"))
 	viper.AutomaticEnv()

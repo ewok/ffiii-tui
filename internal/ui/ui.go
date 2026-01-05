@@ -5,17 +5,16 @@ SPDX-License-Identifier: Apache-2.0
 package ui
 
 import (
-	"ffiii-tui/internal/firefly"
 	"fmt"
-	"io"
 	"os"
 	"time"
+
+	"ffiii-tui/internal/firefly"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/spf13/viper"
 )
 
@@ -74,12 +73,9 @@ type modelUI struct {
 
 	keymap UIKeyMap
 	help   help.Model
-
-	dump io.Writer
 }
 
-func Show(api *firefly.Api, dump io.Writer) {
-
+func Show(api *firefly.Api) {
 	fullTransactionView = viper.GetBool("ui.full_view")
 	h := help.New()
 	h.Styles.FullKey = lipgloss.NewStyle().PaddingLeft(1)
@@ -99,11 +95,11 @@ func Show(api *firefly.Api, dump io.Writer) {
 			Value:  "",
 			Callback: func(value string) tea.Cmd {
 				return Cmd(SetFocusedViewMsg{state: transactionsView})
-			}}),
+			},
+		}),
 		notify: newNotify(NotifyMsg{Message: ""}),
 		keymap: DefaultUIKeyMap(),
 		help:   h,
-		dump:   dump,
 	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
@@ -116,9 +112,9 @@ func (m modelUI) Init() tea.Cmd {
 }
 
 func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.dump != nil {
-		spew.Fdump(m.dump, msg)
-	}
+	// if m.dump != nil {
+	// 	spew.Fdump(m.dump, msg)
+	// }
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -306,7 +302,6 @@ func (m modelUI) View() string {
 			header = header + fmt.Sprintf(" | Period: %s - %s",
 				m.api.StartDate.Format(time.DateOnly),
 				m.api.EndDate.Format(time.DateOnly))
-
 		}
 		if m.transactions.currentAccount != "" {
 			header = header + " | Account: " + m.transactions.currentAccount
@@ -361,7 +356,6 @@ func (m modelUI) View() string {
 		s = s + baseStyleFocused.Render(m.new.View())
 	}
 	return s + "\n" + m.help.Styles.ShortKey.Render(m.HelpView())
-
 }
 
 func (m *modelUI) HelpView() string {
