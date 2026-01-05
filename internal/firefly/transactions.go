@@ -9,18 +9,26 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 )
 
-const transactionsEndpoint = "%s/transactions?page=%d&limit=%d&start=%s&end=%s"
-const searchTransactionsEndpoint = "%s/search/transactions?page=%d&limit=%d&query=%s"
+const (
+	transactionsEndpoint       = "%s/transactions?page=%d&limit=%d&start=%s&end=%s"
+	searchTransactionsEndpoint = "%s/search/transactions?page=%d&limit=%d&query=%s"
+)
 
 type Transaction struct {
-	ID              uint
-	TransactionID   string
-	Type            string
-	Date            string
+	ID            uint
+	TransactionID string
+	Type          string
+	Date          string
+	GroupTitle    string
+	Splits        []Split
+}
+
+type Split struct {
 	Source          Account
 	Destination     Account
 	Category        Category
@@ -134,6 +142,11 @@ func (api *Api) ListTransactions() ([]Transaction, error) {
 			break
 		}
 		for _, t := range txs {
+			var (
+				splits []Split
+				ttype  string
+				tdate  string
+			)
 			for _, subTx := range t.Attributes.Transactions {
 				amount, err := strconv.ParseFloat(subTx.Amount, 64)
 				if err != nil {
@@ -143,12 +156,13 @@ func (api *Api) ListTransactions() ([]Transaction, error) {
 				if err != nil {
 					foreignAmount = 0
 				}
-
-				transaction := Transaction{
-					ID:              uint(id),
-					TransactionID:   t.ID,
-					Type:            subTx.Type,
-					Date:            subTx.Date,
+				if ttype == "" {
+					ttype = subTx.Type
+				}
+				if tdate == "" {
+					tdate = subTx.Date
+				}
+				splits = append(splits, Split{
 					Source:          api.GetAccountByID(subTx.SourceID),
 					Destination:     api.GetAccountByID(subTx.DestinationID),
 					Category:        api.GetCategoryByID(subTx.CategoryID),
@@ -157,10 +171,20 @@ func (api *Api) ListTransactions() ([]Transaction, error) {
 					Amount:          amount,
 					ForeignAmount:   foreignAmount,
 					Description:     subTx.Description,
-				}
-				transactions = append(transactions, transaction)
-				id++
+				},
+				)
 			}
+
+			slices.Reverse(splits)
+			transactions = append(transactions, Transaction{
+				ID:            uint(id),
+				TransactionID: t.ID,
+				Type:          ttype,
+				Date:          tdate,
+				Splits:        splits,
+				GroupTitle:    t.Attributes.GroupTitle,
+			})
+			id++
 		}
 		page++
 	}
@@ -168,7 +192,6 @@ func (api *Api) ListTransactions() ([]Transaction, error) {
 }
 
 func (api *Api) listTransactions(page, limit int) ([]ApiTransaction, error) {
-
 	endpoint := fmt.Sprintf(
 		transactionsEndpoint,
 		api.Config.ApiUrl,
@@ -252,6 +275,11 @@ func (api *Api) SearchTransactions(query string) ([]Transaction, error) {
 			break
 		}
 		for _, t := range txs {
+			var (
+				splits []Split
+				ttype  string
+				tdate  string
+			)
 			for _, subTx := range t.Attributes.Transactions {
 				amount, err := strconv.ParseFloat(subTx.Amount, 64)
 				if err != nil {
@@ -261,11 +289,13 @@ func (api *Api) SearchTransactions(query string) ([]Transaction, error) {
 				if err != nil {
 					foreignAmount = 0
 				}
-				transaction := Transaction{
-					ID:              uint(id),
-					TransactionID:   t.ID,
-					Type:            subTx.Type,
-					Date:            subTx.Date,
+				if ttype == "" {
+					ttype = subTx.Type
+				}
+				if tdate == "" {
+					tdate = subTx.Date
+				}
+				splits = append(splits, Split{
 					Source:          api.GetAccountByID(subTx.SourceID),
 					Destination:     api.GetAccountByID(subTx.DestinationID),
 					Category:        api.GetCategoryByID(subTx.CategoryID),
@@ -274,10 +304,20 @@ func (api *Api) SearchTransactions(query string) ([]Transaction, error) {
 					Amount:          amount,
 					ForeignAmount:   foreignAmount,
 					Description:     subTx.Description,
-				}
-				transactions = append(transactions, transaction)
-				id++
+				},
+				)
 			}
+
+			slices.Reverse(splits)
+			transactions = append(transactions, Transaction{
+				ID:            uint(id),
+				TransactionID: t.ID,
+				Type:          ttype,
+				Date:          tdate,
+				Splits:        splits,
+				GroupTitle:    t.Attributes.GroupTitle,
+			})
+			id++
 		}
 		page++
 	}
@@ -285,7 +325,6 @@ func (api *Api) SearchTransactions(query string) ([]Transaction, error) {
 }
 
 func (api *Api) searchTransactions(page, limit int, query string) ([]ApiTransaction, error) {
-
 	endpoint := fmt.Sprintf(searchTransactionsEndpoint, api.Config.ApiUrl, page, limit, query)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
@@ -349,4 +388,84 @@ func (api *Api) searchTransactions(page, limit int, query string) ([]ApiTransact
 	}
 
 	return transactions, nil
+}
+
+func (t *Transaction) Amount() float64 {
+	total := 0.0
+	for _, split := range t.Splits {
+		total += split.Amount
+	}
+	return total
+}
+
+func (t *Transaction) ForeignAmount() float64 {
+	total := 0.0
+	if t.Type == "transfer" {
+		for _, split := range t.Splits {
+			total += split.ForeignAmount
+		}
+	}
+	return total
+}
+
+func (t *Transaction) Description() string {
+	l := len(t.Splits)
+	if l > 1 {
+		return t.GroupTitle
+	}
+	if l == 1 {
+		return t.Splits[0].Description
+	}
+	return ""
+}
+
+func (t *Transaction) Source() Account {
+	l := len(t.Splits)
+	if t.Type == "withdrawal" || t.Type == "transfer" {
+		if l > 0 {
+			return t.Splits[0].Source
+		} else {
+			return Account{Name: "error"}
+		}
+	}
+	if t.Type == "deposit" && l == 1 {
+		return t.Splits[0].Source
+	}
+	return Account{Name: "multiple"}
+}
+
+func (t *Transaction) Destination() Account {
+	l := len(t.Splits)
+	if t.Type == "deposit" || t.Type == "transfer" {
+		if l > 0 {
+			return t.Splits[0].Destination
+		} else {
+			return Account{Name: "error"}
+		}
+	}
+	if t.Type == "withdrawal" && l == 1 {
+		return t.Splits[0].Destination
+	}
+	return Account{Name: "multiple"}
+}
+
+func (t *Transaction) Category() Category {
+	if len(t.Splits) == 1 {
+		return t.Splits[0].Category
+	}
+	return Category{Name: "multiple"}
+}
+
+func (t *Transaction) Currency() string {
+	return t.Splits[0].Currency
+}
+
+func (t *Transaction) ForeignCurrency() string {
+	if t.Type == "transfer" {
+		return t.Splits[0].ForeignCurrency
+	}
+	if len(t.Splits) == 1 {
+		return t.Splits[0].ForeignCurrency
+	}
+	return ""
 }

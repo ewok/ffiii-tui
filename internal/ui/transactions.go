@@ -143,8 +143,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if value != "" {
 			txs := []firefly.Transaction{}
 			for _, tx := range transactions {
-				if tx.Source.Name == value || tx.Destination.Name == value {
-					txs = append(txs, tx)
+				for _, split := range tx.Splits {
+					if split.Source.Name == value || split.Destination.Name == value {
+						txs = append(txs, tx)
+						break
+					}
 				}
 			}
 			transactions = txs
@@ -154,8 +157,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if value != "" {
 			txs := []firefly.Transaction{}
 			for _, tx := range transactions {
-				if tx.Category.Name == value {
-					txs = append(txs, tx)
+				for _, split := range tx.Splits {
+					if split.Category.Name == value {
+						txs = append(txs, tx)
+						break
+					}
 				}
 			}
 			transactions = txs
@@ -165,15 +171,22 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if value != "" {
 			txs := []firefly.Transaction{}
 			for _, tx := range transactions {
-				if CaseInsensitiveContains(tx.Description, value) ||
-					CaseInsensitiveContains(tx.Source.Name, value) ||
-					CaseInsensitiveContains(tx.Destination.Name, value) ||
-					CaseInsensitiveContains(tx.Category.Name, value) ||
-					CaseInsensitiveContains(tx.Currency, value) ||
-					strings.Contains(fmt.Sprintf("%.2f", tx.Amount), value) ||
-					CaseInsensitiveContains(tx.ForeignCurrency, value) ||
-					strings.Contains(fmt.Sprintf("%.2f", tx.ForeignAmount), value) {
+				if CaseInsensitiveContains(tx.GroupTitle, value) {
 					txs = append(txs, tx)
+					continue
+				}
+				for _, split := range tx.Splits {
+					if CaseInsensitiveContains(split.Description, value) ||
+						CaseInsensitiveContains(split.Source.Name, value) ||
+						CaseInsensitiveContains(split.Destination.Name, value) ||
+						CaseInsensitiveContains(split.Category.Name, value) ||
+						CaseInsensitiveContains(split.Currency, value) ||
+						strings.Contains(fmt.Sprintf("%.2f", split.Amount), value) ||
+						CaseInsensitiveContains(split.ForeignCurrency, value) ||
+						strings.Contains(fmt.Sprintf("%.2f", split.ForeignAmount), value) {
+						txs = append(txs, tx)
+						break
+					}
 				}
 			}
 			transactions = txs
@@ -321,93 +334,104 @@ func (m *modelTransactions) Focus() {
 
 func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 
-	// Determine max widths for dynamic columns
 	sourceWidth := 5
 	destinationWidth := 5
 	categoryWidth := 5
 	amountWidth := 5
 	foreignAmountWidth := 5
 	descriptionWidth := 10
+	currencyWidth := 3
+	foreignCurrencyWidth := 4
 	transactionIDWidth := 4
 
 	rows := []table.Row{}
-	// Populate rows from transactions
-	for _, tx := range transactions {
-		amount = fmt.Sprintf("%.2f", tx.Amount)
-		foreignAmount = fmt.Sprintf("%.2f", tx.ForeignAmount)
 
-		// Convert from string to desired date format
-		// YYYY-MM-DD HH:MM:SS
+	for _, tx := range transactions {
 		date, _ := time.Parse(time.RFC3339, tx.Date)
 
-		// Determine type icon
 		Type := ""
 		switch tx.Type {
 		case "withdrawal":
-			Type = "➖"
+			Type = "←"
 		case "deposit":
-			Type = "➕"
+			Type = "→"
 		case "transfer":
-			Type = "➡️"
+			Type = "⇄"
 		}
 
-		row := table.Row{
-			fmt.Sprintf("%d", tx.ID),
-			Type,
-			date.Format("2006-01-02"),
-			tx.Source.Name,
-			tx.Destination.Name,
-			tx.Category.Name,
-			tx.Currency,
-			amount,
-			tx.ForeignCurrency,
-			foreignAmount,
-			tx.Description,
-			tx.TransactionID,
-		}
-		rows = append(rows, row)
+		for idx, split := range tx.Splits {
+			icon := Type
+			if len(tx.Splits) > 1 && idx > 0 {
+				icon = " ↳"
+			}
+			amount := fmt.Sprintf("%.2f", split.Amount)
+			foreignAmount := fmt.Sprintf("%.2f", split.ForeignAmount)
 
-		// Update max widths
-		sourceLen := len(tx.Source.Name)
-		if sourceLen > sourceWidth {
-			sourceWidth = sourceLen
-		}
-		destinationLen := len(tx.Destination.Name)
-		if destinationLen > destinationWidth {
-			destinationWidth = destinationLen
-		}
-		categoryLen := len(tx.Category.Name)
-		if categoryLen > categoryWidth {
-			categoryWidth = categoryLen
-		}
-		amountLen := len(amount)
-		if amountLen > amountWidth {
-			amountWidth = amountLen
-		}
-		foreignAmountLen := len(foreignAmount)
-		if foreignAmountLen > foreignAmountWidth {
-			foreignAmountWidth = foreignAmountLen
-		}
-		descriptionLen := len(tx.Description)
-		if descriptionLen > descriptionWidth {
-			descriptionWidth = descriptionLen
-		}
-		transactionIDLen := len(tx.TransactionID)
-		if transactionIDLen > transactionIDWidth {
-			transactionIDWidth = transactionIDLen
+			row := table.Row{
+				fmt.Sprintf("%d", tx.ID),
+				icon,
+				date.Format("2006-01-02"),
+				split.Source.Name,
+				split.Destination.Name,
+				split.Category.Name,
+				split.Currency,
+				amount,
+				split.ForeignCurrency,
+				foreignAmount,
+				split.Description,
+				tx.TransactionID,
+			}
+			rows = append(rows, row)
+
+			sourceLen := len(split.Source.Name)
+			if sourceLen > sourceWidth {
+				sourceWidth = sourceLen
+			}
+			destinationLen := len(split.Destination.Name)
+			if destinationLen > destinationWidth {
+				destinationWidth = destinationLen
+			}
+			categoryLen := len(split.Category.Name)
+			if categoryLen > categoryWidth {
+				categoryWidth = categoryLen
+			}
+			currencyLen := len(split.Currency)
+			if currencyLen > currencyWidth {
+				currencyWidth = currencyLen
+			}
+			amountLen := len(amount)
+			if amountLen > amountWidth {
+				amountWidth = amountLen
+			}
+			foreignCurrencyLen := len(split.ForeignCurrency)
+			if foreignCurrencyLen > foreignCurrencyWidth {
+				foreignCurrencyWidth = foreignCurrencyLen
+			}
+			foreignAmountLen := len(foreignAmount)
+			if foreignAmountLen > foreignAmountWidth {
+				foreignAmountWidth = foreignAmountLen
+			}
+			descriptionLen := len(split.Description)
+			if descriptionLen > descriptionWidth {
+				descriptionWidth = descriptionLen
+			}
+			transactionIDLen := len(tx.TransactionID)
+			if transactionIDLen > transactionIDWidth {
+				transactionIDWidth = transactionIDLen
+			}
 		}
 	}
 
 	return rows, []table.Column{
-		{Title: "ID", Width: 4},
+		{Title: "ID", Width: 0},
 		{Title: "Type", Width: 2},
 		{Title: "Date", Width: 10},
 		{Title: "Source", Width: sourceWidth},
 		{Title: "Destination", Width: destinationWidth},
 		{Title: "Category", Width: categoryWidth},
-		{Title: "Currency", Width: 3},
+		{Title: "Currency", Width: currencyWidth},
 		{Title: "Amount", Width: amountWidth},
-		{Title: "Foreign Currency", Width: 4},
+		{Title: "Foreign Currency", Width: foreignCurrencyWidth},
 		{Title: "Foreign Amount", Width: foreignAmountWidth},
 		{Title: "Description", Width: descriptionWidth},
 		{Title: "TxID", Width: transactionIDWidth},

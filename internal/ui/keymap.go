@@ -97,11 +97,14 @@ type LiabilityKeyMap struct {
 }
 
 type TransactionFormKeyMap struct {
-	Reset      key.Binding
-	Cancel     key.Binding
-	Submit     key.Binding
-	NewElement key.Binding
-	Refresh    key.Binding
+	Reset        key.Binding
+	Cancel       key.Binding
+	Submit       key.Binding
+	NewElement   key.Binding
+	Refresh      key.Binding
+	AddSplit     key.Binding
+	DeleteSplit  key.Binding
+	ChangeLayout key.Binding
 }
 
 type TransactionsKeyMap struct {
@@ -451,6 +454,18 @@ func DefaultTransactionFormKeyMap() TransactionFormKeyMap {
 			key.WithKeys("n"),
 			key.WithHelp("n", "new element"),
 		),
+		AddSplit: key.NewBinding(
+			key.WithKeys("ctrl+a"),
+			key.WithHelp("ctrl+a", "add split"),
+		),
+		DeleteSplit: key.NewBinding(
+			key.WithKeys("ctrl+d"),
+			key.WithHelp("ctrl+d", "delete split"),
+		),
+		ChangeLayout: key.NewBinding(
+			key.WithKeys("ctrl+f"),
+			key.WithHelp("ctrl+f", "change layout(if too many splits)"),
+		),
 	}
 }
 
@@ -599,11 +614,14 @@ func (k TransactionsKeyMap) ShortHelp() []key.Binding {
 
 func (k TransactionFormKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
+		k.NewElement,
+		k.AddSplit,
+		k.DeleteSplit,
 		k.Submit,
 		k.Cancel,
 		k.Reset,
 		k.Refresh,
-		k.NewElement,
+		k.ChangeLayout,
 	}
 }
 

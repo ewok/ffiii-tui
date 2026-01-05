@@ -7,6 +7,7 @@ package ui
 import (
 	"ffiii-tui/internal/firefly"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/spf13/viper"
 )
 
@@ -72,9 +74,11 @@ type modelUI struct {
 
 	keymap UIKeyMap
 	help   help.Model
+
+	dump io.Writer
 }
 
-func Show(api *firefly.Api) {
+func Show(api *firefly.Api, dump io.Writer) {
 
 	fullTransactionView = viper.GetBool("ui.full_view")
 	h := help.New()
@@ -99,6 +103,7 @@ func Show(api *firefly.Api) {
 		notify: newNotify(NotifyMsg{Message: ""}),
 		keymap: DefaultUIKeyMap(),
 		help:   h,
+		dump:   dump,
 	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
@@ -111,6 +116,9 @@ func (m modelUI) Init() tea.Cmd {
 }
 
 func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.dump != nil {
+		spew.Fdump(m.dump, msg)
+	}
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -123,7 +131,6 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.categories.list.Help.ShowAll = m.help.ShowAll
 			m.expenses.list.Help.ShowAll = m.help.ShowAll
 			m.revenues.list.Help.ShowAll = m.help.ShowAll
-
 			m.assets.list.SetShowHelp(m.help.ShowAll)
 			m.categories.list.SetShowHelp(m.help.ShowAll)
 			m.expenses.list.SetShowHelp(m.help.ShowAll)
@@ -351,14 +358,7 @@ func (m modelUI) View() string {
 			baseStyleFocused.Render(m.liabilities.View()),
 			baseStyle.Render(m.transactions.View()))
 	case newView:
-		if fullTransactionView {
-			s = s + baseStyleFocused.Render(m.new.View())
-		} else {
-			s = s + lipgloss.JoinHorizontal(
-				lipgloss.Top,
-				baseStyle.Render(m.assets.View()),
-				baseStyleFocused.Render(m.new.View()))
-		}
+		s = s + baseStyleFocused.Render(m.new.View())
 	}
 	return s + "\n" + m.help.Styles.ShortKey.Render(m.HelpView())
 
