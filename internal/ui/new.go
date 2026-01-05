@@ -370,7 +370,7 @@ func BuildForm(api *firefly.Api) *huh.Form {
 				DescriptionFunc(trxBalanceDesc(s.destination)).
 				Value(&s.destination).
 				Options(huh.NewOption(s.destination.Name, s.destination)).
-				OptionsFunc(trxDestinationOptions(i, s, api)).WithHeight(5),
+				OptionsFunc(trxDestinationOptions(i, s, api)).WithHeight(4),
 			huh.NewSelect[firefly.Category]().
 				Title("Category").
 				Value(&s.category).
@@ -381,18 +381,19 @@ func BuildForm(api *firefly.Api) *huh.Form {
 						options = append(options, huh.NewOption(category.Name, category))
 					}
 					return options
-				}, &triggerCategoryCounter).WithHeight(5),
+				}, &triggerCategoryCounter).WithHeight(4),
 			huh.NewInput().
 				Title("Amount").
 				Value(&s.amount).
-				DescriptionFunc(func() string {
+				TitleFunc(func() string {
+					title := "Amount "
 					switch s.source.Type {
 					case "asset", "liabilities":
-						return s.source.CurrencyCode
+						return title + s.source.CurrencyCode
 					case "revenue":
-						return s.destination.CurrencyCode
+						return title + s.destination.CurrencyCode
 					}
-					return ""
+					return title
 				}, []any{&s.source, &s.destination}).
 				Validate(func(str string) error {
 					var amount float64
@@ -405,16 +406,17 @@ func BuildForm(api *firefly.Api) *huh.Form {
 			huh.NewInput().
 				Title("Foreign Amount").
 				Value(&s.foreignAmount).
-				DescriptionFunc(func() string {
+				TitleFunc(func() string {
+					title := "Foreign Amount "
 					sType := s.source.Type
 					dType := s.destination.Type
 					if (sType == "asset" || sType == "liabilities") && (dType == "asset" || dType == "liabilities") {
 						if s.source.CurrencyCode == s.destination.CurrencyCode {
-							return "N/A"
+							return title + "N/A"
 						}
-						return s.destination.CurrencyCode
+						return title + s.destination.CurrencyCode
 					}
-					return "N/A"
+					return title + "N/A"
 				}, []any{&s.source, &s.destination}).
 				Validate(func(str string) error {
 					sType := s.source.Type
