@@ -29,14 +29,15 @@ type Transaction struct {
 }
 
 type Split struct {
-	Source          Account
-	Destination     Account
-	Category        Category
-	Currency        string
-	ForeignCurrency string
-	Amount          float64
-	ForeignAmount   float64
-	Description     string
+	TransactionJournalID string
+	Source               Account
+	Destination          Account
+	Category             Category
+	Currency             string
+	ForeignCurrency      string
+	Amount               float64
+	ForeignAmount        float64
+	Description          string
 }
 
 type ApiTransaction struct {
@@ -163,14 +164,15 @@ func (api *Api) ListTransactions() ([]Transaction, error) {
 					tdate = subTx.Date
 				}
 				splits = append(splits, Split{
-					Source:          api.GetAccountByID(subTx.SourceID),
-					Destination:     api.GetAccountByID(subTx.DestinationID),
-					Category:        api.GetCategoryByID(subTx.CategoryID),
-					Currency:        subTx.CurrencyCode,
-					ForeignCurrency: subTx.ForeignCurrencyCode,
-					Amount:          amount,
-					ForeignAmount:   foreignAmount,
-					Description:     subTx.Description,
+					Source:               api.GetAccountByID(subTx.SourceID),
+					Destination:          api.GetAccountByID(subTx.DestinationID),
+					Category:             api.GetCategoryByID(subTx.CategoryID),
+					Currency:             subTx.CurrencyCode,
+					ForeignCurrency:      subTx.ForeignCurrencyCode,
+					Amount:               amount,
+					ForeignAmount:        foreignAmount,
+					Description:          subTx.Description,
+					TransactionJournalID: subTx.TransactionJournalID,
 				},
 				)
 			}
@@ -296,14 +298,15 @@ func (api *Api) SearchTransactions(query string) ([]Transaction, error) {
 					tdate = subTx.Date
 				}
 				splits = append(splits, Split{
-					Source:          api.GetAccountByID(subTx.SourceID),
-					Destination:     api.GetAccountByID(subTx.DestinationID),
-					Category:        api.GetCategoryByID(subTx.CategoryID),
-					Currency:        subTx.CurrencyCode,
-					ForeignCurrency: subTx.ForeignCurrencyCode,
-					Amount:          amount,
-					ForeignAmount:   foreignAmount,
-					Description:     subTx.Description,
+					Source:               api.GetAccountByID(subTx.SourceID),
+					Destination:          api.GetAccountByID(subTx.DestinationID),
+					Category:             api.GetCategoryByID(subTx.CategoryID),
+					Currency:             subTx.CurrencyCode,
+					ForeignCurrency:      subTx.ForeignCurrencyCode,
+					Amount:               amount,
+					ForeignAmount:        foreignAmount,
+					Description:          subTx.Description,
+					TransactionJournalID: subTx.TransactionJournalID,
 				},
 				)
 			}

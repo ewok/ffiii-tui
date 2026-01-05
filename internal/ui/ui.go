@@ -5,18 +5,18 @@ SPDX-License-Identifier: Apache-2.0
 package ui
 
 import (
-	"ffiii-tui/internal/firefly"
 	"fmt"
-	"io"
 	"os"
 	"time"
+
+	"ffiii-tui/internal/firefly"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 var (
@@ -33,7 +33,9 @@ var (
 				BorderForeground(lipgloss.Color("62")).
 				BorderStyle(lipgloss.ThickBorder())
 	promptStyle         = baseStyle
-	promptStyleFocused  = baseStyleFocused
+	promptStyleFocused  = baseStyleFocused.BorderForeground(lipgloss.Color("#FF5555"))
+	promptStyleNewTr    = baseStyle.BorderForeground(lipgloss.Color("34"))
+	promptStyleEditTr   = baseStyle.BorderForeground(lipgloss.Color("214"))
 	topSize             = 4
 	fullTransactionView = false
 )
@@ -63,7 +65,7 @@ type modelUI struct {
 	state        state
 	transactions modelTransactions
 	api          *firefly.Api
-	new          modelNewTransaction
+	new          modelTransaction
 	assets       modelAssets
 	categories   modelCategories
 	expenses     modelExpenses
@@ -74,12 +76,9 @@ type modelUI struct {
 
 	keymap UIKeyMap
 	help   help.Model
-
-	dump io.Writer
 }
 
-func Show(api *firefly.Api, dump io.Writer) {
-
+func Show(api *firefly.Api) {
 	fullTransactionView = viper.GetBool("ui.full_view")
 	h := help.New()
 	h.Styles.FullKey = lipgloss.NewStyle().PaddingLeft(1)
@@ -88,7 +87,7 @@ func Show(api *firefly.Api, dump io.Writer) {
 	m := modelUI{
 		api:          api,
 		transactions: newModelTransactions(api),
-		new:          newModelNewTransaction(api, firefly.Transaction{}),
+		new:          newModelTransaction(api, firefly.Transaction{}, true),
 		assets:       newModelAssets(api),
 		categories:   newModelCategories(api),
 		expenses:     newModelExpenses(api),
@@ -99,11 +98,11 @@ func Show(api *firefly.Api, dump io.Writer) {
 			Value:  "",
 			Callback: func(value string) tea.Cmd {
 				return Cmd(SetFocusedViewMsg{state: transactionsView})
-			}}),
+			},
+		}),
 		notify: newNotify(NotifyMsg{Message: ""}),
 		keymap: DefaultUIKeyMap(),
 		help:   h,
-		dump:   dump,
 	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
@@ -115,10 +114,17 @@ func (m modelUI) Init() tea.Cmd {
 	return SetView(transactionsView)
 }
 
-func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.dump != nil {
-		spew.Fdump(m.dump, msg)
+func updateModel[T tea.Model](current T, msg tea.Msg) (T, tea.Cmd) {
+	model, cmd := current.Update(msg)
+	if converted, ok := model.(T); ok {
+		return converted, cmd
 	}
+	zap.S().Errorf("Failed to update model: type assertion failed for %T", current)
+	return current, cmd
+}
+
+func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	zap.S().Debugf("UI Update: %+v", msg)
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -154,10 +160,13 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		}
 	case tea.WindowSizeMsg:
-		promptStyle = baseStyle.
+		promptStyle = promptStyle.
 			Width(msg.Width - 2)
-		promptStyleFocused = baseStyleFocused.
-			BorderForeground(lipgloss.Color("#FF5555")).
+		promptStyleFocused = promptStyleFocused.
+			Width(msg.Width - 2)
+		promptStyleNewTr = promptStyleNewTr.
+			Width(msg.Width - 2)
+		promptStyleEditTr = promptStyleEditTr.
 			Width(msg.Width - 2)
 		if m.help.ShowAll {
 			topSize = 4 + lipgloss.Height(m.HelpView())
@@ -214,83 +223,40 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmds []tea.Cmd
+	var cmd tea.Cmd
 
-	nModel, cmd := m.transactions.Update(msg)
-	listModel, ok := nModel.(modelTransactions)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.transactions = listModel
+	m.transactions, cmd = updateModel(m.transactions, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.assets.Update(msg)
-	assetsModel, ok := nModel.(modelAssets)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.assets = assetsModel
+	m.assets, cmd = updateModel(m.assets, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.categories.Update(msg)
-	categoryModel, ok := nModel.(modelCategories)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.categories = categoryModel
+	m.categories, cmd = updateModel(m.categories, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.expenses.Update(msg)
-	expensesModel, ok := nModel.(modelExpenses)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.expenses = expensesModel
+	m.expenses, cmd = updateModel(m.expenses, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.revenues.Update(msg)
-	revenuesModel, ok := nModel.(modelRevenues)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.revenues = revenuesModel
+	m.revenues, cmd = updateModel(m.revenues, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.liabilities.Update(msg)
-	liabilitiesModel, ok := nModel.(modelLiabilities)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.liabilities = liabilitiesModel
+	m.liabilities, cmd = updateModel(m.liabilities, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.new.Update(msg)
-	newModel, ok := nModel.(modelNewTransaction)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.new = newModel
+	m.new, cmd = updateModel(m.new, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.prompt.Update(msg)
-	promptModel, ok := nModel.(modelPrompt)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.prompt = promptModel
+	m.prompt, cmd = updateModel(m.prompt, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.notify.Update(msg)
-	notifyModel, ok := nModel.(modelNotify)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.notify = notifyModel
+	m.notify, cmd = updateModel(m.notify, msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
 
 func (m modelUI) View() string {
+	// TODO: Refactor, too complicated
 	s := ""
 
 	if m.prompt.focus {
@@ -300,27 +266,35 @@ func (m modelUI) View() string {
 	} else {
 		header := " ffiii-tui"
 
-		if m.transactions.currentSearch != "" {
-			header = header + " | Search: " + m.transactions.currentSearch
-		} else {
-			header = header + fmt.Sprintf(" | Period: %s - %s",
-				m.api.StartDate.Format(time.DateOnly),
-				m.api.EndDate.Format(time.DateOnly))
+		headerRenderer := promptStyle
 
+		if m.state == newView {
+			if m.new.new {
+				header = header + " | New transaction"
+				headerRenderer = promptStyleNewTr
+			} else {
+				header = header + " | Editing transaction: " + m.new.attr.trxID
+				headerRenderer = promptStyleEditTr
+			}
+		} else {
+			if m.transactions.currentSearch != "" {
+				header = header + " | Search: " + m.transactions.currentSearch
+			} else {
+				header = header + fmt.Sprintf(" | Period: %s - %s",
+					m.api.StartDate.Format(time.DateOnly),
+					m.api.EndDate.Format(time.DateOnly))
+			}
+			if m.transactions.currentAccount != "" {
+				header = header + " | Account: " + m.transactions.currentAccount
+			}
+			if m.transactions.currentCategory != "" {
+				header = header + " | Category: " + m.transactions.currentCategory
+			}
+			if m.transactions.currentFilter != "" {
+				header = header + " | Filter: " + m.transactions.currentFilter
+			}
 		}
-		if m.transactions.currentAccount != "" {
-			header = header + " | Account: " + m.transactions.currentAccount
-		}
-		if m.transactions.currentCategory != "" {
-			header = header + " | Category: " + m.transactions.currentCategory
-		}
-		if m.transactions.currentFilter != "" {
-			header = header + " | Filter: " + m.transactions.currentFilter
-		}
-		if m.notify.text != "" {
-			header = header + "\n" + " Notification: " + m.notify.View()
-		}
-		s = s + promptStyle.Render(header) + "\n"
+		s = s + headerRenderer.Render(header) + "\n"
 	}
 
 	switch m.state {
@@ -358,10 +332,12 @@ func (m modelUI) View() string {
 			baseStyleFocused.Render(m.liabilities.View()),
 			baseStyle.Render(m.transactions.View()))
 	case newView:
-		s = s + baseStyleFocused.Render(m.new.View())
+		s = s + lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			baseStyle.Render(m.assets.View()),
+			baseStyleFocused.Render(m.new.View()))
 	}
 	return s + "\n" + m.help.Styles.ShortKey.Render(m.HelpView())
-
 }
 
 func (m *modelUI) HelpView() string {

@@ -1,3 +1,7 @@
+/*
+Copyright © 2025-2026 Artur Taranchiev <artur.taranchiev@gmail.com>
+SPDX-License-Identifier: Apache-2.0
+*/
 package ui
 
 import (
@@ -115,6 +119,7 @@ type TransactionsKeyMap struct {
 	ResetFilter        key.Binding
 	Search             key.Binding
 	New                key.Binding
+	Select             key.Binding
 	NewFromTransaction key.Binding
 	ToggleFullView     key.Binding
 
@@ -497,11 +502,15 @@ func DefaultTransactionsKeyMap() TransactionsKeyMap {
 		),
 		New: key.NewBinding(
 			key.WithKeys("n"),
-			key.WithHelp("n", "new transaction"),
+			key.WithHelp("n", "transaction view"),
 		),
 		NewFromTransaction: key.NewBinding(
 			key.WithKeys("N"),
-			key.WithHelp("N", "new from transaction"),
+			key.WithHelp("N", "new transaction from..."),
+		),
+		Select: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "edit current transaction"),
 		),
 		ToggleFullView: key.NewBinding(
 			key.WithKeys("t"),
@@ -608,6 +617,7 @@ func (k TransactionsKeyMap) ShortHelp() []key.Binding {
 		k.ResetFilter,
 		k.New,
 		k.NewFromTransaction,
+		k.Select,
 		k.Refresh,
 	}
 }

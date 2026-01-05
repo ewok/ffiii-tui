@@ -11,6 +11,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 const newTransactionEndpoint = "%s/transactions"
@@ -75,8 +77,7 @@ func (api *Api) CreateTransaction(newTransaction NewTransaction) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal new transaction: %v", err)
 	}
-	// fmt.Printf("CreateTransaction payload: %s\n", string(payload))
-	// os.Exit(1)
+	zap.L().Debug("CreateTransaction payload", zap.ByteString("payload", payload))
 
 	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(payload))
 	if err != nil {
