@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
+	"go.uber.org/zap"
 )
 
 // TODO: Move to model or...?
@@ -68,6 +69,8 @@ type split struct {
 }
 
 func newModelNewTransaction(api *firefly.Api, trx firefly.Transaction) modelNewTransaction {
+	zap.L().Debug("Initializing new transaction model", zap.Any("transaction", trx))
+
 	m := modelNewTransaction{
 		api:    api,
 		keymap: DefaultTransactionFormKeyMap(),

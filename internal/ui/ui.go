@@ -16,6 +16,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 var (
@@ -112,9 +113,7 @@ func (m modelUI) Init() tea.Cmd {
 }
 
 func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// if m.dump != nil {
-	// 	spew.Fdump(m.dump, msg)
-	// }
+	zap.S().Debugf("UI Update: %+v", msg)
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:

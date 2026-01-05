@@ -10,10 +10,13 @@ import (
 	"os"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/logging"
 	"ffiii-tui/internal/ui"
 )
 
@@ -33,6 +36,16 @@ Prerequisites:
 		return initializeConfig(cmd)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		debug := viper.GetBool("debug")
+
+		logger, cleanup, err := logging.New(debug, "messages.log")
+		if err != nil {
+			return fmt.Errorf("failed to init logger: %w", err)
+		}
+		defer cleanup()
+
+		zap.ReplaceGlobals(logger)
+
 		apiKey := viper.GetString("firefly.api_key")
 		if apiKey == "" {
 			return fmt.Errorf("firefly API key is not set")
@@ -51,7 +64,8 @@ Prerequisites:
 		if err != nil {
 			return fmt.Errorf("failed to connect to Firefly III: %w", err)
 		}
-		fmt.Printf("Connected to Firefly III at %s, as %s", apiUrl, ff.User.Email)
+
+		logger.Info("Connected to Firefly III", zap.String("api_url", apiUrl), zap.String("user", ff.User.Email))
 
 		ui.Show(ff)
 
