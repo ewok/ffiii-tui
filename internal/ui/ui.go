@@ -114,6 +114,15 @@ func (m modelUI) Init() tea.Cmd {
 	return SetView(transactionsView)
 }
 
+func updateModel[T tea.Model](current T, msg tea.Msg) (T, tea.Cmd) {
+	model, cmd := current.Update(msg)
+	if converted, ok := model.(T); ok {
+		return converted, cmd
+	}
+	zap.S().Errorf("Failed to update model: type assertion failed for %T", current)
+	return current, cmd
+}
+
 func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	zap.S().Debugf("UI Update: %+v", msg)
 
@@ -214,77 +223,33 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmds []tea.Cmd
+	var cmd tea.Cmd
 
-	nModel, cmd := m.transactions.Update(msg)
-	listModel, ok := nModel.(modelTransactions)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.transactions = listModel
+	m.transactions, cmd = updateModel(m.transactions, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.assets.Update(msg)
-	assetsModel, ok := nModel.(modelAssets)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.assets = assetsModel
+	m.assets, cmd = updateModel(m.assets, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.categories.Update(msg)
-	categoryModel, ok := nModel.(modelCategories)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.categories = categoryModel
+	m.categories, cmd = updateModel(m.categories, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.expenses.Update(msg)
-	expensesModel, ok := nModel.(modelExpenses)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.expenses = expensesModel
+	m.expenses, cmd = updateModel(m.expenses, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.revenues.Update(msg)
-	revenuesModel, ok := nModel.(modelRevenues)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.revenues = revenuesModel
+	m.revenues, cmd = updateModel(m.revenues, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.liabilities.Update(msg)
-	liabilitiesModel, ok := nModel.(modelLiabilities)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.liabilities = liabilitiesModel
+	m.liabilities, cmd = updateModel(m.liabilities, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.new.Update(msg)
-	newModel, ok := nModel.(modelTransaction)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.new = newModel
+	m.new, cmd = updateModel(m.new, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.prompt.Update(msg)
-	promptModel, ok := nModel.(modelPrompt)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.prompt = promptModel
+	m.prompt, cmd = updateModel(m.prompt, msg)
 	cmds = append(cmds, cmd)
 
-	nModel, cmd = m.notify.Update(msg)
-	notifyModel, ok := nModel.(modelNotify)
-	if !ok {
-		panic("Somthing bad happened")
-	}
-	m.notify = notifyModel
+	m.notify, cmd = updateModel(m.notify, msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -329,11 +294,6 @@ func (m modelUI) View() string {
 				header = header + " | Filter: " + m.transactions.currentFilter
 			}
 		}
-
-		if m.notify.text != "" {
-			header = header + "\n" + " Notification: " + m.notify.View()
-		}
-
 		s = s + headerRenderer.Render(header) + "\n"
 	}
 

@@ -9,12 +9,19 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// New creates a new zap logger with the specified configuration.
+// If debug is true, uses development config with debug level logging.
+// outputPaths specifies where to write logs; if empty, uses default outputs.
+// Returns the logger, a cleanup function, and any error encountered.
 func New(debug bool, outputPaths ...string) (*zap.Logger, func(), error) {
-	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	var config zap.Config
+
 	if debug {
 		config = zap.NewDevelopmentConfig()
 		config.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	} else {
+		config = zap.NewProductionConfig()
+		config.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 	}
 
 	if len(outputPaths) > 0 {
