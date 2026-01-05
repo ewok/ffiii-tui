@@ -33,7 +33,9 @@ var (
 				BorderForeground(lipgloss.Color("62")).
 				BorderStyle(lipgloss.ThickBorder())
 	promptStyle         = baseStyle
-	promptStyleFocused  = baseStyleFocused
+	promptStyleFocused  = baseStyleFocused.BorderForeground(lipgloss.Color("#FF5555"))
+	promptStyleNewTr    = baseStyle.BorderForeground(lipgloss.Color("34"))
+	promptStyleEditTr   = baseStyle.BorderForeground(lipgloss.Color("214"))
 	topSize             = 4
 	fullTransactionView = false
 )
@@ -63,7 +65,7 @@ type modelUI struct {
 	state        state
 	transactions modelTransactions
 	api          *firefly.Api
-	new          modelNewTransaction
+	new          modelTransaction
 	assets       modelAssets
 	categories   modelCategories
 	expenses     modelExpenses
@@ -85,7 +87,7 @@ func Show(api *firefly.Api) {
 	m := modelUI{
 		api:          api,
 		transactions: newModelTransactions(api),
-		new:          newModelNewTransaction(api, firefly.Transaction{}),
+		new:          newModelTransaction(api, firefly.Transaction{}, true),
 		assets:       newModelAssets(api),
 		categories:   newModelCategories(api),
 		expenses:     newModelExpenses(api),
@@ -149,10 +151,13 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		}
 	case tea.WindowSizeMsg:
-		promptStyle = baseStyle.
+		promptStyle = promptStyle.
 			Width(msg.Width - 2)
-		promptStyleFocused = baseStyleFocused.
-			BorderForeground(lipgloss.Color("#FF5555")).
+		promptStyleFocused = promptStyleFocused.
+			Width(msg.Width - 2)
+		promptStyleNewTr = promptStyleNewTr.
+			Width(msg.Width - 2)
+		promptStyleEditTr = promptStyleEditTr.
 			Width(msg.Width - 2)
 		if m.help.ShowAll {
 			topSize = 4 + lipgloss.Height(m.HelpView())
@@ -259,7 +264,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	nModel, cmd = m.new.Update(msg)
-	newModel, ok := nModel.(modelNewTransaction)
+	newModel, ok := nModel.(modelTransaction)
 	if !ok {
 		panic("Somthing bad happened")
 	}
@@ -286,6 +291,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelUI) View() string {
+	// TODO: Refactor, too complicated
 	s := ""
 
 	if m.prompt.focus {
@@ -295,26 +301,40 @@ func (m modelUI) View() string {
 	} else {
 		header := " ffiii-tui"
 
-		if m.transactions.currentSearch != "" {
-			header = header + " | Search: " + m.transactions.currentSearch
+		headerRenderer := promptStyle
+
+		if m.state == newView {
+			if m.new.new {
+				header = header + " | New transaction"
+				headerRenderer = promptStyleNewTr
+			} else {
+				header = header + " | Editing transaction: " + m.new.attr.trxID
+				headerRenderer = promptStyleEditTr
+			}
 		} else {
-			header = header + fmt.Sprintf(" | Period: %s - %s",
-				m.api.StartDate.Format(time.DateOnly),
-				m.api.EndDate.Format(time.DateOnly))
+			if m.transactions.currentSearch != "" {
+				header = header + " | Search: " + m.transactions.currentSearch
+			} else {
+				header = header + fmt.Sprintf(" | Period: %s - %s",
+					m.api.StartDate.Format(time.DateOnly),
+					m.api.EndDate.Format(time.DateOnly))
+			}
+			if m.transactions.currentAccount != "" {
+				header = header + " | Account: " + m.transactions.currentAccount
+			}
+			if m.transactions.currentCategory != "" {
+				header = header + " | Category: " + m.transactions.currentCategory
+			}
+			if m.transactions.currentFilter != "" {
+				header = header + " | Filter: " + m.transactions.currentFilter
+			}
 		}
-		if m.transactions.currentAccount != "" {
-			header = header + " | Account: " + m.transactions.currentAccount
-		}
-		if m.transactions.currentCategory != "" {
-			header = header + " | Category: " + m.transactions.currentCategory
-		}
-		if m.transactions.currentFilter != "" {
-			header = header + " | Filter: " + m.transactions.currentFilter
-		}
+
 		if m.notify.text != "" {
 			header = header + "\n" + " Notification: " + m.notify.View()
 		}
-		s = s + promptStyle.Render(header) + "\n"
+
+		s = s + headerRenderer.Render(header) + "\n"
 	}
 
 	switch m.state {
@@ -352,7 +372,10 @@ func (m modelUI) View() string {
 			baseStyleFocused.Render(m.liabilities.View()),
 			baseStyle.Render(m.transactions.View()))
 	case newView:
-		s = s + baseStyleFocused.Render(m.new.View())
+		s = s + lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			baseStyle.Render(m.assets.View()),
+			baseStyleFocused.Render(m.new.View()))
 	}
 	return s + "\n" + m.help.Styles.ShortKey.Render(m.HelpView())
 }

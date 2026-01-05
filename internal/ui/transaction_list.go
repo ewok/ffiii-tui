@@ -5,13 +5,14 @@ SPDX-License-Identifier: Apache-2.0
 package ui
 
 import (
-	"ffiii-tui/internal/firefly"
 	"fmt"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"ffiii-tui/internal/firefly"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -83,7 +84,6 @@ func (m modelTransactions) Init() tea.Cmd {
 }
 
 func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case SearchMsg:
 		if msg.Query == "None" && m.currentSearch == "" {
@@ -260,7 +260,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						Cmd(FilterMsg{Query: value}),
 						SetView(transactionsView))
 					return tea.Sequence(cmds...)
-				}})
+				},
+			})
 		case key.Matches(msg, m.keymap.Search):
 			return m, Cmd(PromptMsg{
 				Prompt: "Search query: ",
@@ -272,7 +273,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						SetView(transactionsView),
 					)
 					return tea.Sequence(cmds...)
-				}})
+				},
+			})
 		case key.Matches(msg, m.keymap.New):
 			return m, SetView(newView)
 		case key.Matches(msg, m.keymap.NewFromTransaction):
@@ -305,13 +307,23 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, SetView(revenuesView)
 		case key.Matches(msg, m.keymap.ViewLiabilities):
 			return m, SetView(liabilitiesView)
-			// enter
-			// case "enter":
-			// 	return m, tea.Batch(
-			// 		tea.Printf("Let's go to %s!", m.table.SelectedRow()[1]),
-			// 	)
+		case key.Matches(msg, m.keymap.Select):
+			if len(m.table.Rows()) < 1 {
+				return m, Notify("No transactions.", Warning)
+			}
+			row := m.table.SelectedRow()
+			if row == nil {
+				return m, Notify("Transaction not selected.", Warning)
+			}
+			id, err := strconv.Atoi(row[0])
+			if err != nil {
+				return m, nil
+			}
+			trx := m.transactions[id]
+			return m, tea.Sequence(
+				Cmd(EditTransactionMsg{Transaction: trx}),
+				SetView(newView))
 		}
-
 	}
 
 	m.table, cmd = m.table.Update(msg)
@@ -333,7 +345,6 @@ func (m *modelTransactions) Focus() {
 }
 
 func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
-
 	sourceWidth := 5
 	destinationWidth := 5
 	categoryWidth := 5
@@ -436,5 +447,4 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 		{Title: "Description", Width: descriptionWidth},
 		{Title: "TxID", Width: transactionIDWidth},
 	}
-
 }
