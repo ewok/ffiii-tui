@@ -36,9 +36,14 @@ Prerequisites:
 		return initializeConfig(cmd)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		debug := viper.GetBool("debug")
+		debug := viper.GetBool("logging.debug")
+		logFile := viper.GetString("logging.file")
 
-		logger, cleanup, err := logging.New(debug, "messages.log")
+		if debug {
+			fmt.Println("Debug logging is enabled")
+		}
+
+		logger, cleanup, err := logging.New(debug, logFile)
 		if err != nil {
 			return fmt.Errorf("failed to init logger: %w", err)
 		}
@@ -69,7 +74,7 @@ Prerequisites:
 
 		ui.Show(ff)
 
-		viper.Set("debug", false)
+		viper.Set("logging.debug", false)
 
 		return viper.WriteConfigAs(viper.ConfigFileUsed())
 	},
@@ -115,7 +120,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/ffiii-tui/config)")
 	rootCmd.PersistentFlags().StringP("firefly.api_key", "k", "your_firefly_api_key_here", "Firefly III API key")
 	rootCmd.PersistentFlags().StringP("firefly.api_url", "u", "https://your-firefly-iii-instance.com/api/v1", "Firefly III API URL")
-	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
+	rootCmd.Flags().BoolP("logging.debug", "d", false, "Enable debug logging")
+	rootCmd.Flags().StringP("logging.file", "l", "messages.log", "Log file path (if empty, logs to stdout)")
 
 	rootCmd.AddCommand(initConfigCmd)
 }

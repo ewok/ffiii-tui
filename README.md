@@ -1,87 +1,170 @@
 # ffiii-tui
 
-_Warning: This project is in early development and may not be fully functional._
+> **⚠️ Warning**: This project is in early development and may not be fully functional.
 
 ![Transactions](images/transactions.png)
 
-`ffiii-tui` is a TUI for Firefly III personal finance manager.
+A terminal user interface (TUI) for [Firefly III](https://www.firefly-iii.org/) personal finance manager. Manage your finances directly from the terminal with an intuitive interface.
 
-## Features
+## ✨ Features
 
-- View and manage transactions, assets, categories, expenses, and revenue accounts.
+- **📊 View and manage** transactions, assets, categories, expenses, and revenue accounts
+- **🔍 Search and filter** transactions
+- **💰 Real-time insights** with account balances and spending analysis
+- **📝 Create transactions** directly from the terminal interface
+- **🎨 Clean TUI** built with Charm's Bubble Tea framework
 
 <img src="images/assets.png" alt="Assets" width="200" /> <img src="images/categories.png" alt="Categories" width="200" /> <img src="images/expenses.png" alt="Expenses" width="200" /> <img src="images/revenues.png" alt="Revenues" width="200" />
 
-- Create, edit(tbd), and delete(tbd) financial records directly from the terminal.
-<img src="images/new_transaction.png" alt="Assets" width="600" />
+### Transaction Management
 
-## Installation
+- Create new transactions with guided forms
+- View transaction details and splits
+- Navigate between different time periods
+- Filter by account, category, or search terms
 
-To install the dependencies, ensure you have Go installed, then run:
+<img src="images/new_transaction.png" alt="New Transaction Form" width="600" />
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Go 1.21 or higher
+- Access to a Firefly III instance
+- Firefly III API key ([How to get an API key](https://docs.firefly-iii.org/how-to/firefly-iii/features/api/#personal-access-tokens))
+
+### Installation
+
+1. **Clone and build:**
+
+   ```bash
+   git clone https://github.com/yourusername/ffiii-tui
+   cd ffiii-tui
+   go mod tidy
+   go build
+   ```
+
+2. **Initialize configuration:**
+
+   ```bash
+   ./ffiii-tui init-config -k YOUR_API_KEY -u https://your-firefly-instance.com/api/v1
+   ```
+
+3. **Run the application:**
+   ```bash
+   ./ffiii-tui
+   ```
+
+## 📋 Usage
+
+### Basic Commands
 
 ```bash
-go mod tidy
-```
-
-To build  `ffiii-tui`:
-
-```sh
-go build
-```
-
-## Usage
-
-```bash
+# Start with default config
 ./ffiii-tui
-# or
+
+# Use custom config file
 ./ffiii-tui --config path/to/your/config.yaml
-# or
+
+# Pass API credentials directly
 ./ffiii-tui -k YOUR_API_KEY -u https://your-firefly-instance.com/api/v1
-```
 
-## Configuration
-
-The tool requires a configuration YAML file that specifies:
-
-- Firefly III API credentials, including:
-  - `firefly.api_key`: Your Firefly III API key. [How to get an API key](https://docs.firefly-iii.org/how-to/firefly-iii/features/api/#personal-access-tokens)
-  - `firefly.api_url`: The base URL for the Firefly III API.
-
-Example configuration (config_example.yaml):
-
-```yaml
-firefly:
-  api_key: YOUR_API_KEY
-  api_url: https://your-firefly-instance.com/api/v1
-```
-
-To initialize a sample configuration file, run:
-
-```sh
+# Initialize config file
 ./ffiii-tui init-config
 ```
 
-The new configuration file will be created at `./config.yaml`.
+## ⚙️ Configuration
 
-You can also specify API key, and API URL directly when initializing the config:
+The application uses a YAML configuration file. Generate one with:
 
-```sh
-./ffiii-tui init-config -k YOUR_API_KEY -u https://your-firefly-instance.com/api/v1
+```bash
+./ffiii-tui init-config
 ```
 
-## Dependencies
+### Configuration Options
 
-Main dependencies include:
-- [Charmbracelet Bubbles](https://github.com/charmbracelet/bubbles)
-- [Charmbracelet Bubble Tea](https://github.com/charmbracelet/bubbletea)
-- [Charmbracelet Lip Gloss](https://github.com/charmbracelet/lipgloss)
-- [Cobra](https://github.com/spf13/cobra)
-- [Viper](https://github.com/spf13/viper)
+```yaml
+# Required Firefly III API settings
+firefly:
+  api_key: YOUR_API_KEY # Your Firefly III API token
+  api_url: https://your-instance.com/api/v1 # API endpoint URL
 
-## Contributing
+# Optional UI settings
+ui:
+  full_view: false # Full-width transaction view
 
-Please feel free to submit issues or pull requests.
+# Optional logging
+logging:
+  file: "ffiii-tui.log" # Log file path
+```
 
-## License
+## 🏗️ Development
 
-This project is licensed under the Apache-2.0 License. Check the `LICENSE` file for details.
+### Project Structure
+
+```
+ffiii-tui/
+├── cmd/                # CLI commands
+├── internal/
+│   ├── firefly/        # Firefly III API client
+│   ├── ui/             # TUI components
+│   └── logging/        # Logging utilities
+├── config.yaml         # Configuration file
+└── main.go             # Entry point
+```
+
+### Building from Source
+
+```bash
+# Install dependencies
+go mod tidy
+
+# Run tests
+go test ./...
+
+# Build
+go build -o ffiii-tui
+
+# Run with debug logging
+./ffiii-tui --debug
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### TODO/Roadmap
+
+- [x] Create new transactions
+- [x] Edit existing transactions
+- [ ] Delete transactions
+- [x] Create accounts, categories
+- [ ] Edit accounts, categories
+- [ ] Delete accounts, categories
+- [x] Advanced filtering and search
+  - [ ] Not only in current period
+- [ ] Budget management
+- [ ] Piggy banks
+- [ ] Subscriptions
+- [ ] Reporting and charts
+
+## 📦 Dependencies
+
+| Package                                                  | Purpose                  |
+| -------------------------------------------------------- | ------------------------ |
+| [Bubble Tea](https://github.com/charmbracelet/bubbletea) | TUI framework            |
+| [Bubbles](https://github.com/charmbracelet/bubbles)      | TUI components           |
+| [Lip Gloss](https://github.com/charmbracelet/lipgloss)   | Styling                  |
+| [Cobra](https://github.com/spf13/cobra)                  | CLI framework            |
+| [Viper](https://github.com/spf13/viper)                  | Configuration management |
+| [Zap](https://go.uber.org/zap)                           | Logging                  |
+
+## 📄 License
+
+This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENSE) file for details.
