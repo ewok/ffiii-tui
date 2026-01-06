@@ -54,7 +54,7 @@ func (api *Api) UpdateCurrencies() error {
 }
 
 func (api *Api) ListCurrencies() ([]Currency, error) {
-	allData, err := api.fetchPaginated("%s/currencies?page=%d", api.Config.ApiKey)
+	allData, err := api.fetchPaginated("%s/currencies?page=%d", api.Config.ApiUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch paginated currencies: %v", err)
 	}
