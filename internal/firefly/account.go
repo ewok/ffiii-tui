@@ -5,15 +5,10 @@ SPDX-License-Identifier: Apache-2.0
 package firefly
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
 	"maps"
-	"net/http"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const accountsEndpoint = "%s/accounts?page=%d&type=%s"
@@ -83,53 +78,15 @@ func (api *Api) CreateLiabilityAccount(nl NewLiability) error {
 
 func (api *Api) createAccount(payload map[string]any) error {
 	endpoint := fmt.Sprintf("%s/accounts", api.Config.ApiUrl)
-
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload: %v", err)
-	}
-
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(payloadBytes))
+	response, err := api.postRequest(endpoint, payload)
 	if err != nil {
 		return err
 	}
 
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
-
-	client := &http.Client{Timeout: time.Duration(api.Config.TimeoutSeconds) * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// TODO: Make nice error handling
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %v", err)
-	}
-	// if returned .data.id is present then is good
-	var response map[string]any
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal response body: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		message, ok := response["message"].(string)
-		if ok && message != "" {
-			return fmt.Errorf("API error: %s", message)
-		}
-		return fmt.Errorf("failed status code : %d", resp.StatusCode)
-	}
-
-	data, ok := response["data"].(map[string]any)
+	data, ok := response.Data.(map[string]any)
 	if !ok {
 		return fmt.Errorf("invalid response format: missing data field")
 	}
-
 	id, ok := data["id"].(string)
 	if !ok || id == "" {
 		return fmt.Errorf("invalid response format: missing transaction id")
@@ -153,7 +110,6 @@ func (api *Api) GetRevenueDiff(ID string) float64 {
 }
 
 func (api *Api) UpdateExpenseInsights() error {
-
 	// TODO: Need error reporting
 	insights := make(map[string]accountInsight)
 	spentInsights, err := api.GetInsights("expense/expense")
@@ -170,7 +126,6 @@ func (api *Api) UpdateExpenseInsights() error {
 }
 
 func (api *Api) UpdateRevenueInsights() error {
-
 	insights := make(map[string]accountInsight)
 	earnedInsights, err := api.GetInsights("income/revenue")
 	if err == nil {
@@ -225,85 +180,17 @@ func (api *Api) UpdateAccounts(accType string) error {
 }
 
 func (api *Api) ListAccounts(accountType string) ([]apiAccount, error) {
-	allAccounts := []apiAccount{}
-	page := 1
-
-	for {
-		accounts, err := api.listAccounts(accountType, page)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(accounts) == 0 {
-			break
-		}
-
-		allAccounts = append(allAccounts, accounts...)
-		page++
-	}
-
-	return allAccounts, nil
-}
-
-func (api *Api) listAccounts(accountType string, page int) ([]apiAccount, error) {
-
-	endpoint := fmt.Sprintf(accountsEndpoint, api.Config.ApiUrl, page, accountType)
-
-	req, err := http.NewRequest("GET", endpoint, nil)
+	allData, err := api.fetchPaginated("%s/accounts?type=%s&page=%d",
+		api.Config.ApiUrl,
+		accountType)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch paginated accounts: %v", err)
 	}
-
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/vnd.api+json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
-
-	client := &http.Client{Timeout: time.Duration(api.Config.TimeoutSeconds) * time.Second}
-	resp, err := client.Do(req)
+	accs, err := unmarshalItems[apiAccount](allData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal accounts: %v", err)
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	var rawJson map[string]any
-	if err := json.Unmarshal(body, &rawJson); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		message, ok := rawJson["message"].(string)
-		if ok && message != "" {
-			return nil, fmt.Errorf("API error: %s", message)
-		}
-		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
-	}
-
-	data, ok := rawJson["data"].([]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid data format in response")
-	}
-
-	accounts := make([]apiAccount, 0, len(data))
-	for _, item := range data {
-		itemBytes, err := json.Marshal(item)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal item: %v", err)
-		}
-
-		var account apiAccount
-		if err := json.Unmarshal(itemBytes, &account); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal account: %v", err)
-		}
-
-		accounts = append(accounts, account)
-	}
-
-	return accounts, nil
+	return accs, nil
 }
 
 func (api *Api) GetAccountByID(ID string) Account {

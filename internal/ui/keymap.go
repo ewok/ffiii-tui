@@ -121,6 +121,7 @@ type TransactionsKeyMap struct {
 	New                key.Binding
 	Select             key.Binding
 	NewFromTransaction key.Binding
+	Delete             key.Binding
 	ToggleFullView     key.Binding
 
 	ViewAssets      key.Binding
@@ -512,6 +513,10 @@ func DefaultTransactionsKeyMap() TransactionsKeyMap {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "edit current transaction"),
 		),
+		Delete: key.NewBinding(
+			key.WithKeys("D"),
+			key.WithHelp("D", "delete transaction"),
+		),
 		ToggleFullView: key.NewBinding(
 			key.WithKeys("t"),
 			key.WithHelp("t", "toggle full view"),
@@ -618,6 +623,7 @@ func (k TransactionsKeyMap) ShortHelp() []key.Binding {
 		k.New,
 		k.NewFromTransaction,
 		k.Select,
+		k.Delete,
 		k.Refresh,
 	}
 }

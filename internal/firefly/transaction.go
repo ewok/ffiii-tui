@@ -5,26 +5,18 @@ SPDX-License-Identifier: Apache-2.0
 package firefly
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"time"
-
-	"go.uber.org/zap"
 )
 
-const updateTransactionEndpoint = "%s/transactions/%s"
-
-type UpdateTransaction struct {
-	ApplyRules   bool                   `json:"apply_rules,omitempty"`
-	FireWebhooks bool                   `json:"fire_webhooks,omitempty"`
-	GroupTitle   string                 `json:"group_title,omitempty"`
-	Transactions []UpdateSubTransaction `json:"transactions,omitempty"`
+type RequestTransaction struct {
+	ErrorIfDuplicateHash bool                      `json:"error_if_duplicate_hash,omitempty"`
+	ApplyRules           bool                      `json:"apply_rules,omitempty"`
+	FireWebhooks         bool                      `json:"fire_webhooks,omitempty"`
+	GroupTitle           string                    `json:"group_title,omitempty"`
+	Transactions         []RequestTransactionSplit `json:"transactions,omitempty"`
 }
 
-type UpdateSubTransaction struct {
+type RequestTransactionSplit struct {
 	TransactionJournalID string   `json:"transaction_journal_id,omitempty"`
 	Type                 string   `json:"type,omitempty"`
 	Date                 string   `json:"date,omitempty"`
@@ -69,54 +61,50 @@ type UpdateSubTransaction struct {
 	InvoiceDate          string   `json:"invoice_date,omitempty"`
 }
 
-func (api *Api) UpdateTransaction(id string, transaction UpdateTransaction) error {
-	endpoint := fmt.Sprintf(updateTransactionEndpoint, api.Config.ApiUrl, id)
+func (api *Api) CreateTransaction(newTransaction RequestTransaction) error {
+	endpoint := fmt.Sprintf("%s/transactions", api.Config.ApiUrl)
 
-	payload, err := json.Marshal(transaction)
+	response, err := api.postRequest(endpoint, newTransaction)
 	if err != nil {
-		return fmt.Errorf("failed to marshal transaction update: %v", err)
+		return err
 	}
-	zap.L().Debug("Updating transaction", zap.ByteString("payload", payload))
-
-	req, err := http.NewRequest(http.MethodPut, endpoint, bytes.NewBuffer(payload))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %v", err)
-	}
-
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
-
-	client := &http.Client{Timeout: time.Duration(api.Config.TimeoutSeconds) * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	var response map[string]any
-	if err := json.Unmarshal(body, &response); err != nil {
-		return fmt.Errorf("failed to unmarshal response body: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		if message, ok := response["message"].(string); ok && message != "" {
-			return fmt.Errorf("API error: %s", message)
-		}
-		return fmt.Errorf("failed status code : %d", resp.StatusCode)
-	}
-
-	data, ok := response["data"].(map[string]any)
+	data, ok := response.Data.(map[string]any)
 	if !ok {
 		return fmt.Errorf("invalid response format: missing data field")
 	}
-	if _, ok := data["id"]; !ok {
+	id, ok := data["id"].(string)
+	if !ok || id == "" {
 		return fmt.Errorf("invalid response format: missing transaction id")
+	}
+
+	return nil
+}
+
+func (api *Api) UpdateTransaction(transactionId string, transaction RequestTransaction) error {
+	endpoint := fmt.Sprintf("%s/transactions/%s", api.Config.ApiUrl, transactionId)
+
+	response, err := api.putRequest(endpoint, transaction)
+	if err != nil {
+		return err
+	}
+	data, ok := response.Data.(map[string]any)
+	if !ok {
+		return fmt.Errorf("invalid response format: missing data field")
+	}
+	id, ok := data["id"].(string)
+	if !ok || id == "" {
+		return fmt.Errorf("invalid response format: missing transaction id")
+	}
+
+	return nil
+}
+
+func (api *Api) DeleteTransaction(transactionId string) error {
+	endpoint := fmt.Sprintf("%s/transactions/%s", api.Config.ApiUrl, transactionId)
+
+	_, err := api.deleteRequest(endpoint)
+	if err != nil {
+		return err
 	}
 
 	return nil

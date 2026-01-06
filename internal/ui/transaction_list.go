@@ -30,7 +30,12 @@ type SearchMsg struct {
 	Query string
 }
 
-type RefreshTransactionsMsg struct{}
+type (
+	RefreshTransactionsMsg struct{}
+	DeleteTransactionMsg   struct {
+		Transaction firefly.Transaction
+	}
+)
 
 type modelTransactions struct {
 	table           table.Model
@@ -45,7 +50,7 @@ type modelTransactions struct {
 }
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
-	transactions, err := api.ListTransactions()
+	transactions, err := api.ListTransactions("")
 	if err != nil {
 		fmt.Println("Error fetching transactions:", err)
 		os.Exit(1)
@@ -201,7 +206,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var err error
 			transactions := []firefly.Transaction{}
 			if m.currentSearch != "" {
-				transactions, err = m.api.SearchTransactions(url.QueryEscape(m.currentSearch))
+				transactions, err = m.api.ListTransactions(url.QueryEscape(m.currentSearch))
 				if err != nil {
 					return NotifyMsg{
 						Message: err.Error(),
@@ -209,7 +214,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			} else {
-				transactions, err = m.api.ListTransactions()
+				transactions, err = m.api.ListTransactions("")
 				if err != nil {
 					return NotifyMsg{
 						Message: err.Error(),
@@ -225,6 +230,25 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}())
 
+	case DeleteTransactionMsg:
+		id := msg.Transaction.TransactionID
+		if id != "" {
+			err := m.api.DeleteTransaction(id)
+			if err != nil {
+				return m, tea.Batch(
+					Notify(fmt.Sprint("Error deleting transaction, ", err.Error()), Warning),
+					SetView(transactionsView))
+			}
+			return m, tea.Batch(
+				Notify("Transaction deleted successfully.", Log),
+				SetView(transactionsView),
+				Cmd(RefreshAssetsMsg{}),
+				Cmd(RefreshLiabilitiesMsg{}),
+				Cmd(RefreshTransactionsMsg{}),
+				Cmd(RefreshExpenseInsightsMsg{}),
+				Cmd(RefreshRevenueInsightsMsg{}))
+		}
+		return m, SetView(transactionsView)
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
 		m.table.SetWidth(msg.Width - h)
@@ -323,6 +347,30 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Sequence(
 				Cmd(EditTransactionMsg{Transaction: trx}),
 				SetView(newView))
+		case key.Matches(msg, m.keymap.Delete):
+			if len(m.table.Rows()) < 1 {
+				return m, Notify("No transactions.", Warning)
+			}
+			row := m.table.SelectedRow()
+			if row == nil {
+				return m, Notify("Transaction not selected.", Warning)
+			}
+			id, err := strconv.Atoi(row[0])
+			if err != nil {
+				return m, nil
+			}
+			trx := m.transactions[id]
+			return m, Cmd(PromptMsg{
+				Prompt: fmt.Sprintf("Are you sure you want to delete transaction(type 'yes!' if yes) %s:%s: ", trx.TransactionID, trx.Description()),
+				Value:  "no",
+				Callback: func(value string) tea.Cmd {
+					var cmd tea.Cmd
+					if value == "yes!" {
+						cmd = Cmd(DeleteTransactionMsg{Transaction: trx})
+					}
+					return tea.Sequence(SetView(transactionsView), cmd)
+				},
+			})
 		}
 	}
 

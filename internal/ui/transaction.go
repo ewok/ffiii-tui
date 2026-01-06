@@ -304,13 +304,13 @@ func (m *modelTransaction) UpdateForm() {
 				TitleFunc(m.trxTitle(i, s)),
 			huh.NewSelect[firefly.Account]().
 				Title("Source").
-				DescriptionFunc(trxBalanceDesc(s.source)).
+				DescriptionFunc(trxBalanceDesc(&s.source)).
 				Value(&s.source).
 				Options(huh.NewOption(s.source.Name, s.source)).
 				OptionsFunc(m.trxSourceOptions(i, s)).WithHeight(5),
 			huh.NewSelect[firefly.Account]().
 				Title("Destination").
-				DescriptionFunc(trxBalanceDesc(s.destination)).
+				DescriptionFunc(trxBalanceDesc(&s.destination)).
 				Value(&s.destination).
 				Options(huh.NewOption(s.destination.Name, s.destination)).
 				OptionsFunc(m.trxDestinationOptions(i, s)).WithHeight(4),
@@ -455,9 +455,9 @@ func (m *modelTransaction) DeleteSplit(index int) tea.Cmd {
 }
 
 func (m *modelTransaction) CreateTransaction() (modelTransaction, tea.Cmd) {
-	trx := []firefly.NewSubTransaction{}
+	trx := []firefly.RequestTransactionSplit{}
 	for _, s := range m.splits {
-		trx = append(trx, firefly.NewSubTransaction{
+		trx = append(trx, firefly.RequestTransactionSplit{
 			Type:                m.attr.transactionType,
 			Date:                fmt.Sprintf("%s-%s-%s", m.attr.year, m.attr.month, m.attr.day),
 			SourceID:            s.source.ID,
@@ -471,7 +471,7 @@ func (m *modelTransaction) CreateTransaction() (modelTransaction, tea.Cmd) {
 		})
 	}
 
-	if err := m.api.CreateTransaction(firefly.NewTransaction{
+	if err := m.api.CreateTransaction(firefly.RequestTransaction{
 		ApplyRules:           true,
 		ErrorIfDuplicateHash: false,
 		FireWebhooks:         true,
@@ -494,9 +494,9 @@ func (m *modelTransaction) CreateTransaction() (modelTransaction, tea.Cmd) {
 }
 
 func (m *modelTransaction) UpdateTransaction() (modelTransaction, tea.Cmd) {
-	trx := []firefly.UpdateSubTransaction{}
+	trx := []firefly.RequestTransactionSplit{}
 	for _, s := range m.splits {
-		trx = append(trx, firefly.UpdateSubTransaction{
+		trx = append(trx, firefly.RequestTransactionSplit{
 			TransactionJournalID: s.trxJID,
 			Type:                 m.attr.transactionType,
 			Date:                 fmt.Sprintf("%s-%s-%s", m.attr.year, m.attr.month, m.attr.day),
@@ -511,7 +511,7 @@ func (m *modelTransaction) UpdateTransaction() (modelTransaction, tea.Cmd) {
 		})
 	}
 
-	if err := m.api.UpdateTransaction(m.attr.trxID, firefly.UpdateTransaction{
+	if err := m.api.UpdateTransaction(m.attr.trxID, firefly.RequestTransaction{
 		ApplyRules:   true,
 		FireWebhooks: true,
 		GroupTitle:   m.GroupTitle(),
@@ -572,14 +572,14 @@ func (m *modelTransaction) trxTitle(i int, s *split) (func() string, any) {
 	return func() string { return fmt.Sprint("Split: ", i) }, bindings
 }
 
-func trxBalanceDesc(a firefly.Account) (func() string, any) {
+func trxBalanceDesc(a *firefly.Account) (func() string, any) {
 	return func() string {
 		switch a.Type {
 		case "asset", "liabilities":
 			return fmt.Sprintf("Balance: %.2f %s", a.Balance, a.CurrencyCode)
 		}
 		return ""
-	}, &a
+	}, a
 }
 
 func (m *modelTransaction) trxSourceOptions(i int, s *split) (func() []huh.Option[firefly.Account], any) {
