@@ -5,18 +5,11 @@ SPDX-License-Identifier: Apache-2.0
 package firefly
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"slices"
 	"strconv"
-	"time"
-)
 
-const (
-	transactionsEndpoint       = "%s/transactions?page=%d&limit=%d&start=%s&end=%s"
-	searchTransactionsEndpoint = "%s/search/transactions?page=%d&limit=%d&query=%s"
+	"go.uber.org/zap"
 )
 
 type Transaction struct {
@@ -40,21 +33,21 @@ type Split struct {
 	Description          string
 }
 
-type ApiTransaction struct {
-	Type       string                   `json:"type"`
-	ID         string                   `json:"id"`
-	Attributes apiTransactionAttributes `json:"attributes"`
+type ResponseTransaction struct {
+	Type       string                        `json:"type"`
+	ID         string                        `json:"id"`
+	Attributes ResponseTransactionAttributes `json:"attributes"`
 }
 
-type apiTransactionAttributes struct {
-	CreatedAt    string              `json:"created_at"`
-	UpdatedAt    string              `json:"updated_at"`
-	User         string              `json:"user"`
-	GroupTitle   string              `json:"group_title"`
-	Transactions []apiSubTransaction `json:"transactions"`
+type ResponseTransactionAttributes struct {
+	CreatedAt    string                     `json:"created_at"`
+	UpdatedAt    string                     `json:"updated_at"`
+	User         string                     `json:"user"`
+	GroupTitle   string                     `json:"group_title"`
+	Transactions []ResponseTransactionSplit `json:"transactions"`
 }
 
-type apiSubTransaction struct {
+type ResponseTransactionSplit struct {
 	User                         string  `json:"user"`
 	TransactionJournalID         string  `json:"transaction_journal_id"`
 	Type                         string  `json:"type"`
@@ -130,266 +123,79 @@ type apiSubTransaction struct {
 	HasAttachments               bool    `json:"has_attachments"`
 }
 
-func (api *Api) ListTransactions() ([]Transaction, error) {
+func (api *Api) ListTransactions(query string) ([]Transaction, error) {
+	var allData []any
+	var err error
+	if query != "" {
+		zap.S().Debugf("Searching transactions with query: %s", query)
+		allData, err = api.fetchPaginated("%s/search/transactions?&query=%s&page=%d",
+			api.Config.ApiUrl,
+			query)
+	} else {
+		zap.S().Debugf("Listing transactions from %s to %s", api.StartDate.Format("2006-01-02"), api.EndDate.Format("2006-01-02"))
+		allData, err = api.fetchPaginated("%s/transactions?start=%s&end=%s&page=%d",
+			api.Config.ApiUrl,
+			api.StartDate.Format("2006-01-02"),
+			api.EndDate.Format("2006-01-02"))
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch paginated transactions: %v", err)
+	}
+
+	txs, err := unmarshalItems[ResponseTransaction](allData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal transactions: %v", err)
+	}
+
 	transactions := []Transaction{}
 	id := 0
-	page := 1
-	for {
-		txs, err := api.listTransactions(page, 50)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list transactions: %v", err)
-		}
-		if len(txs) == 0 {
-			break
-		}
-		for _, t := range txs {
-			var (
-				splits []Split
-				ttype  string
-				tdate  string
-			)
-			for _, subTx := range t.Attributes.Transactions {
-				amount, err := strconv.ParseFloat(subTx.Amount, 64)
-				if err != nil {
-					amount = 0
-				}
-				foreignAmount, err := strconv.ParseFloat(subTx.ForeignAmount, 64)
-				if err != nil {
-					foreignAmount = 0
-				}
-				if ttype == "" {
-					ttype = subTx.Type
-				}
-				if tdate == "" {
-					tdate = subTx.Date
-				}
-				splits = append(splits, Split{
-					Source:               api.GetAccountByID(subTx.SourceID),
-					Destination:          api.GetAccountByID(subTx.DestinationID),
-					Category:             api.GetCategoryByID(subTx.CategoryID),
-					Currency:             subTx.CurrencyCode,
-					ForeignCurrency:      subTx.ForeignCurrencyCode,
-					Amount:               amount,
-					ForeignAmount:        foreignAmount,
-					Description:          subTx.Description,
-					TransactionJournalID: subTx.TransactionJournalID,
-				},
-				)
+	for _, t := range txs {
+		var (
+			splits []Split
+			ttype  string
+			tdate  string
+		)
+		for _, subTx := range t.Attributes.Transactions {
+			amount, err := strconv.ParseFloat(subTx.Amount, 64)
+			if err != nil {
+				amount = 0
 			}
-
-			slices.Reverse(splits)
-			transactions = append(transactions, Transaction{
-				ID:            uint(id),
-				TransactionID: t.ID,
-				Type:          ttype,
-				Date:          tdate,
-				Splits:        splits,
-				GroupTitle:    t.Attributes.GroupTitle,
-			})
-			id++
-		}
-		page++
-	}
-	return transactions, nil
-}
-
-func (api *Api) listTransactions(page, limit int) ([]ApiTransaction, error) {
-	endpoint := fmt.Sprintf(
-		transactionsEndpoint,
-		api.Config.ApiUrl,
-		page,
-		limit,
-		api.StartDate.Format("2006-01-02"),
-		api.EndDate.Format("2006-01-02"))
-
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/vnd.api+json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
-
-	client := &http.Client{Timeout: time.Duration(api.Config.TimeoutSeconds) * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	var rawJson map[string]any
-	err = json.Unmarshal(body, &rawJson)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		message, ok := rawJson["message"].(string)
-		if ok && message != "" {
-			return nil, fmt.Errorf("API error: %s", message)
-		}
-		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
-	}
-
-	data, ok := rawJson["data"].([]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid data format in response")
-	}
-
-	transactions := make([]ApiTransaction, 0, len(data))
-
-	for _, item := range data {
-		itemMap, ok := item.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("invalid item format in data")
-		}
-		itemJson, err := json.Marshal(itemMap)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal item: %v", err)
-		}
-		var transaction ApiTransaction
-		err = json.Unmarshal(itemJson, &transaction)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal item to Transaction: %v", err)
-		}
-		transactions = append(transactions, transaction)
-	}
-
-	return transactions, nil
-}
-
-func (api *Api) SearchTransactions(query string) ([]Transaction, error) {
-	transactions := []Transaction{}
-	id := 0
-	page := 1
-	for {
-		txs, err := api.searchTransactions(page, 50, query)
-		if err != nil {
-			return nil, fmt.Errorf("failed to search transactions: %v", err)
-		}
-		if len(txs) == 0 {
-			break
-		}
-		for _, t := range txs {
-			var (
-				splits []Split
-				ttype  string
-				tdate  string
-			)
-			for _, subTx := range t.Attributes.Transactions {
-				amount, err := strconv.ParseFloat(subTx.Amount, 64)
-				if err != nil {
-					amount = 0
-				}
-				foreignAmount, err := strconv.ParseFloat(subTx.ForeignAmount, 64)
-				if err != nil {
-					foreignAmount = 0
-				}
-				if ttype == "" {
-					ttype = subTx.Type
-				}
-				if tdate == "" {
-					tdate = subTx.Date
-				}
-				splits = append(splits, Split{
-					Source:               api.GetAccountByID(subTx.SourceID),
-					Destination:          api.GetAccountByID(subTx.DestinationID),
-					Category:             api.GetCategoryByID(subTx.CategoryID),
-					Currency:             subTx.CurrencyCode,
-					ForeignCurrency:      subTx.ForeignCurrencyCode,
-					Amount:               amount,
-					ForeignAmount:        foreignAmount,
-					Description:          subTx.Description,
-					TransactionJournalID: subTx.TransactionJournalID,
-				},
-				)
+			foreignAmount, err := strconv.ParseFloat(subTx.ForeignAmount, 64)
+			if err != nil {
+				foreignAmount = 0
 			}
-
-			slices.Reverse(splits)
-			transactions = append(transactions, Transaction{
-				ID:            uint(id),
-				TransactionID: t.ID,
-				Type:          ttype,
-				Date:          tdate,
-				Splits:        splits,
-				GroupTitle:    t.Attributes.GroupTitle,
-			})
-			id++
+			if ttype == "" {
+				ttype = subTx.Type
+			}
+			if tdate == "" {
+				tdate = subTx.Date
+			}
+			splits = append(splits, Split{
+				Source:               api.GetAccountByID(subTx.SourceID),
+				Destination:          api.GetAccountByID(subTx.DestinationID),
+				Category:             api.GetCategoryByID(subTx.CategoryID),
+				Currency:             subTx.CurrencyCode,
+				ForeignCurrency:      subTx.ForeignCurrencyCode,
+				Amount:               amount,
+				ForeignAmount:        foreignAmount,
+				Description:          subTx.Description,
+				TransactionJournalID: subTx.TransactionJournalID,
+			},
+			)
 		}
-		page++
+
+		slices.Reverse(splits)
+		transactions = append(transactions, Transaction{
+			ID:            uint(id),
+			TransactionID: t.ID,
+			Type:          ttype,
+			Date:          tdate,
+			Splits:        splits,
+			GroupTitle:    t.Attributes.GroupTitle,
+		})
+		id++
 	}
-	return transactions, nil
-}
-
-func (api *Api) searchTransactions(page, limit int, query string) ([]ApiTransaction, error) {
-	endpoint := fmt.Sprintf(searchTransactionsEndpoint, api.Config.ApiUrl, page, limit, query)
-
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", api.Config.ApiKey))
-
-	client := &http.Client{Timeout: time.Duration(api.Config.TimeoutSeconds) * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	var rawJson map[string]any
-
-	err = json.Unmarshal(body, &rawJson)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		message, ok := rawJson["message"].(string)
-		if ok && message != "" {
-			return nil, fmt.Errorf("API error: %s", message)
-		}
-		return nil, fmt.Errorf("failed status code : %d", resp.StatusCode)
-	}
-
-	data, ok := rawJson["data"].([]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid data format in response")
-	}
-
-	transactions := make([]ApiTransaction, 0, len(data))
-
-	for _, item := range data {
-		itemMap, ok := item.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("invalid item format in data")
-		}
-		itemJson, err := json.Marshal(itemMap)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal item: %v", err)
-		}
-		var transaction ApiTransaction
-		err = json.Unmarshal(itemJson, &transaction)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal item to Transaction: %v", err)
-		}
-		transactions = append(transactions, transaction)
-	}
-
 	return transactions, nil
 }
 

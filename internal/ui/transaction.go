@@ -455,9 +455,9 @@ func (m *modelTransaction) DeleteSplit(index int) tea.Cmd {
 }
 
 func (m *modelTransaction) CreateTransaction() (modelTransaction, tea.Cmd) {
-	trx := []firefly.NewSubTransaction{}
+	trx := []firefly.RequestTransactionSplit{}
 	for _, s := range m.splits {
-		trx = append(trx, firefly.NewSubTransaction{
+		trx = append(trx, firefly.RequestTransactionSplit{
 			Type:                m.attr.transactionType,
 			Date:                fmt.Sprintf("%s-%s-%s", m.attr.year, m.attr.month, m.attr.day),
 			SourceID:            s.source.ID,
@@ -471,7 +471,7 @@ func (m *modelTransaction) CreateTransaction() (modelTransaction, tea.Cmd) {
 		})
 	}
 
-	if err := m.api.CreateTransaction(firefly.NewTransaction{
+	if err := m.api.CreateTransaction(firefly.RequestTransaction{
 		ApplyRules:           true,
 		ErrorIfDuplicateHash: false,
 		FireWebhooks:         true,
@@ -494,9 +494,9 @@ func (m *modelTransaction) CreateTransaction() (modelTransaction, tea.Cmd) {
 }
 
 func (m *modelTransaction) UpdateTransaction() (modelTransaction, tea.Cmd) {
-	trx := []firefly.UpdateSubTransaction{}
+	trx := []firefly.RequestTransactionSplit{}
 	for _, s := range m.splits {
-		trx = append(trx, firefly.UpdateSubTransaction{
+		trx = append(trx, firefly.RequestTransactionSplit{
 			TransactionJournalID: s.trxJID,
 			Type:                 m.attr.transactionType,
 			Date:                 fmt.Sprintf("%s-%s-%s", m.attr.year, m.attr.month, m.attr.day),
@@ -511,7 +511,7 @@ func (m *modelTransaction) UpdateTransaction() (modelTransaction, tea.Cmd) {
 		})
 	}
 
-	if err := m.api.UpdateTransaction(m.attr.trxID, firefly.UpdateTransaction{
+	if err := m.api.UpdateTransaction(m.attr.trxID, firefly.RequestTransaction{
 		ApplyRules:   true,
 		FireWebhooks: true,
 		GroupTitle:   m.GroupTitle(),
