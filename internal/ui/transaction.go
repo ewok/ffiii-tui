@@ -304,13 +304,13 @@ func (m *modelTransaction) UpdateForm() {
 				TitleFunc(m.trxTitle(i, s)),
 			huh.NewSelect[firefly.Account]().
 				Title("Source").
-				DescriptionFunc(trxBalanceDesc(s.source)).
+				DescriptionFunc(trxBalanceDesc(&s.source)).
 				Value(&s.source).
 				Options(huh.NewOption(s.source.Name, s.source)).
 				OptionsFunc(m.trxSourceOptions(i, s)).WithHeight(5),
 			huh.NewSelect[firefly.Account]().
 				Title("Destination").
-				DescriptionFunc(trxBalanceDesc(s.destination)).
+				DescriptionFunc(trxBalanceDesc(&s.destination)).
 				Value(&s.destination).
 				Options(huh.NewOption(s.destination.Name, s.destination)).
 				OptionsFunc(m.trxDestinationOptions(i, s)).WithHeight(4),
@@ -572,14 +572,14 @@ func (m *modelTransaction) trxTitle(i int, s *split) (func() string, any) {
 	return func() string { return fmt.Sprint("Split: ", i) }, bindings
 }
 
-func trxBalanceDesc(a firefly.Account) (func() string, any) {
+func trxBalanceDesc(a *firefly.Account) (func() string, any) {
 	return func() string {
 		switch a.Type {
 		case "asset", "liabilities":
 			return fmt.Sprintf("Balance: %.2f %s", a.Balance, a.CurrencyCode)
 		}
 		return ""
-	}, &a
+	}, a
 }
 
 func (m *modelTransaction) trxSourceOptions(i int, s *split) (func() []huh.Option[firefly.Account], any) {
