@@ -84,23 +84,30 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case RefreshCategoryInsightsMsg:
 		return m, func() tea.Msg {
-            err := m.api.UpdateCategoriesInsights()
-            if err != nil {
-                return Notify(err.Error(), Warning)
-            }
+			err := m.api.UpdateCategoriesInsights()
+			if err != nil {
+				return Notify(err.Error(), Warning)
+			}
 			return CategoriesUpdateMsg{}
 		}
 	case RefreshCategoriesMsg:
 		return m, func() tea.Msg {
-            err := m.api.UpdateCategories()
-            if err != nil {
-                return Notify(err.Error(), Warning)
-            }
+			err := m.api.UpdateCategories()
+			if err != nil {
+				return Notify(err.Error(), Warning)
+			}
 			return CategoriesUpdateMsg{}
 		}
 	case CategoriesUpdateMsg:
+		tSpent, tEarned := m.api.GetTotalSpentEarnedCategories()
 		return m, tea.Batch(
 			m.list.SetItems(getCategoriesItems(m.api, m.sorted)),
+			m.list.InsertItem(0, categoryItem{
+				category: "Total",
+				currency: m.api.PrimaryCurrency().Code,
+				spent:    tSpent,
+				earned:   tEarned,
+			}),
 			Cmd(DataLoadCompletedMsg{DataType: "categories"}),
 		)
 	case NewCategoryMsg:
@@ -130,6 +137,9 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Filter):
 			i, ok := m.list.SelectedItem().(categoryItem)
 			if ok {
+			    if i.category == "Total" {
+                    return m, nil
+                }
 				return m, Cmd(FilterMsg{Category: i.category})
 			}
 			return m, nil
@@ -146,7 +156,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case 1:
 				m.sorted = 0
 			}
-			return m, m.list.SetItems(getCategoriesItems(m.api, m.sorted))
+			return m, Cmd(CategoriesUpdateMsg{})
 		case key.Matches(msg, m.keymap.ViewTransactions):
 			return m, SetView(transactionsView)
 		case key.Matches(msg, m.keymap.ViewAssets):

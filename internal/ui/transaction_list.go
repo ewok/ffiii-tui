@@ -7,7 +7,6 @@ package ui
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -53,11 +52,7 @@ type modelTransactions struct {
 }
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
-	transactions, err := api.ListTransactions("")
-	if err != nil {
-		fmt.Println("Error fetching transactions:", err)
-		os.Exit(1)
-	}
+	transactions := []firefly.Transaction{}
 
 	rows, columns := getRows(transactions)
 	t := table.New(
@@ -94,12 +89,15 @@ func (m modelTransactions) Init() tea.Cmd {
 func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case SearchMsg:
-		if msg.Query == "None" && m.currentSearch == "" {
-			return m, nil
-		}
 		if msg.Query == "None" {
-			m.currentSearch = ""
+			if m.currentSearch == "" {
+				return m, nil
+			}
+			m.currentSearch, m.currentAccount, m.currentCategory, m.currentFilter = "", "", "", ""
 		} else {
+			if m.currentSearch == "" {
+				m.currentAccount, m.currentCategory, m.currentFilter = "", "", ""
+			}
 			m.currentSearch = msg.Query
 		}
 		return m, Cmd(RefreshTransactionsMsg{})
@@ -252,6 +250,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				SetView(transactionsView),
 				Cmd(RefreshAssetsMsg{}),
 				Cmd(RefreshLiabilitiesMsg{}),
+				Cmd(RefreshSummaryMsg{}),
 				Cmd(RefreshTransactionsMsg{}),
 				Cmd(RefreshExpenseInsightsMsg{}),
 				Cmd(RefreshRevenueInsightsMsg{}))
@@ -304,18 +303,10 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.NewEdit):
 			return m, SetView(newView)
 		case key.Matches(msg, m.keymap.NewFromTransaction):
-			if len(m.table.Rows()) < 1 {
-				return m, Notify("No transactions.", Warning)
-			}
-			row := m.table.SelectedRow()
-			if row == nil {
-				return m, Notify("Transaction not selected.", Warning)
-			}
-			id, err := strconv.Atoi(row[0])
+			trx, err := m.GetCurrentTransaction()
 			if err != nil {
-				return m, nil
+				return m, Notify(err.Error(), Warning)
 			}
-			trx := m.transactions[id]
 			return m, tea.Sequence(
 				Cmd(NewTransactionMsg{Transaction: trx}),
 				SetView(newView))
@@ -334,18 +325,10 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.ViewLiabilities):
 			return m, SetView(liabilitiesView)
 		case key.Matches(msg, m.keymap.Select):
-			if len(m.table.Rows()) < 1 {
-				return m, Notify("No transactions.", Warning)
-			}
-			row := m.table.SelectedRow()
-			if row == nil {
-				return m, Notify("Transaction not selected.", Warning)
-			}
-			id, err := strconv.Atoi(row[0])
+			trx, err := m.GetCurrentTransaction()
 			if err != nil {
-				return m, nil
+				return m, Notify(err.Error(), Warning)
 			}
-			trx := m.transactions[id]
 			return m, tea.Sequence(
 				Cmd(EditTransactionMsg{Transaction: trx}),
 				SetView(newView))
@@ -363,7 +346,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			trx := m.transactions[id]
 			return m, Cmd(PromptMsg{
-                Prompt: fmt.Sprintf("Are you sure you want to delete the transaction? Type 'yes!' to confirm. Transaction: %s - %s: ", trx.TransactionID, trx.Description()),
+				Prompt: fmt.Sprintf("Are you sure you want to delete the transaction? Type 'yes!' to confirm. Transaction: %s - %s: ", trx.TransactionID, trx.Description()),
 				Value:  "no",
 				Callback: func(value string) tea.Cmd {
 					var cmd tea.Cmd
@@ -497,4 +480,24 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 		{Title: "Description", Width: descriptionWidth},
 		{Title: "TxID", Width: transactionIDWidth},
 	}
+}
+
+func (m *modelTransactions) GetCurrentTransaction() (firefly.Transaction, error) {
+	if len(m.table.Rows()) < 1 {
+		return firefly.Transaction{}, fmt.Errorf("No transactions in the list")
+	}
+	row := m.table.SelectedRow()
+	if row == nil {
+		return firefly.Transaction{}, fmt.Errorf("Transaction not selected")
+	}
+	id, err := strconv.Atoi(row[0])
+	if err != nil {
+		return firefly.Transaction{}, fmt.Errorf("Wrong transaction id: %s", row[0])
+	}
+
+	if id >= len(m.transactions) {
+		return firefly.Transaction{}, fmt.Errorf("Index out of range: %d", id)
+	}
+
+	return m.transactions[id], nil
 }

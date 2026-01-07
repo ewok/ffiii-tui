@@ -37,6 +37,7 @@ var (
 	promptStyleNewTr    = baseStyle.BorderForeground(lipgloss.Color("34"))
 	promptStyleEditTr   = baseStyle.BorderForeground(lipgloss.Color("214"))
 	topSize             = 4
+	summarySize         = 15
 	fullTransactionView = false
 	lazyLoadCounter     = 0
 )
@@ -80,6 +81,7 @@ type modelUI struct {
 	liabilities  modelLiabilities
 	prompt       modelPrompt
 	notify       modelNotify
+	summary      modelSummary
 
 	keymap UIKeyMap
 	help   help.Model
@@ -109,9 +111,10 @@ func Show(api *firefly.Api) {
 				return Cmd(SetFocusedViewMsg{state: transactionsView})
 			},
 		}),
-		notify: newNotify(NotifyMsg{Message: ""}),
-		keymap: DefaultUIKeyMap(),
-		help:   h,
+		notify:  newNotify(NotifyMsg{Message: ""}),
+		summary: newModelSummary(api),
+		keymap:  DefaultUIKeyMap(),
+		help:    h,
 		loadStatus: map[string]bool{
 			"assets":      false,
 			"expenses":    false,
@@ -120,6 +123,7 @@ func Show(api *firefly.Api) {
 			"categories":  false,
 		},
 	}
+
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
@@ -140,7 +144,7 @@ func updateModel[T tea.Model](current T, msg tea.Msg) (T, tea.Cmd) {
 }
 
 func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	zap.S().Debugf("UI Update: %+v", msg)
+	// zap.S().Debugf("UI Update: %+v", msg)
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -159,17 +163,21 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.revenues.list.SetShowHelp(m.help.ShowAll)
 			return m, tea.WindowSize()
 		case key.Matches(msg, m.keymap.PreviousPeriod):
+			m.transactions.currentSearch = ""
 			m.api.PreviousPeriod()
 			return m, tea.Batch(
 				Cmd(RefreshTransactionsMsg{}),
+				Cmd(RefreshSummaryMsg{}),
 				Cmd(RefreshCategoryInsightsMsg{}),
 				Cmd(RefreshRevenueInsightsMsg{}),
 				Cmd(RefreshExpenseInsightsMsg{}),
 			)
 		case key.Matches(msg, m.keymap.NextPeriod):
+			m.transactions.currentSearch = ""
 			m.api.NextPeriod()
 			return m, tea.Batch(
 				Cmd(RefreshTransactionsMsg{}),
+				Cmd(RefreshSummaryMsg{}),
 				Cmd(RefreshCategoryInsightsMsg{}),
 				Cmd(RefreshRevenueInsightsMsg{}),
 				Cmd(RefreshExpenseInsightsMsg{}),
@@ -252,7 +260,9 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		lazyLoadCounter = 0
-		return m, Cmd(RefreshTransactionsMsg{})
+		return m, tea.Batch(
+			Cmd(RefreshTransactionsMsg{}),
+			Cmd(RefreshSummaryMsg{}))
 	case RefreshAllMsg:
 		m.loadStatus = map[string]bool{
 			"assets":      false,
@@ -263,6 +273,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(
 			SetView(transactionsView),
+			tea.WindowSize(),
 			Cmd(RefreshAssetsMsg{}),
 			Cmd(RefreshLiabilitiesMsg{}),
 			Cmd(RefreshExpensesMsg{}),
@@ -276,6 +287,15 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
+
+	m.prompt, cmd = updateModel(m.prompt, msg)
+	cmds = append(cmds, cmd)
+
+	m.notify, cmd = updateModel(m.notify, msg)
+	cmds = append(cmds, cmd)
+
+	m.summary, cmd = updateModel(m.summary, msg)
+	cmds = append(cmds, cmd)
 
 	m.transactions, cmd = updateModel(m.transactions, msg)
 	cmds = append(cmds, cmd)
@@ -296,12 +316,6 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	m.new, cmd = updateModel(m.new, msg)
-	cmds = append(cmds, cmd)
-
-	m.prompt, cmd = updateModel(m.prompt, msg)
-	cmds = append(cmds, cmd)
-
-	m.notify, cmd = updateModel(m.notify, msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -355,13 +369,15 @@ func (m modelUI) View() string {
 			s = s + baseStyleFocused.Render(m.transactions.View())
 		} else {
 			s = s + lipgloss.JoinHorizontal(lipgloss.Top,
-				baseStyle.Render(m.assets.View()),
+				baseStyle.Render(
+					lipgloss.JoinVertical(lipgloss.Left, m.summary.View(), m.assets.View())),
 				baseStyleFocused.Render(m.transactions.View()))
 		}
 	case assetsView:
 		s = s + lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			baseStyleFocused.Render(m.assets.View()),
+			baseStyleFocused.Render(
+				lipgloss.JoinVertical(lipgloss.Left, m.summary.View(), m.assets.View())),
 			baseStyle.Render(m.transactions.View()))
 	case categoriesView:
 		s = s + lipgloss.JoinHorizontal(
@@ -386,7 +402,8 @@ func (m modelUI) View() string {
 	case newView:
 		s = s + lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			baseStyle.Render(m.assets.View()),
+			baseStyle.Render(
+				lipgloss.JoinVertical(lipgloss.Left, m.summary.View(), m.assets.View())),
 			baseStyleFocused.Render(m.new.View()))
 	}
 	return s + "\n" + m.help.Styles.ShortKey.Render(m.HelpView())

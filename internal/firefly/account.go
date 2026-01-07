@@ -7,8 +7,8 @@ package firefly
 import (
 	"fmt"
 	"maps"
-	"strconv"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -19,7 +19,6 @@ type Account struct {
 	ID           string
 	Name         string
 	CurrencyCode string
-	Balance      float64
 	Type         string
 }
 
@@ -29,11 +28,11 @@ type apiAccount struct {
 }
 
 type apiAccountAttr struct {
-	Active         bool   `json:"active"`
-	Name           string `json:"name"`
-	CurrencyCode   string `json:"currency_code"`
-	CurrentBalance string `json:"current_balance"`
-	Type           string `json:"type"`
+	Active         bool    `json:"active"`
+	Name           string  `json:"name"`
+	CurrencyCode   string  `json:"currency_code"`
+	CurrentBalance float64 `json:"current_balance,string"`
+	Type           string  `json:"type"`
 }
 
 type NewLiability struct {
@@ -104,11 +103,54 @@ func (api *Api) GetExpenseDiff(ID string) float64 {
 	return 0
 }
 
+func (api *Api) GetTotalExpenseDiff() float64 {
+	total := 0.0
+	for _, insight := range api.expenseInsights {
+		total += insight.Diff
+	}
+	return total
+}
+
+// GetTotalExpenseDiff2 gets total expense difference per currency
+// This is an alternative to GetTotalExpenseDiff which provides per-currency totals
+// instead of a single aggregated total
+// Note: This function fetches insights directly from the API each time it is called
+// and does not use cached insights
+// which may have performance implications
+func (api *Api) GetTotalExpenseDiff2() (totals []struct {
+	CurrencyCode string
+	Diff         float64
+},
+) {
+	spentInsights, err := api.GetInsights("expense/total")
+	if err == nil {
+		for _, item := range spentInsights {
+			totals = append(totals, struct {
+				CurrencyCode string
+				Diff         float64
+			}{
+				CurrencyCode: item.CurrencyCode,
+				Diff:         (-1) * item.DifferenceFloat,
+			})
+			zap.S().Debugf("Expense total insight: diff=%f, currency=%s", item.DifferenceFloat, item.CurrencyCode)
+		}
+	}
+	return
+}
+
 func (api *Api) GetRevenueDiff(ID string) float64 {
 	if insight, ok := api.revenueInsights[ID]; ok {
 		return insight.Diff
 	}
 	return 0
+}
+
+func (api *Api) GetTotalRevenueDiff() float64 {
+	total := 0.0
+	for _, insight := range api.revenueInsights {
+		total += insight.Diff
+	}
+	return total
 }
 
 func (api *Api) UpdateExpenseInsights() error {
@@ -152,16 +194,11 @@ func (api *Api) UpdateAccounts(accType string) error {
 	accs := make(map[string][]Account, 0)
 
 	for _, account := range accounts {
-		balance, err := strconv.ParseFloat(account.Attributes.CurrentBalance, 64)
-		if err != nil {
-			balance = 0.0
-		}
-
+		api.accountBalances[account.ID] = account.Attributes.CurrentBalance
 		accs[account.Attributes.Type] = append(accs[account.Attributes.Type], Account{
 			ID:           account.ID,
 			Name:         account.Attributes.Name,
 			CurrencyCode: account.Attributes.CurrencyCode,
-			Balance:      balance,
 			Type:         account.Attributes.Type,
 		})
 	}
@@ -199,14 +236,25 @@ func (api *Api) ListAccounts(accountType string) ([]apiAccount, error) {
 
 // TODO: Optimize search with a map
 func (api *Api) GetAccountByID(ID string) Account {
-	for _, groups := range api.Accounts {
-		for _, account := range groups {
-			if account.ID == ID {
-				return account
+	const retryLimit = 10
+	const retryDelay = 1 * time.Second
+
+	var account Account
+	for attempt := 1; attempt <= retryLimit; attempt++ {
+		for _, groups := range api.Accounts {
+			for _, acc := range groups {
+				if acc.ID == ID {
+					return acc
+				}
 			}
 		}
+
+		if attempt < retryLimit {
+			time.Sleep(retryDelay)
+		}
 	}
-	return Account{}
+
+	return account
 }
 
 func (api *Api) CashAccount() Account {
@@ -234,4 +282,11 @@ func (api *Api) CashAccount() Account {
 	}
 	zap.S().Error("No asset accounts available to use as cash account")
 	return Account{}
+}
+
+func (a *Account) GetBalance(api *Api) float64 {
+	if balance, ok := api.accountBalances[a.ID]; ok {
+		return balance
+	}
+	return 0
 }

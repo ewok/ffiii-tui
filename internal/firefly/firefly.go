@@ -15,6 +15,7 @@ type Api struct {
 	Config ApiConfig
 
 	Accounts        map[string][]Account
+	accountBalances map[string]float64
 	cashAccount     Account
 
 	expenseInsights map[string]accountInsight
@@ -26,6 +27,7 @@ type Api struct {
 
 	// Currencies
 	Currencies []Currency
+	Primary    Currency
 
 	// User
 	User User
@@ -33,6 +35,9 @@ type Api struct {
 	// Date range
 	StartDate time.Time
 	EndDate   time.Time
+
+	// Summary
+	Summary map[string]SummaryItem
 }
 
 // NewApi creates a new Api instance with the provided configuration.
@@ -57,6 +62,7 @@ func NewApi(config ApiConfig) (*Api, error) {
 	}
 
 	api.Accounts = make(map[string][]Account, 0)
+	api.accountBalances = make(map[string]float64)
 
 	api.UpdateAccounts("special")
 	api.UpdateCurrencies()

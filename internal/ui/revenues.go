@@ -69,23 +69,28 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case RefreshRevenueInsightsMsg:
 		return m, func() tea.Msg {
-            err := m.api.UpdateRevenueInsights()
-            if err != nil {
-                return Notify(err.Error(), Warning)
-            }
+			err := m.api.UpdateRevenueInsights()
+			if err != nil {
+				return Notify(err.Error(), Warning)
+			}
 			return RevenuesUpdateMsg{}
 		}
 	case RefreshRevenuesMsg:
 		return m, func() tea.Msg {
-            err := m.api.UpdateAccounts("revenue")
-            if err != nil {
-                return Notify(err.Error(), Warning)
-            }
+			err := m.api.UpdateAccounts("revenue")
+			if err != nil {
+				return Notify(err.Error(), Warning)
+			}
 			return RevenuesUpdateMsg{}
 		}
 	case RevenuesUpdateMsg:
-		return m, tea.Batch(
+		return m, tea.Sequence(
 			m.list.SetItems(getRevenuesItems(m.api, m.sorted)),
+			m.list.InsertItem(0, revenueItem{
+				account:  "Total",
+				earned:   m.api.GetTotalRevenueDiff(),
+				currency: m.api.PrimaryCurrency().Code,
+			}),
 			Cmd(DataLoadCompletedMsg{DataType: "revenues"}),
 		)
 	case NewRevenueMsg:
@@ -115,6 +120,9 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Filter):
 			i, ok := m.list.SelectedItem().(revenueItem)
 			if ok {
+				if i.account == "Total" {
+					return m, nil
+				}
 				return m, Cmd(FilterMsg{Account: i.account})
 			}
 			return m, nil

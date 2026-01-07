@@ -72,10 +72,10 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case RefreshAssetsMsg:
 		return m, func() tea.Msg {
-            err := m.api.UpdateAccounts("asset")
-            if err != nil {
-                return Notify(err.Error(), Warning)
-            }
+			err := m.api.UpdateAccounts("asset")
+			if err != nil {
+				return Notify(err.Error(), Warning)
+			}
 			return AssetsUpdateMsg{}
 		}
 	case AssetsUpdateMsg:
@@ -91,7 +91,7 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, Cmd(RefreshAssetsMsg{})
 	case tea.WindowSizeMsg:
 		h, v := baseStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
+		m.list.SetSize(msg.Width-h, msg.Height-v-topSize-summarySize)
 	}
 
 	if !m.focus {
@@ -119,7 +119,9 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.New):
 			return m, CmdPromptNewAsset(SetView(assetsView))
 		case key.Matches(msg, m.keymap.Refresh):
-			return m, Cmd(RefreshAssetsMsg{})
+			return m, tea.Batch(
+				Cmd(RefreshAssetsMsg{}),
+				Cmd(RefreshSummaryMsg{}))
 		case key.Matches(msg, m.keymap.ResetFilter):
 			return m, Cmd(FilterMsg{Reset: true})
 
@@ -162,7 +164,7 @@ func getAssetsItems(api *firefly.Api) []list.Item {
 	for _, i := range api.Accounts["asset"] {
 		items = append(items, assetItem{
 			account:  i.Name,
-			balance:  i.Balance,
+			balance:  i.GetBalance(api),
 			currency: i.CurrencyCode,
 		})
 	}

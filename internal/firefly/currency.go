@@ -10,9 +10,11 @@ import (
 )
 
 type Currency struct {
-	ID   string
-	Code string
-	Name string
+	ID      string
+	Code    string
+	Name    string
+	Symbol  string
+	Primary bool
 }
 
 func (c Currency) String() string {
@@ -34,8 +36,10 @@ type apiCurrency struct {
 
 type apiCurrencyAttr struct {
 	Enabled bool   `json:"enabled"`
+	Primary bool   `json:"primary"`
 	Code    string `json:"code"`
 	Name    string `json:"name"`
+	Symbol  string `json:"symbol"`
 }
 
 type apiCurrenciesResponse struct {
@@ -70,9 +74,11 @@ func (api *Api) ListCurrencies() ([]Currency, error) {
 			continue
 		}
 		currency := Currency{
-			ID:   cur.ID,
-			Code: cur.Attributes.Code,
-			Name: cur.Attributes.Name,
+			ID:      cur.ID,
+			Code:    cur.Attributes.Code,
+			Name:    cur.Attributes.Name,
+			Symbol:  cur.Attributes.Symbol,
+			Primary: cur.Attributes.Primary,
 		}
 		currencies = append(currencies, currency)
 	}
@@ -83,6 +89,20 @@ func (api *Api) ListCurrencies() ([]Currency, error) {
 func (api *Api) GetCurrencyByCode(code string) Currency {
 	for _, cur := range api.Currencies {
 		if strings.EqualFold(cur.Code, code) {
+			return cur
+		}
+	}
+	return Currency{}
+}
+
+func (api *Api) PrimaryCurrency() Currency {
+	if api.Primary != (Currency{}) {
+		return api.Primary
+	}
+
+	for _, cur := range api.Currencies {
+		if cur.Primary {
+			api.Primary = cur
 			return cur
 		}
 	}

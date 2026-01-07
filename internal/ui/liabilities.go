@@ -165,7 +165,7 @@ func getLiabilitiesItems(api *firefly.Api) []list.Item {
 	for _, i := range api.Accounts["liabilities"] {
 		items = append(items, liabilityItem{
 			account:  i.Name,
-			balance:  i.Balance,
+			balance:  i.GetBalance(api),
 			currency: i.CurrencyCode,
 		})
 	}
