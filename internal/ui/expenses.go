@@ -52,7 +52,7 @@ func newModelExpenses(api *firefly.Api) modelExpenses {
 		api:    api,
 		keymap: DefaultExpenseKeyMap(),
 	}
-	m.list.Title = "Expenses"
+	m.list.Title = "Expense accounts"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	m.list.SetFilteringEnabled(false)
 	m.list.SetShowStatusBar(false)

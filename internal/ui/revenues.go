@@ -52,7 +52,7 @@ func newModelRevenues(api *firefly.Api) modelRevenues {
 		api:    api,
 		keymap: DefaultRevenueKeyMap(),
 	}
-	m.list.Title = "Revenues"
+	m.list.Title = "Revenue accounts"
 	m.list.SetFilteringEnabled(false)
 	m.list.SetShowStatusBar(false)
 	m.list.SetShowHelp(false)

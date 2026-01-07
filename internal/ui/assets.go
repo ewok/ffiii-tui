@@ -52,7 +52,7 @@ func newModelAssets(api *firefly.Api) modelAssets {
 		api:    api,
 		keymap: DefaultAssetKeyMap(),
 	}
-	m.list.Title = "Assets"
+	m.list.Title = "Asset accounts"
 	m.list.SetShowStatusBar(false)
 	m.list.SetFilteringEnabled(false)
 	m.list.SetShowHelp(false)

@@ -118,7 +118,7 @@ type TransactionsKeyMap struct {
 	Filter             key.Binding
 	ResetFilter        key.Binding
 	Search             key.Binding
-	New                key.Binding
+	NewEdit            key.Binding
 	Select             key.Binding
 	NewFromTransaction key.Binding
 	Delete             key.Binding
@@ -139,7 +139,7 @@ func DefaultUIKeyMap() UIKeyMap {
 		),
 		ShowShortHelp: key.NewBinding(
 			key.WithKeys("?"),
-			key.WithHelp("?", "less"),
+			key.WithHelp("?", "toggle help"),
 		),
 		PreviousPeriod: key.NewBinding(
 			key.WithKeys("["),
@@ -156,15 +156,15 @@ func DefaultAssetKeyMap() AssetKeyMap {
 	return AssetKeyMap{
 		ShowFullHelp: key.NewBinding(
 			key.WithKeys("?"),
-			key.WithHelp("?", "more/less"),
+			key.WithHelp("?", "toggle help"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "esc"),
-			key.WithHelp("q/esc", "Back"),
+			key.WithHelp("q/esc", "go back"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("f"),
-			key.WithHelp("f", "filter assets(twice for exclusive)"),
+			key.WithHelp("f", "filter by asset (press twice for exclusive)"),
 		),
 		ResetFilter: key.NewBinding(
 			key.WithKeys("ctrl+a"),
@@ -176,7 +176,7 @@ func DefaultAssetKeyMap() AssetKeyMap {
 		),
 		New: key.NewBinding(
 			key.WithKeys("n"),
-			key.WithHelp("n", "new asset"),
+			key.WithHelp("n", "create new asset"),
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
@@ -214,15 +214,15 @@ func DefaultExpenseKeyMap() ExpenseKeyMap {
 	return ExpenseKeyMap{
 		ShowFullHelp: key.NewBinding(
 			key.WithKeys("?"),
-			key.WithHelp("?", "more/less"),
+			key.WithHelp("?", "toggle help"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "esc"),
-			key.WithHelp("q/esc", "Back"),
+			key.WithHelp("q/esc", "go back"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("f"),
-			key.WithHelp("f", "filter expenses(twice for exclusive)"),
+			key.WithHelp("f", "filter by expense (press twice for exclusive)"),
 		),
 		ResetFilter: key.NewBinding(
 			key.WithKeys("ctrl+a"),
@@ -230,7 +230,7 @@ func DefaultExpenseKeyMap() ExpenseKeyMap {
 		),
 		New: key.NewBinding(
 			key.WithKeys("n"),
-			key.WithHelp("n", "new expense"),
+			key.WithHelp("n", "create new expense"),
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
@@ -272,15 +272,15 @@ func DefaultRevenueKeyMap() RevenueKeyMap {
 	return RevenueKeyMap{
 		ShowFullHelp: key.NewBinding(
 			key.WithKeys("?"),
-			key.WithHelp("?", "more/less"),
+			key.WithHelp("?", "toggle help"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "esc"),
-			key.WithHelp("q/esc", "Back"),
+			key.WithHelp("q/esc", "go back"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("f"),
-			key.WithHelp("f", "filter revenues(twice for exclusive)"),
+			key.WithHelp("f", "filter by revenue (press twice for exclusive)"),
 		),
 		ResetFilter: key.NewBinding(
 			key.WithKeys("ctrl+a"),
@@ -288,7 +288,7 @@ func DefaultRevenueKeyMap() RevenueKeyMap {
 		),
 		New: key.NewBinding(
 			key.WithKeys("n"),
-			key.WithHelp("n", "new revenue"),
+			key.WithHelp("n", "create new revenue"),
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
@@ -330,15 +330,15 @@ func DefaultCategoryKeyMap() CategoryKeyMap {
 	return CategoryKeyMap{
 		ShowFullHelp: key.NewBinding(
 			key.WithKeys("?"),
-			key.WithHelp("?", "more/less"),
+			key.WithHelp("?", "toggle help"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "esc"),
-			key.WithHelp("q/esc", "Back"),
+			key.WithHelp("q/esc", "go back"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("f"),
-			key.WithHelp("f", "filter categories(twice for exclusive)"),
+			key.WithHelp("f", "filter by category (press twice for exclusive)"),
 		),
 		ResetFilter: key.NewBinding(
 			key.WithKeys("ctrl+a"),
@@ -346,7 +346,7 @@ func DefaultCategoryKeyMap() CategoryKeyMap {
 		),
 		New: key.NewBinding(
 			key.WithKeys("n"),
-			key.WithHelp("n", "new category"),
+			key.WithHelp("n", "create new category"),
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
@@ -388,15 +388,15 @@ func DefaultLiabilityKeyMap() LiabilityKeyMap {
 	return LiabilityKeyMap{
 		ShowFullHelp: key.NewBinding(
 			key.WithKeys("?"),
-			key.WithHelp("?", "more/less"),
+			key.WithHelp("?", "toggle help"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "esc"),
-			key.WithHelp("q/esc", "Back"),
+			key.WithHelp("q/esc", "go back"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("f"),
-			key.WithHelp("f", "filter liabilities(twice for exclusive)"),
+			key.WithHelp("f", "filter by liability (press twice for exclusive)"),
 		),
 		ResetFilter: key.NewBinding(
 			key.WithKeys("ctrl+a"),
@@ -404,7 +404,7 @@ func DefaultLiabilityKeyMap() LiabilityKeyMap {
 		),
 		New: key.NewBinding(
 			key.WithKeys("n"),
-			key.WithHelp("n", "new"),
+			key.WithHelp("n", "create new liability"),
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
@@ -470,7 +470,7 @@ func DefaultTransactionFormKeyMap() TransactionFormKeyMap {
 		),
 		ChangeLayout: key.NewBinding(
 			key.WithKeys("ctrl+f"),
-			key.WithHelp("ctrl+f", "change layout(if too many splits)"),
+			key.WithHelp("ctrl+f", "toggle layout (for many splits)"),
 		),
 	}
 }
@@ -479,7 +479,7 @@ func DefaultTransactionsKeyMap() TransactionsKeyMap {
 	return TransactionsKeyMap{
 		ShowFullHelp: key.NewBinding(
 			key.WithKeys("?"),
-			key.WithHelp("?", "more/less"),
+			key.WithHelp("?", "toggle help"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("ctrl+c"),
@@ -487,11 +487,11 @@ func DefaultTransactionsKeyMap() TransactionsKeyMap {
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
-			key.WithHelp("r", "refresh"),
+			key.WithHelp("r", "refresh data"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("f"),
-			key.WithHelp("f", "filter(twice for exclusive)"),
+			key.WithHelp("f", "filter transactions (press twice for exclusive)"),
 		),
 		ResetFilter: key.NewBinding(
 			key.WithKeys("ctrl+a"),
@@ -499,11 +499,11 @@ func DefaultTransactionsKeyMap() TransactionsKeyMap {
 		),
 		Search: key.NewBinding(
 			key.WithKeys("s"),
-			key.WithHelp("s", "global search"),
+			key.WithHelp("s", "search transactions"),
 		),
-		New: key.NewBinding(
+		NewEdit: key.NewBinding(
 			key.WithKeys("n"),
-			key.WithHelp("n", "transaction view"),
+			key.WithHelp("n", "new/edit transaction"),
 		),
 		NewFromTransaction: key.NewBinding(
 			key.WithKeys("N"),
@@ -620,7 +620,7 @@ func (k TransactionsKeyMap) ShortHelp() []key.Binding {
 		k.Search,
 		k.Filter,
 		k.ResetFilter,
-		k.New,
+		k.NewEdit,
 		k.NewFromTransaction,
 		k.Select,
 		k.Delete,
