@@ -104,11 +104,54 @@ func (api *Api) GetExpenseDiff(ID string) float64 {
 	return 0
 }
 
+func (api *Api) GetTotalExpenseDiff() float64 {
+	total := 0.0
+	for _, insight := range api.expenseInsights {
+		total += insight.Diff
+	}
+	return total
+}
+
+// GetTotalExpenseDiff2 gets total expense difference per currency
+// This is an alternative to GetTotalExpenseDiff which provides per-currency totals
+// instead of a single aggregated total
+// Note: This function fetches insights directly from the API each time it is called
+// and does not use cached insights
+// which may have performance implications
+func (api *Api) GetTotalExpenseDiff2() (totals []struct {
+	CurrencyCode string
+	Diff         float64
+},
+) {
+	spentInsights, err := api.GetInsights("expense/total")
+	if err == nil {
+		for _, item := range spentInsights {
+			totals = append(totals, struct {
+				CurrencyCode string
+				Diff         float64
+			}{
+				CurrencyCode: item.CurrencyCode,
+				Diff:         (-1) * item.DifferenceFloat,
+			})
+			zap.S().Debugf("Expense total insight: diff=%f, currency=%s", item.DifferenceFloat, item.CurrencyCode)
+		}
+	}
+	return
+}
+
 func (api *Api) GetRevenueDiff(ID string) float64 {
 	if insight, ok := api.revenueInsights[ID]; ok {
 		return insight.Diff
 	}
 	return 0
+}
+
+func (api *Api) GetTotalRevenueDiff() float64 {
+	total := 0.0
+	for _, insight := range api.revenueInsights {
+		total += insight.Diff
+	}
+	return total
 }
 
 func (api *Api) UpdateExpenseInsights() error {

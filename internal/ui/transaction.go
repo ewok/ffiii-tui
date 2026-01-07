@@ -485,6 +485,7 @@ func (m *modelTransaction) CreateTransaction() (modelTransaction, tea.Cmd) {
 	return newModel, tea.Batch(SetView(transactionsView),
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
+		Cmd(RefreshSummaryMsg{}),
 		Cmd(RefreshTransactionsMsg{}),
 		Cmd(RefreshExpenseInsightsMsg{}),
 		Cmd(RefreshRevenueInsightsMsg{}))
@@ -524,6 +525,7 @@ func (m *modelTransaction) UpdateTransaction() (modelTransaction, tea.Cmd) {
 	return newModel, tea.Batch(SetView(transactionsView),
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
+		Cmd(RefreshSummaryMsg{}),
 		Cmd(RefreshTransactionsMsg{}),
 		Cmd(RefreshExpenseInsightsMsg{}),
 		Cmd(RefreshRevenueInsightsMsg{}))

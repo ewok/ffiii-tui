@@ -26,6 +26,7 @@ type Api struct {
 
 	// Currencies
 	Currencies []Currency
+	Primary   Currency
 
 	// User
 	User User
@@ -33,6 +34,9 @@ type Api struct {
 	// Date range
 	StartDate time.Time
 	EndDate   time.Time
+
+	// Summary
+	Summary map[string]SummaryItem
 }
 
 // NewApi creates a new Api instance with the provided configuration.

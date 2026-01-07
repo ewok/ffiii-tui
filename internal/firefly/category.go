@@ -156,3 +156,11 @@ func (c *Category) GetEarned(api *Api) float64 {
 	}
 	return 0
 }
+
+func (api *Api) GetTotalSpentEarnedCategories() (spent, earned float64) {
+	for _, insight := range api.categoryInsights {
+		spent += insight.Spent
+		earned += insight.Earned
+	}
+	return
+}

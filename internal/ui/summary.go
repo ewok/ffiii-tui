@@ -1,0 +1,155 @@
+/*
+Copyright © 2025-2026 Artur Taranchiev <artur.taranchiev@gmail.com>
+SPDX-License-Identifier: Apache-2.0
+*/
+package ui
+
+import (
+	"fmt"
+	"io"
+	"slices"
+	"strconv"
+	"strings"
+
+	"ffiii-tui/internal/firefly"
+
+	"github.com/charmbracelet/bubbles/list"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+var (
+	redStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
+	greenStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
+	normalStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#DDDADA"))
+)
+
+type (
+	RefreshSummaryMsg struct{}
+	SummaryUpdateMsg  struct{}
+)
+
+type summaryItem struct {
+	title, value, monetaryValue string
+}
+
+func (i summaryItem) FilterValue() string { return i.title }
+
+type summaryDelegate struct{}
+
+func (d summaryDelegate) Height() int                             { return 1 }
+func (d summaryDelegate) Spacing() int                            { return 0 }
+func (d summaryDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d summaryDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	i, ok := listItem.(summaryItem)
+	if !ok {
+		return
+	}
+	v, err := strconv.ParseFloat(i.monetaryValue, 64)
+	if err != nil {
+		v = 0.0
+	}
+	fn := greenStyle.Render
+	if v < 0 {
+		fn = redStyle.Render
+	} else if v == 0 {
+		fn = normalStyle.Render
+	}
+
+	styledTitle := normalStyle.Render(i.title)
+	styledValue := fn(i.value)
+
+	availableWidth := 40
+
+	valueLen := len(i.value)
+	titleLen := len(i.title)
+
+	spacingNeeded := max(availableWidth-titleLen-valueLen, 1)
+
+	str := fmt.Sprintf("%s%s%s", styledTitle,
+		strings.Repeat(" ", spacingNeeded),
+		styledValue)
+
+	fmt.Fprint(w, itemStyle.Render(str))
+}
+
+type modelSummary struct {
+	list list.Model
+	api  *firefly.Api
+}
+
+func newModelSummary(api *firefly.Api) modelSummary {
+	items := getSummaryItems(api)
+	m := modelSummary{
+		list: list.New(items, summaryDelegate{}, 0, 0),
+		api:  api,
+	}
+	m.list.Title = "Summary"
+	m.list.SetShowStatusBar(false)
+	m.list.SetFilteringEnabled(false)
+	m.list.SetShowHelp(false)
+	m.list.DisableQuitKeybindings()
+	m.list.SetShowPagination(false)
+	return m
+}
+
+func (m modelSummary) Init() tea.Cmd {
+	return nil
+}
+
+func (m modelSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case RefreshSummaryMsg:
+		return m, func() tea.Msg {
+			err := m.api.UpdateSummary()
+			if err != nil {
+				return NotifyMsg{
+					Message: err.Error(),
+					Level:   Warning,
+				}
+			}
+			return SummaryUpdateMsg{}
+		}
+	case SummaryUpdateMsg:
+		return m, tea.Sequence(
+			m.list.SetItems(getSummaryItems(m.api)),
+			tea.WindowSize())
+	case tea.WindowSizeMsg:
+		h, v := baseStyle.GetFrameSize()
+		l := len(m.list.Items())
+		m.list.SetSize(msg.Width-h, l+v+1)
+		summarySize = m.list.Height()
+	}
+	return m, nil
+}
+
+func (m modelSummary) View() string {
+	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
+}
+
+func getSummaryItems(api *firefly.Api) []list.Item {
+	items := []list.Item{}
+	for _, si := range api.Summary {
+		item := summaryItem{
+			title:         si.Title,
+			value:         si.ValueParsed,
+			monetaryValue: si.MonetaryValue,
+		}
+		items = append(items, item)
+	}
+
+	slices.SortFunc(items, func(a, b list.Item) int {
+		sa := a.(summaryItem)
+		sb := b.(summaryItem)
+		na, _ := strconv.ParseFloat(sa.monetaryValue, 64)
+		nb, _ := strconv.ParseFloat(sb.monetaryValue, 64)
+		if na != nb {
+			if na < nb {
+				return 1
+			}
+			return -1
+		}
+		return 0
+	})
+	return items
+}
