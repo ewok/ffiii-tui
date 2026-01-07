@@ -363,7 +363,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			trx := m.transactions[id]
 			return m, Cmd(PromptMsg{
-				Prompt: fmt.Sprintf("Are you sure you want to delete transaction(type 'yes!' if yes) %s:%s: ", trx.TransactionID, trx.Description()),
+				Prompt: fmt.Sprintf("Are you sure you want to delete the transaction? Type 'yes!' to confirm. Transaction: %s - %s", trx.TransactionID, trx.Description()),
 				Value:  "no",
 				Callback: func(value string) tea.Cmd {
 					var cmd tea.Cmd

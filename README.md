@@ -1,5 +1,13 @@
 # ffiii-tui
 
+[![Go Version](https://img.shields.io/github/go-mod/go-version/ewok/ffiii-tui)](https://golang.org/)
+[![License](https://img.shields.io/github/license/ewok/ffiii-tui)](https://github.com/ewok/ffiii-tui/blob/main/LICENSE)
+[![Release](https://img.shields.io/github/v/release/ewok/ffiii-tui)](https://github.com/ewok/ffiii-tui/releases)
+[![Contributors](https://img.shields.io/github/contributors/ewok/ffiii-tui)](https://github.com/ewok/ffiii-tui/graphs/contributors)
+[![Last Commit](https://img.shields.io/github/last-commit/ewok/ffiii-tui)](https://github.com/ewok/ffiii-tui/commits/main)
+[![Issues](https://img.shields.io/github/issues/ewok/ffiii-tui)](https://github.com/ewok/ffiii-tui/issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/ewok/ffiii-tui)](https://github.com/ewok/ffiii-tui/pulls)
+
 > **⚠️ Warning**: This project is in early development and may not be fully functional.
 
 ![Transactions](images/transactions.png)
