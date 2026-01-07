@@ -239,7 +239,6 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DataLoadCompletedMsg:
 		m.loadStatus[msg.DataType] = true
 	case LazyLoadMsg:
-		zap.L().Debug("Tick lazy load")
 		lazyLoadCounter++
 		for _, loaded := range m.loadStatus {
 			if !loaded {

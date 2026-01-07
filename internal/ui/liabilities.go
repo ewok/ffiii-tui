@@ -76,7 +76,10 @@ func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case RefreshLiabilitiesMsg:
 		return m, func() tea.Msg {
-			m.api.UpdateAccounts("liabilities")
+            err := m.api.UpdateAccounts("liabilities")
+            if err != nil {
+                return Notify(err.Error(), Warning)
+            }
 			return LiabilitiesUpdateMsg{}
 		}
 	case LiabilitiesUpdateMsg:

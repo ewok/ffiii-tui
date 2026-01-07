@@ -70,12 +70,18 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case RefreshExpenseInsightsMsg:
 		return m, func() tea.Msg {
-			m.api.UpdateExpenseInsights()
+            err := m.api.UpdateExpenseInsights()
+            if err != nil {
+                return Notify(err.Error(), Warning)
+            }
 			return ExpensesUpdatedMsg{}
 		}
 	case RefreshExpensesMsg:
 		return m, func() tea.Msg {
-			m.api.UpdateAccounts("expense")
+            err := m.api.UpdateAccounts("expense")
+            if err != nil {
+                return Notify(err.Error(), Warning)
+            }
 			return ExpensesUpdatedMsg{}
 		}
 	case ExpensesUpdatedMsg:

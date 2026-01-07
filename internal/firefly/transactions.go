@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-
-	"go.uber.org/zap"
 )
 
 type Transaction struct {
@@ -127,12 +125,10 @@ func (api *Api) ListTransactions(query string) ([]Transaction, error) {
 	var allData []any
 	var err error
 	if query != "" {
-		zap.S().Debugf("Searching transactions with query: %s", query)
 		allData, err = api.fetchPaginated("%s/search/transactions?&query=%s&page=%d",
 			api.Config.ApiUrl,
 			query)
 	} else {
-		zap.S().Debugf("Listing transactions from %s to %s", api.StartDate.Format("2006-01-02"), api.EndDate.Format("2006-01-02"))
 		allData, err = api.fetchPaginated("%s/transactions?start=%s&end=%s&page=%d",
 			api.Config.ApiUrl,
 			api.StartDate.Format("2006-01-02"),
@@ -171,9 +167,9 @@ func (api *Api) ListTransactions(query string) ([]Transaction, error) {
 			if tdate == "" {
 				tdate = subTx.Date
 			}
-            source := api.GetAccountByID(subTx.SourceID)
-            destination := api.GetAccountByID(subTx.DestinationID)
-            category := api.GetCategoryByID(subTx.CategoryID)
+			source := api.GetAccountByID(subTx.SourceID)
+			destination := api.GetAccountByID(subTx.DestinationID)
+			category := api.GetCategoryByID(subTx.CategoryID)
 
 			splits = append(splits, Split{
 				Source:               source,
