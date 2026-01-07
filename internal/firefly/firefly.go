@@ -15,6 +15,8 @@ type Api struct {
 	Config ApiConfig
 
 	Accounts        map[string][]Account
+	cashAccount     Account
+
 	expenseInsights map[string]accountInsight
 	revenueInsights map[string]accountInsight
 
@@ -56,6 +58,7 @@ func NewApi(config ApiConfig) (*Api, error) {
 
 	api.Accounts = make(map[string][]Account, 0)
 
+	api.UpdateAccounts("special")
 	api.UpdateCurrencies()
 
 	return api, nil

@@ -9,6 +9,8 @@ import (
 	"maps"
 	"strconv"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
 const accountsEndpoint = "%s/accounts?page=%d&type=%s"
@@ -169,11 +171,13 @@ func (api *Api) UpdateAccounts(accType string) error {
 	switch accType {
 	case "expense":
 		api.UpdateExpenseInsights()
+		api.Accounts["expense"] = append(api.Accounts["expense"], api.CashAccount())
 	case "revenue":
 		api.UpdateRevenueInsights()
 	case "all":
 		api.UpdateExpenseInsights()
 		api.UpdateRevenueInsights()
+		api.Accounts["expense"] = append(api.Accounts["expense"], api.CashAccount())
 	}
 
 	return nil
@@ -202,5 +206,32 @@ func (api *Api) GetAccountByID(ID string) Account {
 			}
 		}
 	}
+	return Account{}
+}
+
+func (api *Api) CashAccount() Account {
+	if api.cashAccount != (Account{}) {
+		return api.cashAccount
+	}
+
+	accounts, err := api.ListAccounts("special")
+	if err != nil {
+		zap.S().Errorf("Failed to fetch special accounts for cash account: %v", err)
+		return Account{}
+	}
+
+	for _, account := range accounts {
+		if account.Attributes.Type == "cash" {
+			cash := Account{
+				ID:   account.ID,
+				Name: account.Attributes.Name,
+				Type: account.Attributes.Type,
+			}
+			api.cashAccount = cash
+			zap.S().Debugf("Using cash account: %s (%s)", cash.Name, cash.ID)
+			return cash
+		}
+	}
+	zap.S().Error("No asset accounts available to use as cash account")
 	return Account{}
 }
