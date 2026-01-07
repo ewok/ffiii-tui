@@ -5,10 +5,11 @@ SPDX-License-Identifier: Apache-2.0
 package ui
 
 import (
-	"ffiii-tui/internal/firefly"
 	"fmt"
 	"regexp"
 	"strings"
+
+	"ffiii-tui/internal/firefly"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -16,11 +17,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var (
-	promptValue string
-)
+var promptValue string
 
-type RefreshLiabilitiesMsg struct{}
+type (
+	RefreshLiabilitiesMsg struct{}
+	LiabilitiesUpdateMsg  struct{}
+)
 
 type NewLiabilityMsg struct {
 	Account   string
@@ -69,14 +71,19 @@ func (m modelLiabilities) Init() tea.Cmd {
 }
 
 func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case RefreshLiabilitiesMsg:
-		return m, tea.Sequence(
-			Cmd(m.api.UpdateAccounts("liabilities")),
-			m.list.SetItems(getLiabilitiesItems(m.api)))
+		return m, func() tea.Msg {
+			m.api.UpdateAccounts("liabilities")
+			return LiabilitiesUpdateMsg{}
+		}
+	case LiabilitiesUpdateMsg:
+		return m, tea.Batch(
+			m.list.SetItems(getLiabilitiesItems(m.api)),
+			Cmd(DataLoadCompletedMsg{DataType: "liabilities"}),
+		)
 	case NewLiabilityMsg:
 		err := m.api.CreateLiabilityAccount(firefly.NewLiability{
 			Name:         msg.Account,
@@ -130,7 +137,6 @@ func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, SetView(liabilitiesView)
 
 		}
-
 	}
 
 	m.list, cmd = m.list.Update(msg)
@@ -166,7 +172,7 @@ func getLiabilitiesItems(api *firefly.Api) []list.Item {
 
 func CmdPromptNewLiability(backCmd tea.Cmd) tea.Cmd {
 	return Cmd(PromptMsg{
-        Prompt: "New Liabity(<name>,<currency>,<type:loan|debt|mortage>,<direction:credit|debit>): ",
+		Prompt: "New Liabity(<name>,<currency>,<type:loan|debt|mortage>,<direction:credit|debit>): ",
 		Value:  promptValue,
 		Callback: func(value string) tea.Cmd {
 			var cmds []tea.Cmd
@@ -192,5 +198,6 @@ func CmdPromptNewLiability(backCmd tea.Cmd) tea.Cmd {
 			}
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
-		}})
+		},
+	})
 }

@@ -171,10 +171,14 @@ func (api *Api) ListTransactions(query string) ([]Transaction, error) {
 			if tdate == "" {
 				tdate = subTx.Date
 			}
+            source := api.GetAccountByID(subTx.SourceID)
+            destination := api.GetAccountByID(subTx.DestinationID)
+            category := api.GetCategoryByID(subTx.CategoryID)
+
 			splits = append(splits, Split{
-				Source:               api.GetAccountByID(subTx.SourceID),
-				Destination:          api.GetAccountByID(subTx.DestinationID),
-				Category:             api.GetCategoryByID(subTx.CategoryID),
+				Source:               source,
+				Destination:          destination,
+				Category:             category,
 				Currency:             subTx.CurrencyCode,
 				ForeignCurrency:      subTx.ForeignCurrencyCode,
 				Amount:               amount,

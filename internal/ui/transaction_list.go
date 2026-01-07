@@ -32,7 +32,10 @@ type SearchMsg struct {
 
 type (
 	RefreshTransactionsMsg struct{}
-	DeleteTransactionMsg   struct {
+	TransactionsUpdateMsg  struct {
+		Transactions []firefly.Transaction
+	}
+	DeleteTransactionMsg struct {
 		Transaction firefly.Transaction
 	}
 )
@@ -202,7 +205,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.table.SetColumns(columns)
 
 	case RefreshTransactionsMsg:
-		return m, Cmd(func() tea.Msg {
+		return m, func() tea.Msg {
 			var err error
 			transactions := []firefly.Transaction{}
 			if m.currentSearch != "" {
@@ -222,13 +225,18 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
-			m.transactions = transactions
-			return FilterMsg{
-				Account:  m.currentAccount,
-				Category: m.currentCategory,
-				Query:    m.currentFilter,
+			return TransactionsUpdateMsg{
+				Transactions: transactions,
 			}
-		}())
+		}
+
+	case TransactionsUpdateMsg:
+		m.transactions = msg.Transactions
+		return m, Cmd(FilterMsg{
+			Account:  m.currentAccount,
+			Category: m.currentCategory,
+			Query:    m.currentFilter,
+		})
 
 	case DeleteTransactionMsg:
 		id := msg.Transaction.TransactionID
@@ -267,13 +275,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keymap.Refresh):
-			return m, tea.Batch(
-				Cmd(RefreshTransactionsMsg{}),
-				Cmd(RefreshAssetsMsg{}),
-				Cmd(RefreshExpensesMsg{}),
-				Cmd(RefreshRevenuesMsg{}),
-				Cmd(RefreshCategoriesMsg{}),
-			)
+			return m, Cmd(RefreshAllMsg{})
 		case key.Matches(msg, m.keymap.Filter):
 			return m, Cmd(PromptMsg{
 				Prompt: "Filter query: ",

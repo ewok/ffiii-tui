@@ -193,6 +193,7 @@ func (api *Api) ListAccounts(accountType string) ([]apiAccount, error) {
 	return accs, nil
 }
 
+// TODO: Optimize search with a map
 func (api *Api) GetAccountByID(ID string) Account {
 	for _, groups := range api.Accounts {
 		for _, account := range groups {

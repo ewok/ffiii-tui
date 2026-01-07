@@ -5,9 +5,10 @@ SPDX-License-Identifier: Apache-2.0
 package ui
 
 import (
-	"ffiii-tui/internal/firefly"
 	"fmt"
 	"strings"
+
+	"ffiii-tui/internal/firefly"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -15,7 +16,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type RefreshAssetsMsg struct{}
+type (
+	RefreshAssetsMsg struct{}
+	AssetsUpdateMsg  struct{}
+)
 
 type NewAssetMsg struct {
 	Account  string
@@ -62,15 +66,20 @@ func (m modelAssets) Init() tea.Cmd {
 }
 
 func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case RefreshAssetsMsg:
-		return m, tea.Sequence(
-			Cmd(m.api.UpdateAccounts("asset")),
-			m.list.SetItems(getAssetsItems(m.api)))
+		return m, func() tea.Msg {
+			m.api.UpdateAccounts("asset")
+			return AssetsUpdateMsg{}
+		}
+	case AssetsUpdateMsg:
+		return m, tea.Batch(
+			m.list.SetItems(getAssetsItems(m.api)),
+			Cmd(DataLoadCompletedMsg{DataType: "assets"}),
+		)
 	case NewAssetMsg:
 		err := m.api.CreateAssetAccount(msg.Account, msg.Currency)
 		if err != nil {
@@ -125,7 +134,6 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, SetView(liabilitiesView)
 
 		}
-
 	}
 
 	m.list, cmd = m.list.Update(msg)
@@ -181,5 +189,6 @@ func CmdPromptNewAsset(backCmd tea.Cmd) tea.Cmd {
 			}
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
-		}})
+		},
+	})
 }

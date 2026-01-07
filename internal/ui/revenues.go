@@ -5,9 +5,10 @@ SPDX-License-Identifier: Apache-2.0
 package ui
 
 import (
-	"ffiii-tui/internal/firefly"
 	"fmt"
 	"slices"
+
+	"ffiii-tui/internal/firefly"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -15,11 +16,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type RefreshRevenuesMsg struct{}
-type RefreshRevenueInsightsMsg struct{}
-type NewRevenueMsg struct {
-	Account string
-}
+type (
+	RefreshRevenuesMsg        struct{}
+	RefreshRevenueInsightsMsg struct{}
+	RevenuesUpdateMsg         struct{}
+	NewRevenueMsg             struct {
+		Account string
+	}
+)
 
 type revenueItem struct {
 	account, currency string
@@ -62,16 +66,22 @@ func (m modelRevenues) Init() tea.Cmd {
 }
 
 func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case RefreshRevenueInsightsMsg:
-		return m, tea.Sequence(
-			Cmd(m.api.UpdateRevenueInsights()),
-			m.list.SetItems(getRevenuesItems(m.api, m.sorted)))
+		return m, func() tea.Msg {
+			m.api.UpdateRevenueInsights()
+			return RevenuesUpdateMsg{}
+		}
 	case RefreshRevenuesMsg:
-		return m, tea.Sequence(
-			Cmd(m.api.UpdateAccounts("revenue")),
-			m.list.SetItems(getRevenuesItems(m.api, m.sorted)))
+		return m, func() tea.Msg {
+			m.api.UpdateAccounts("revenue")
+			return RevenuesUpdateMsg{}
+		}
+	case RevenuesUpdateMsg:
+		return m, tea.Batch(
+			m.list.SetItems(getRevenuesItems(m.api, m.sorted)),
+			Cmd(DataLoadCompletedMsg{DataType: "revenues"}),
+		)
 	case NewRevenueMsg:
 		err := m.api.CreateRevenueAccount(msg.Account)
 		if err != nil {
@@ -106,7 +116,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, Cmd(RefreshRevenuesMsg{})
 		case key.Matches(msg, m.keymap.Sort):
 			m.sorted = !m.sorted
-			return m, m.list.SetItems(getRevenuesItems(m.api, m.sorted))
+			return m, Cmd(RevenuesUpdateMsg{})
 		case key.Matches(msg, m.keymap.ResetFilter):
 			return m, Cmd(FilterMsg{Reset: true})
 		case key.Matches(msg, m.keymap.ViewTransactions):
@@ -176,5 +186,6 @@ func CmdPromptNewRevenue(backCmd tea.Cmd) tea.Cmd {
 			}
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
-		}})
+		},
+	})
 }

@@ -56,8 +56,6 @@ func NewApi(config ApiConfig) (*Api, error) {
 
 	api.Accounts = make(map[string][]Account, 0)
 
-	api.UpdateAccounts("all")
-	api.UpdateCategories()
 	api.UpdateCurrencies()
 
 	return api, nil

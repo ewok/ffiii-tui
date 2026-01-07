@@ -156,4 +156,3 @@ func (c *Category) GetEarned(api *Api) float64 {
 	}
 	return 0
 }
-

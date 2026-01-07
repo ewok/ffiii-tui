@@ -38,6 +38,7 @@ var (
 	promptStyleEditTr   = baseStyle.BorderForeground(lipgloss.Color("214"))
 	topSize             = 4
 	fullTransactionView = false
+	lazyLoadCounter     = 0
 )
 
 type state uint
@@ -59,6 +60,12 @@ type (
 	SetFocusedViewMsg          struct {
 		state state
 	}
+	DataLoadCompletedMsg struct {
+		DataType string
+	}
+	LazyLoadMsg          time.Time
+	AllBaseDataLoadedMsg struct{}
+	RefreshAllMsg        struct{}
 )
 
 type modelUI struct {
@@ -76,6 +83,8 @@ type modelUI struct {
 
 	keymap UIKeyMap
 	help   help.Model
+
+	loadStatus map[string]bool
 }
 
 func Show(api *firefly.Api) {
@@ -103,6 +112,13 @@ func Show(api *firefly.Api) {
 		notify: newNotify(NotifyMsg{Message: ""}),
 		keymap: DefaultUIKeyMap(),
 		help:   h,
+		loadStatus: map[string]bool{
+			"assets":      false,
+			"expenses":    false,
+			"revenues":    false,
+			"liabilities": false,
+			"categories":  false,
+		},
 	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
@@ -111,7 +127,7 @@ func Show(api *firefly.Api) {
 }
 
 func (m modelUI) Init() tea.Cmd {
-	return SetView(transactionsView)
+	return Cmd(RefreshAllMsg{})
 }
 
 func updateModel[T tea.Model](current T, msg tea.Msg) (T, tea.Cmd) {
@@ -220,6 +236,43 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ViewFullTransactionViewMsg:
 		fullTransactionView = !fullTransactionView
 		viper.Set("ui.full_view", fullTransactionView)
+	case DataLoadCompletedMsg:
+		m.loadStatus[msg.DataType] = true
+	case LazyLoadMsg:
+		zap.L().Debug("Tick lazy load")
+		lazyLoadCounter++
+		for _, loaded := range m.loadStatus {
+			if !loaded {
+				if lazyLoadCounter > m.api.Config.TimeoutSeconds {
+					lazyLoadCounter = 0
+					return m, Notify("Could not load all resources", Warning)
+				}
+				return m, tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
+					return LazyLoadMsg(t)
+				})
+			}
+		}
+		lazyLoadCounter = 0
+		return m, Cmd(RefreshTransactionsMsg{})
+	case RefreshAllMsg:
+		m.loadStatus = map[string]bool{
+			"assets":      false,
+			"expenses":    false,
+			"revenues":    false,
+			"liabilities": false,
+			"categories":  false,
+		}
+		return m, tea.Batch(
+			SetView(transactionsView),
+			Cmd(RefreshAssetsMsg{}),
+			Cmd(RefreshLiabilitiesMsg{}),
+			Cmd(RefreshExpensesMsg{}),
+			Cmd(RefreshRevenuesMsg{}),
+			Cmd(RefreshCategoriesMsg{}),
+			tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
+				return LazyLoadMsg(t)
+			}),
+		)
 	}
 
 	var cmds []tea.Cmd

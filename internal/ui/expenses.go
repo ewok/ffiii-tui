@@ -5,9 +5,10 @@ SPDX-License-Identifier: Apache-2.0
 package ui
 
 import (
-	"ffiii-tui/internal/firefly"
 	"fmt"
 	"slices"
+
+	"ffiii-tui/internal/firefly"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -15,11 +16,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type RefreshExpensesMsg struct{}
-type RefreshExpenseInsightsMsg struct{}
-type NewExpenseMsg struct {
-	Account string
-}
+type (
+	RefreshExpensesMsg        struct{}
+	RefreshExpenseInsightsMsg struct{}
+	ExpensesUpdatedMsg        struct{}
+	NewExpenseMsg             struct {
+		Account string
+	}
+)
 
 type expenseItem struct {
 	account, currency string
@@ -63,16 +67,22 @@ func (m modelExpenses) Init() tea.Cmd {
 }
 
 func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case RefreshExpenseInsightsMsg:
-		return m, tea.Sequence(
-			Cmd(m.api.UpdateExpenseInsights()),
-			m.list.SetItems(getExpensesItems(m.api, m.sorted)))
+		return m, func() tea.Msg {
+			m.api.UpdateExpenseInsights()
+			return ExpensesUpdatedMsg{}
+		}
 	case RefreshExpensesMsg:
-		return m, tea.Sequence(
-			Cmd(m.api.UpdateAccounts("expense")),
-			m.list.SetItems(getExpensesItems(m.api, m.sorted)))
+		return m, func() tea.Msg {
+			m.api.UpdateAccounts("expense")
+			return ExpensesUpdatedMsg{}
+		}
+	case ExpensesUpdatedMsg:
+		return m, tea.Batch(
+			m.list.SetItems(getExpensesItems(m.api, m.sorted)),
+			Cmd(DataLoadCompletedMsg{DataType: "expenses"}),
+		)
 	case NewExpenseMsg:
 		err := m.api.CreateExpenseAccount(msg.Account)
 		if err != nil {
@@ -107,7 +117,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, Cmd(RefreshExpensesMsg{})
 		case key.Matches(msg, m.keymap.Sort):
 			m.sorted = !m.sorted
-			return m, m.list.SetItems(getExpensesItems(m.api, m.sorted))
+			return m, Cmd(ExpensesUpdatedMsg{})
 		case key.Matches(msg, m.keymap.ResetFilter):
 			return m, Cmd(FilterMsg{Reset: true})
 		case key.Matches(msg, m.keymap.ViewTransactions):
@@ -179,5 +189,6 @@ func CmdPromptNewExpense(backCmd tea.Cmd) tea.Cmd {
 			}
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
-		}})
+		},
+	})
 }

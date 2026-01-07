@@ -5,9 +5,10 @@ SPDX-License-Identifier: Apache-2.0
 package ui
 
 import (
-	"ffiii-tui/internal/firefly"
 	"fmt"
 	"slices"
+
+	"ffiii-tui/internal/firefly"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -15,11 +16,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type RefreshCategoriesMsg struct{}
-type RefreshCategoryInsightsMsg struct{}
-type NewCategoryMsg struct {
-	Category string
-}
+type (
+	RefreshCategoriesMsg       struct{}
+	RefreshCategoryInsightsMsg struct{}
+	CategoriesUpdateMsg        struct{}
+	NewCategoryMsg             struct {
+		Category string
+	}
+)
 
 type categoryItem struct {
 	category, currency string
@@ -77,15 +81,22 @@ func (m modelCategories) Init() tea.Cmd {
 }
 
 func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case RefreshCategoryInsightsMsg:
-		return m, tea.Sequence(Cmd(m.api.UpdateCategoriesInsights()),
-			m.list.SetItems(getCategoriesItems(m.api, m.sorted)))
+		return m, func() tea.Msg {
+			m.api.UpdateCategoriesInsights()
+			return CategoriesUpdateMsg{}
+		}
 	case RefreshCategoriesMsg:
-		return m, tea.Sequence(
-			Cmd(m.api.UpdateCategories()),
-			m.list.SetItems(getCategoriesItems(m.api, m.sorted)))
+		return m, func() tea.Msg {
+			m.api.UpdateCategories()
+			return CategoriesUpdateMsg{}
+		}
+	case CategoriesUpdateMsg:
+		return m, tea.Batch(
+			m.list.SetItems(getCategoriesItems(m.api, m.sorted)),
+			Cmd(DataLoadCompletedMsg{DataType: "categories"}),
+		)
 	case NewCategoryMsg:
 		err := m.api.CreateCategory(msg.Category, "")
 		if err != nil {
@@ -145,7 +156,6 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// case "R":
 			// 	return m, Cmd(RefreshCategoriesMsg{})
 		}
-
 	}
 
 	m.list, cmd = m.list.Update(msg)
@@ -209,5 +219,6 @@ func CmdPromptNewCategory(backCmd tea.Cmd) tea.Cmd {
 			}
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
-		}})
+		},
+	})
 }
