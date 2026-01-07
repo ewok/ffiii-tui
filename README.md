@@ -151,7 +151,7 @@ Contributions are welcome! Please:
 
 - [x] Create new transactions
 - [x] Edit existing transactions
-- [ ] Delete transactions
+- [x] Delete transactions
 - [x] Create accounts, categories
 - [ ] Edit accounts, categories
 - [ ] Delete accounts, categories
