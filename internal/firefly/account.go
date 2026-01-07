@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -18,7 +19,6 @@ type Account struct {
 	ID           string
 	Name         string
 	CurrencyCode string
-	Balance      float64
 	Type         string
 }
 
@@ -194,11 +194,11 @@ func (api *Api) UpdateAccounts(accType string) error {
 	accs := make(map[string][]Account, 0)
 
 	for _, account := range accounts {
+		api.accountBalances[account.ID] = account.Attributes.CurrentBalance
 		accs[account.Attributes.Type] = append(accs[account.Attributes.Type], Account{
 			ID:           account.ID,
 			Name:         account.Attributes.Name,
 			CurrencyCode: account.Attributes.CurrencyCode,
-			Balance:      account.Attributes.CurrentBalance,
 			Type:         account.Attributes.Type,
 		})
 	}
@@ -236,14 +236,25 @@ func (api *Api) ListAccounts(accountType string) ([]apiAccount, error) {
 
 // TODO: Optimize search with a map
 func (api *Api) GetAccountByID(ID string) Account {
-	for _, groups := range api.Accounts {
-		for _, account := range groups {
-			if account.ID == ID {
-				return account
+	const retryLimit = 10
+	const retryDelay = 1 * time.Second
+
+	var account Account
+	for attempt := 1; attempt <= retryLimit; attempt++ {
+		for _, groups := range api.Accounts {
+			for _, acc := range groups {
+				if acc.ID == ID {
+					return acc
+				}
 			}
 		}
+
+		if attempt < retryLimit {
+			time.Sleep(retryDelay)
+		}
 	}
-	return Account{}
+
+	return account
 }
 
 func (api *Api) CashAccount() Account {
@@ -271,4 +282,11 @@ func (api *Api) CashAccount() Account {
 	}
 	zap.S().Error("No asset accounts available to use as cash account")
 	return Account{}
+}
+
+func (a *Account) GetBalance(api *Api) float64 {
+	if balance, ok := api.accountBalances[a.ID]; ok {
+		return balance
+	}
+	return 0
 }

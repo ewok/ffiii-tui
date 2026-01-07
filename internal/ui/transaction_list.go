@@ -7,7 +7,6 @@ package ui
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -53,11 +52,7 @@ type modelTransactions struct {
 }
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
-	transactions, err := api.ListTransactions("")
-	if err != nil {
-		fmt.Println("Error fetching transactions:", err)
-		os.Exit(1)
-	}
+	transactions := []firefly.Transaction{}
 
 	rows, columns := getRows(transactions)
 	t := table.New(

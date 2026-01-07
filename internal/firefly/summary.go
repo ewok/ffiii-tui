@@ -105,7 +105,6 @@ func (api *Api) GetSummary() (map[string]SummaryItem, error) {
 		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
 	}
 
-	itemCount := len(items)
 	for key, item := range items {
 		zap.L().Debug("Summary item retrieved",
 			zap.String("key", key),
@@ -115,9 +114,9 @@ func (api *Api) GetSummary() (map[string]SummaryItem, error) {
 			zap.String("value_parsed", item.ValueParsed))
 	}
 
-	zap.L().Info("Summary data retrieved successfully",
-		zap.Int("item_count", itemCount),
-		zap.Duration("total_duration", time.Since(startTime)))
+	// zap.L().Info("Summary data retrieved successfully",
+	// 	zap.Int("item_count", itemCount),
+	// 	zap.Duration("total_duration", time.Since(startTime)))
 
 	return items, nil
 }

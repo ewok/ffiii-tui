@@ -158,6 +158,7 @@ func (api *Api) ListTransactions(query string) ([]Transaction, error) {
 			if tdate == "" {
 				tdate = subTx.Date
 			}
+
 			source := api.GetAccountByID(subTx.SourceID)
 			destination := api.GetAccountByID(subTx.DestinationID)
 			category := api.GetCategoryByID(subTx.CategoryID)

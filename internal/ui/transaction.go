@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
+	"go.uber.org/zap"
 )
 
 var (
@@ -43,6 +44,8 @@ type NewTransactionMsg struct {
 type EditTransactionMsg struct {
 	Transaction firefly.Transaction
 }
+
+type ResetTransactionMsg struct{}
 
 type modelTransaction struct {
 	form   *huh.Form
@@ -79,17 +82,18 @@ type transactionAttr struct {
 	trxID string // For editing existing transactions
 }
 
-func newModelTransaction(api *firefly.Api, trx firefly.Transaction, new bool) modelTransaction {
+func newModelTransaction(api *firefly.Api, trx firefly.Transaction, newT bool) modelTransaction {
 	m := modelTransaction{
 		api:    api,
 		keymap: DefaultTransactionFormKeyMap(),
 		attr:   &transactionAttr{},
 	}
 
-	m.new = new
+	m.new = newT
 
 	now := time.Now()
 
+	zap.L().Debug("newModelTransaction", zap.Any("trx", trx))
 	if trx.TransactionID != "" {
 		m.attr.transactionType = trx.Type
 		m.attr.year = trx.Date[0:4]
@@ -152,18 +156,25 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RefreshNewAssetMsg:
 		triggerSourceCounter++
 		triggerDestinationCounter++
+		return m, Cmd(RedrawFormMsg{})
 	case RefreshNewExpenseMsg:
 		triggerDestinationCounter++
+		return m, Cmd(RedrawFormMsg{})
 	case RefreshNewRevenueMsg:
 		triggerSourceCounter++
+		return m, Cmd(RedrawFormMsg{})
 	case RefreshNewCategoryMsg:
 		triggerCategoryCounter++
+		return m, Cmd(RedrawFormMsg{})
 	case NewTransactionMsg:
 		newModel := newModelTransaction(m.api, msg.Transaction, true)
 		return newModel, SetView(newView)
 	case EditTransactionMsg:
 		newModel := newModelTransaction(m.api, msg.Transaction, false)
 		return newModel, SetView(newView)
+	case ResetTransactionMsg:
+		newModel := newModelTransaction(m.api, firefly.Transaction{}, true)
+		return newModel, SetView(transactionsView)
 	case RedrawFormMsg:
 		m.UpdateForm()
 		return m, tea.WindowSize()
@@ -261,9 +272,9 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Submit):
 			if m.form.State == huh.StateCompleted {
 				if m.new {
-					return m.CreateTransaction()
+					return m, m.CreateTransaction()
 				} else {
-					return m.UpdateTransaction()
+					return m, m.UpdateTransaction()
 				}
 			}
 		}
@@ -278,7 +289,7 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m modelTransaction) View() string {
 	if m.form.State == huh.StateCompleted {
-		return "Press Enter to submit, Ctrl+N to reset current form, or Esc to go back."
+		return "Press Enter to submit, Ctrl+N to reset current form, Ctrl+R to edit current form again, or Esc to go back."
 	}
 	return m.form.View()
 }
@@ -301,13 +312,11 @@ func (m *modelTransaction) UpdateForm() {
 				TitleFunc(m.trxTitle(i, s)),
 			huh.NewSelect[firefly.Account]().
 				Title("Source").
-				DescriptionFunc(trxBalanceDesc(&s.source)).
 				Value(&s.source).
 				Options(huh.NewOption(s.source.Name, s.source)).
 				OptionsFunc(m.trxSourceOptions(i, s)).WithHeight(5),
 			huh.NewSelect[firefly.Account]().
 				Title("Destination").
-				DescriptionFunc(trxBalanceDesc(&s.destination)).
 				Value(&s.destination).
 				Options(huh.NewOption(s.destination.Name, s.destination)).
 				OptionsFunc(m.trxDestinationOptions(i, s)).WithHeight(4),
@@ -451,7 +460,7 @@ func (m *modelTransaction) DeleteSplit(index int) tea.Cmd {
 	return tea.Sequence(Notify("Invalid split index", Warning), SetView(newView))
 }
 
-func (m *modelTransaction) CreateTransaction() (modelTransaction, tea.Cmd) {
+func (m *modelTransaction) CreateTransaction() tea.Cmd {
 	trx := []firefly.RequestTransactionSplit{}
 	for _, s := range m.splits {
 		trx = append(trx, firefly.RequestTransactionSplit{
@@ -475,14 +484,14 @@ func (m *modelTransaction) CreateTransaction() (modelTransaction, tea.Cmd) {
 		GroupTitle:           m.GroupTitle(),
 		Transactions:         trx,
 	}); err != nil {
-		newModel := newModelTransaction(m.api, firefly.Transaction{}, true)
-		return newModel, tea.Sequence(
+		return tea.Sequence(
 			Notify(err.Error(), Warning),
 			SetView(transactionsView))
 	}
 
-	newModel := newModelTransaction(m.api, firefly.Transaction{}, true)
-	return newModel, tea.Batch(SetView(transactionsView),
+	return tea.Batch(
+		SetView(transactionsView),
+		Cmd(ResetTransactionMsg{}),
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
 		Cmd(RefreshSummaryMsg{}),
@@ -491,7 +500,7 @@ func (m *modelTransaction) CreateTransaction() (modelTransaction, tea.Cmd) {
 		Cmd(RefreshRevenueInsightsMsg{}))
 }
 
-func (m *modelTransaction) UpdateTransaction() (modelTransaction, tea.Cmd) {
+func (m *modelTransaction) UpdateTransaction() tea.Cmd {
 	trx := []firefly.RequestTransactionSplit{}
 	for _, s := range m.splits {
 		trx = append(trx, firefly.RequestTransactionSplit{
@@ -515,14 +524,13 @@ func (m *modelTransaction) UpdateTransaction() (modelTransaction, tea.Cmd) {
 		GroupTitle:   m.GroupTitle(),
 		Transactions: trx,
 	}); err != nil {
-		newModel := newModelTransaction(m.api, firefly.Transaction{}, true)
-		return newModel, tea.Sequence(
+		return tea.Sequence(
 			Notify(err.Error(), Warning),
 			SetView(transactionsView))
 	}
 
-	newModel := newModelTransaction(m.api, firefly.Transaction{}, true)
-	return newModel, tea.Batch(SetView(transactionsView),
+	return tea.Batch(
+		Cmd(ResetTransactionMsg{}),
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
 		Cmd(RefreshSummaryMsg{}),
@@ -549,7 +557,7 @@ func (m *modelTransaction) trxTitle(i int, s *split) (func() string, any) {
 			m.attr.transactionType = ""
 
 			switch {
-			case stx == "asset" && (dtx == "expense" || dtx == "liabilities"):
+			case stx == "asset" && (dtx == "expense" || dtx == "liabilities" || dtx == "cash"):
 				m.attr.transactionType = "withdrawal"
 			case stx == "asset" && dtx == "asset":
 				m.attr.transactionType = "transfer"
@@ -569,16 +577,6 @@ func (m *modelTransaction) trxTitle(i int, s *split) (func() string, any) {
 	}
 
 	return func() string { return fmt.Sprint("Split: ", i) }, bindings
-}
-
-func trxBalanceDesc(a *firefly.Account) (func() string, any) {
-	return func() string {
-		switch a.Type {
-		case "asset", "liabilities":
-			return fmt.Sprintf("Balance: %.2f %s", a.Balance, a.CurrencyCode)
-		}
-		return ""
-	}, a
 }
 
 func (m *modelTransaction) trxSourceOptions(i int, s *split) (func() []huh.Option[firefly.Account], any) {
