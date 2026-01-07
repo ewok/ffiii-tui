@@ -10,22 +10,23 @@ import (
 	"io"
 	"net/http"
 	"time"
+	"unicode/utf8"
 
 	"go.uber.org/zap"
 )
 
 type SummaryItem struct {
-	Key                   string `json:"key"`
-	Title                 string `json:"title"`
-	MonetaryValue         string `json:"monetary_value"`
-	CurrencyID            string `json:"currency_id"`
-	CurrencyCode          string `json:"currency_code"`
-	CurrencySymbol        string `json:"currency_symbol,omitempty"`
-	CurrencyDecimalPlaces int    `json:"currency_decimal_places"`
-	NoAvailableBudgets    bool   `json:"no_available_budgets,omitempty"`
-	ValueParsed           string `json:"value_parsed"`
-	LocalIcon             string `json:"local_icon"`
-	SubTitle              string `json:"sub_title"`
+	Key                   string  `json:"key"`
+	Title                 string  `json:"title"`
+	MonetaryValue         float64 `json:"monetary_value,string"`
+	CurrencyID            string  `json:"currency_id"`
+	CurrencyCode          string  `json:"currency_code"`
+	CurrencySymbol        string  `json:"currency_symbol,omitempty"`
+	CurrencyDecimalPlaces int     `json:"currency_decimal_places"`
+	NoAvailableBudgets    bool    `json:"no_available_budgets,omitempty"`
+	ValueParsed           string  `json:"value_parsed"`
+	LocalIcon             string  `json:"local_icon"`
+	SubTitle              string  `json:"sub_title"`
 }
 
 func (api *Api) GetSummary() (map[string]SummaryItem, error) {
@@ -109,7 +110,7 @@ func (api *Api) GetSummary() (map[string]SummaryItem, error) {
 		zap.L().Debug("Summary item retrieved",
 			zap.String("key", key),
 			zap.String("title", item.Title),
-			zap.String("monetary_value", item.MonetaryValue),
+			zap.Float64("monetary_value", item.MonetaryValue),
 			zap.String("currency_code", item.CurrencyCode),
 			zap.String("value_parsed", item.ValueParsed))
 	}
@@ -122,10 +123,24 @@ func (api *Api) GetSummary() (map[string]SummaryItem, error) {
 }
 
 func (api *Api) UpdateSummary() error {
-    summary, err := api.GetSummary()
-    if err != nil {
-        return fmt.Errorf("failed to get summary: %v", err)
-    }
-    api.Summary = summary
-    return nil
+	summary, err := api.GetSummary()
+	if err != nil {
+		return fmt.Errorf("failed to get summary: %v", err)
+	}
+	api.Summary = summary
+	return nil
+}
+
+func (api *Api) GetMaxWidth() int {
+	if len(api.Summary) < 1 {
+		api.UpdateSummary()
+	}
+	maxLength := 0
+	for _, s := range api.Summary {
+		l := utf8.RuneCountInString(s.Title) + utf8.RuneCountInString(s.ValueParsed)
+		if l > maxLength {
+			maxLength = l
+		}
+	}
+	return maxLength + 1
 }

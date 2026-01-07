@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"ffiii-tui/internal/firefly"
 
@@ -30,7 +30,8 @@ type (
 )
 
 type summaryItem struct {
-	title, value, monetaryValue string
+	title, value  string
+	monetaryValue float64
 }
 
 func (i summaryItem) FilterValue() string { return i.title }
@@ -45,26 +46,26 @@ func (d summaryDelegate) Render(w io.Writer, m list.Model, index int, listItem l
 	if !ok {
 		return
 	}
-	v, err := strconv.ParseFloat(i.monetaryValue, 64)
-	if err != nil {
-		v = 0.0
-	}
+
 	fn := greenStyle.Render
-	if v < 0 {
+	if i.monetaryValue < 0 {
 		fn = redStyle.Render
-	} else if v == 0 {
+	} else if i.monetaryValue == 0 {
 		fn = normalStyle.Render
 	}
 
 	styledTitle := normalStyle.Render(i.title)
 	styledValue := fn(i.value)
 
-	availableWidth := 40
+	availableWidth := m.Width() + 4
 
-	valueLen := len(i.value)
-	titleLen := len(i.title)
+	valueLen := utf8.RuneCountInString(i.value)
+	titleLen := utf8.RuneCountInString(i.title)
 
 	spacingNeeded := max(availableWidth-titleLen-valueLen, 1)
+	if spacingNeeded == 1 {
+		m.SetWidth(titleLen + valueLen + 5)
+	}
 
 	str := fmt.Sprintf("%s%s%s", styledTitle,
 		strings.Repeat(" ", spacingNeeded),
@@ -90,6 +91,7 @@ func newModelSummary(api *firefly.Api) modelSummary {
 	m.list.SetShowHelp(false)
 	m.list.DisableQuitKeybindings()
 	m.list.SetShowPagination(false)
+	m.list.SetWidth(api.GetMaxWidth())
 	return m
 }
 
@@ -98,7 +100,7 @@ func (m modelSummary) Init() tea.Cmd {
 }
 
 func (m modelSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
+	switch msg.(type) {
 	case RefreshSummaryMsg:
 		return m, func() tea.Msg {
 			err := m.api.UpdateSummary()
@@ -115,9 +117,9 @@ func (m modelSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list.SetItems(getSummaryItems(m.api)),
 			tea.WindowSize())
 	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
+		_, v := baseStyle.GetFrameSize()
 		l := len(m.list.Items())
-		m.list.SetSize(msg.Width-h, l+v+1)
+		m.list.SetHeight(l + v + 1)
 		summarySize = m.list.Height()
 	}
 	return m, nil
@@ -141,10 +143,8 @@ func getSummaryItems(api *firefly.Api) []list.Item {
 	slices.SortFunc(items, func(a, b list.Item) int {
 		sa := a.(summaryItem)
 		sb := b.(summaryItem)
-		na, _ := strconv.ParseFloat(sa.monetaryValue, 64)
-		nb, _ := strconv.ParseFloat(sb.monetaryValue, 64)
-		if na != nb {
-			if na < nb {
+		if sa.monetaryValue != sb.monetaryValue {
+			if sa.monetaryValue < sb.monetaryValue {
 				return 1
 			}
 			return -1

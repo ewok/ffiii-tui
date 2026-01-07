@@ -7,7 +7,6 @@ package firefly
 import (
 	"fmt"
 	"maps"
-	"strconv"
 	"strings"
 
 	"go.uber.org/zap"
@@ -29,11 +28,11 @@ type apiAccount struct {
 }
 
 type apiAccountAttr struct {
-	Active         bool   `json:"active"`
-	Name           string `json:"name"`
-	CurrencyCode   string `json:"currency_code"`
-	CurrentBalance string `json:"current_balance"`
-	Type           string `json:"type"`
+	Active         bool    `json:"active"`
+	Name           string  `json:"name"`
+	CurrencyCode   string  `json:"currency_code"`
+	CurrentBalance float64 `json:"current_balance,string"`
+	Type           string  `json:"type"`
 }
 
 type NewLiability struct {
@@ -195,16 +194,11 @@ func (api *Api) UpdateAccounts(accType string) error {
 	accs := make(map[string][]Account, 0)
 
 	for _, account := range accounts {
-		balance, err := strconv.ParseFloat(account.Attributes.CurrentBalance, 64)
-		if err != nil {
-			balance = 0.0
-		}
-
 		accs[account.Attributes.Type] = append(accs[account.Attributes.Type], Account{
 			ID:           account.ID,
 			Name:         account.Attributes.Name,
 			CurrencyCode: account.Attributes.CurrencyCode,
-			Balance:      balance,
+			Balance:      account.Attributes.CurrentBalance,
 			Type:         account.Attributes.Type,
 		})
 	}

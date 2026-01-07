@@ -7,7 +7,6 @@ package firefly
 import (
 	"fmt"
 	"slices"
-	"strconv"
 )
 
 type Transaction struct {
@@ -65,10 +64,10 @@ type ResponseTransactionSplit struct {
 	PrimaryCurrencyCode          string  `json:"primary_currency_code"`
 	PrimaryCurrencySymbol        string  `json:"primary_currency_symbol"`
 	PrimaryCurrencyDecimalPlaces int     `json:"primary_currency_decimal_places"`
-	Amount                       string  `json:"amount"`
-	PCAmount                     string  `json:"pc_amount"`
-	ForeignAmount                string  `json:"foreign_amount"`
-	PCForeignAmount              string  `json:"pc_foreign_amount"`
+	Amount                       float64 `json:"amount,string"`
+	PCAmount                     float64 `json:"pc_amount,string"`
+	ForeignAmount                float64 `json:"foreign_amount,string"`
+	PCForeignAmount              float64 `json:"pc_foreign_amount,string"`
 	SourceBalanceAfter           string  `json:"source_balance_after"`
 	PCSourceBalanceAfter         string  `json:"pc_source_balance_after"`
 	DestinationBalanceAfter      string  `json:"destination_balance_after"`
@@ -153,14 +152,6 @@ func (api *Api) ListTransactions(query string) ([]Transaction, error) {
 			tdate  string
 		)
 		for _, subTx := range t.Attributes.Transactions {
-			amount, err := strconv.ParseFloat(subTx.Amount, 64)
-			if err != nil {
-				amount = 0
-			}
-			foreignAmount, err := strconv.ParseFloat(subTx.ForeignAmount, 64)
-			if err != nil {
-				foreignAmount = 0
-			}
 			if ttype == "" {
 				ttype = subTx.Type
 			}
@@ -177,8 +168,8 @@ func (api *Api) ListTransactions(query string) ([]Transaction, error) {
 				Category:             category,
 				Currency:             subTx.CurrencyCode,
 				ForeignCurrency:      subTx.ForeignCurrencyCode,
-				Amount:               amount,
-				ForeignAmount:        foreignAmount,
+				Amount:               subTx.Amount,
+				ForeignAmount:        subTx.ForeignAmount,
 				Description:          subTx.Description,
 				TransactionJournalID: subTx.TransactionJournalID,
 			},
