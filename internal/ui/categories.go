@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type (
@@ -56,6 +55,7 @@ type modelCategories struct {
 	focus  bool
 	sorted int
 	keymap CategoryKeyMap
+	styles Styles
 }
 
 func newModelCategories(api *firefly.Api) modelCategories {
@@ -65,6 +65,7 @@ func newModelCategories(api *firefly.Api) modelCategories {
 		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
 		api:    api,
 		keymap: DefaultCategoryKeyMap(),
+		styles: DefaultStyles(),
 	}
 	m.list.Title = "Categories"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
@@ -86,7 +87,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateCategoriesInsights()
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return CategoriesUpdateMsg{}
 		}
@@ -94,7 +95,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateCategories()
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return CategoriesUpdateMsg{}
 		}
@@ -113,12 +114,12 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewCategoryMsg:
 		err := m.api.CreateCategory(msg.Category, "")
 		if err != nil {
-			return m, Notify(err.Error(), Warning)
+			return m, Notify(err.Error(), Warn)
 		}
 		return m, Cmd(RefreshCategoriesMsg{})
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
+	case UpdatePositions:
+		h, v := m.styles.Base.GetFrameSize()
+		m.list.SetSize(globalWidth-h, globalHeight-v-topSize)
 	}
 
 	if !m.focus {
@@ -137,9 +138,9 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Filter):
 			i, ok := m.list.SelectedItem().(categoryItem)
 			if ok {
-			    if i.category == "Total" {
-                    return m, nil
-                }
+				if i.category == "Total" {
+					return m, nil
+				}
 				return m, Cmd(FilterMsg{Category: i.category})
 			}
 			return m, nil
@@ -180,7 +181,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelCategories) View() string {
-	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
+	return m.styles.LeftPanel.Render(m.list.View())
 }
 
 func (m *modelCategories) Focus() {

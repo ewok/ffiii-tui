@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type (
@@ -42,6 +41,7 @@ type modelRevenues struct {
 	focus  bool
 	sorted bool
 	keymap RevenueKeyMap
+	styles Styles
 }
 
 func newModelRevenues(api *firefly.Api) modelRevenues {
@@ -51,6 +51,7 @@ func newModelRevenues(api *firefly.Api) modelRevenues {
 		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
 		api:    api,
 		keymap: DefaultRevenueKeyMap(),
+		styles: DefaultStyles(),
 	}
 	m.list.Title = "Revenue accounts"
 	m.list.SetFilteringEnabled(false)
@@ -71,7 +72,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateRevenueInsights()
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return RevenuesUpdateMsg{}
 		}
@@ -79,7 +80,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("revenue")
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return RevenuesUpdateMsg{}
 		}
@@ -96,12 +97,12 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewRevenueMsg:
 		err := m.api.CreateRevenueAccount(msg.Account)
 		if err != nil {
-			return m, Notify(err.Error(), Warning)
+			return m, Notify(err.Error(), Warn)
 		}
 		return m, Cmd(RefreshRevenuesMsg{})
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
+	case UpdatePositions:
+		h, v := m.styles.Base.GetFrameSize()
+		m.list.SetSize(globalWidth-h, globalHeight-v-topSize)
 	}
 
 	if !m.focus {
@@ -155,7 +156,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelRevenues) View() string {
-	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
+	return m.styles.LeftPanel.Render(m.list.View())
 }
 
 func (m *modelRevenues) Focus() {

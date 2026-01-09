@@ -14,7 +14,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 var promptValue string
@@ -47,6 +46,7 @@ type modelLiabilities struct {
 	api    *firefly.Api
 	focus  bool
 	keymap LiabilityKeyMap
+	styles Styles
 }
 
 func newModelLiabilities(api *firefly.Api) modelLiabilities {
@@ -56,6 +56,7 @@ func newModelLiabilities(api *firefly.Api) modelLiabilities {
 		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
 		api:    api,
 		keymap: DefaultLiabilityKeyMap(),
+		styles: DefaultStyles(),
 	}
 	m.list.Title = "Liabilities"
 	m.list.SetShowStatusBar(false)
@@ -76,10 +77,10 @@ func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case RefreshLiabilitiesMsg:
 		return m, func() tea.Msg {
-            err := m.api.UpdateAccounts("liabilities")
-            if err != nil {
-                return Notify(err.Error(), Warning)
-            }
+			err := m.api.UpdateAccounts("liabilities")
+			if err != nil {
+				return Notify(err.Error(), Warn)
+			}
 			return LiabilitiesUpdateMsg{}
 		}
 	case LiabilitiesUpdateMsg:
@@ -95,13 +96,13 @@ func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Direction:    msg.Direction,
 		})
 		if err != nil {
-			return m, Notify(err.Error(), Warning)
+			return m, Notify(err.Error(), Warn)
 		}
 		promptValue = ""
 		return m, Cmd(RefreshLiabilitiesMsg{})
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
+	case UpdatePositions:
+		h, v := m.styles.Base.GetFrameSize()
+		m.list.SetSize(globalWidth-h, globalHeight-v-topSize)
 	}
 
 	if !m.focus {
@@ -147,7 +148,7 @@ func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelLiabilities) View() string {
-	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
+	return m.styles.LeftPanel.Render(m.list.View())
 }
 
 func (m *modelLiabilities) Focus() {
@@ -192,10 +193,10 @@ func CmdPromptNewLiability(backCmd tea.Cmd) tea.Cmd {
 					if acc != "" && cur != "" {
 						cmds = append(cmds, Cmd(NewLiabilityMsg{Account: acc, Currency: cur, Type: typ, Direction: dir}))
 					} else {
-						cmds = append(cmds, Notify("Invalid liability name or currency", Warning))
+						cmds = append(cmds, Notify("Invalid liability name or currency", Warn))
 					}
 				} else {
-					cmds = append(cmds, Notify("Invalid liability request", Warning))
+					cmds = append(cmds, Notify("Invalid liability request", Warn))
 				}
 
 			}

@@ -49,6 +49,7 @@ type modelTransactions struct {
 	currentFilter   string
 	focus           bool
 	keymap          TransactionsKeyMap
+	styles          Styles
 }
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
@@ -78,6 +79,7 @@ func newModelTransactions(api *firefly.Api) modelTransactions {
 		transactions: transactions,
 		api:          api,
 		keymap:       DefaultTransactionsKeyMap(),
+		styles:       DefaultStyles(),
 	}
 	return m
 }
@@ -211,7 +213,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if err != nil {
 					return NotifyMsg{
 						Message: err.Error(),
-						Level:   Warning,
+						Level:   Warn,
 					}
 				}
 			} else {
@@ -219,7 +221,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if err != nil {
 					return NotifyMsg{
 						Message: err.Error(),
-						Level:   Warning,
+						Level:   Warn,
 					}
 				}
 			}
@@ -230,11 +232,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case TransactionsUpdateMsg:
 		m.transactions = msg.Transactions
-		return m, Cmd(FilterMsg{
+		return m, tea.Batch(Cmd(FilterMsg{
 			Account:  m.currentAccount,
 			Category: m.currentCategory,
 			Query:    m.currentFilter,
-		})
+		}), Notify("Transactions updated.", Log))
 
 	case DeleteTransactionMsg:
 		id := msg.Transaction.TransactionID
@@ -242,7 +244,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			err := m.api.DeleteTransaction(id)
 			if err != nil {
 				return m, tea.Batch(
-					Notify(fmt.Sprint("Error deleting transaction, ", err.Error()), Warning),
+					Notify(fmt.Sprint("Error deleting transaction, ", err.Error()), Warn),
 					SetView(transactionsView))
 			}
 			return m, tea.Batch(
@@ -256,10 +258,10 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Cmd(RefreshRevenueInsightsMsg{}))
 		}
 		return m, SetView(transactionsView)
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.table.SetWidth(msg.Width - h)
-		m.table.SetHeight(msg.Height - v - topSize)
+	case UpdatePositions:
+		h, v := m.styles.Base.GetFrameSize()
+		m.table.SetWidth(globalWidth - h - leftSize)
+		m.table.SetHeight(globalHeight - v - topSize)
 	}
 
 	if !m.focus {
@@ -305,7 +307,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.NewFromTransaction):
 			trx, err := m.GetCurrentTransaction()
 			if err != nil {
-				return m, Notify(err.Error(), Warning)
+				return m, Notify(err.Error(), Warn)
 			}
 			return m, tea.Sequence(
 				Cmd(NewTransactionMsg{Transaction: trx}),
@@ -327,18 +329,18 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Select):
 			trx, err := m.GetCurrentTransaction()
 			if err != nil {
-				return m, Notify(err.Error(), Warning)
+				return m, Notify(err.Error(), Warn)
 			}
 			return m, tea.Sequence(
 				Cmd(EditTransactionMsg{Transaction: trx}),
 				SetView(newView))
 		case key.Matches(msg, m.keymap.Delete):
 			if len(m.table.Rows()) < 1 {
-				return m, Notify("No transactions.", Warning)
+				return m, Notify("No transactions.", Warn)
 			}
 			row := m.table.SelectedRow()
 			if row == nil {
-				return m, Notify("Transaction not selected.", Warning)
+				return m, Notify("Transaction not selected.", Warn)
 			}
 			id, err := strconv.Atoi(row[0])
 			if err != nil {

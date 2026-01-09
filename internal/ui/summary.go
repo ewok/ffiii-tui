@@ -18,12 +18,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var (
-	redStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
-	greenStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
-	normalStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#DDDADA"))
-)
-
 type (
 	RefreshSummaryMsg struct{}
 	SummaryUpdateMsg  struct{}
@@ -32,6 +26,7 @@ type (
 type summaryItem struct {
 	title, value  string
 	monetaryValue float64
+	style         lipgloss.Style
 }
 
 func (i summaryItem) FilterValue() string { return i.title }
@@ -47,15 +42,8 @@ func (d summaryDelegate) Render(w io.Writer, m list.Model, index int, listItem l
 		return
 	}
 
-	fn := greenStyle.Render
-	if i.monetaryValue < 0 {
-		fn = redStyle.Render
-	} else if i.monetaryValue == 0 {
-		fn = normalStyle.Render
-	}
-
-	styledTitle := normalStyle.Render(i.title)
-	styledValue := fn(i.value)
+	styledTitle := i.title
+	styledValue := i.style.Render(i.value)
 
 	availableWidth := m.Width() + 4
 
@@ -67,23 +55,26 @@ func (d summaryDelegate) Render(w io.Writer, m list.Model, index int, listItem l
 		m.SetWidth(titleLen + valueLen + 5)
 	}
 
-	str := fmt.Sprintf("%s%s%s", styledTitle,
+	str := fmt.Sprintf(" %s%s%s", styledTitle,
 		strings.Repeat(" ", spacingNeeded),
 		styledValue)
 
-	fmt.Fprint(w, itemStyle.Render(str))
+	fmt.Fprint(w, str)
 }
 
 type modelSummary struct {
-	list list.Model
-	api  *firefly.Api
+	list   list.Model
+	api    *firefly.Api
+	styles Styles
 }
 
 func newModelSummary(api *firefly.Api) modelSummary {
-	items := getSummaryItems(api)
+	styles := DefaultStyles()
+	items := getSummaryItems(api, styles)
 	m := modelSummary{
-		list: list.New(items, summaryDelegate{}, 0, 0),
-		api:  api,
+		list:   list.New(items, summaryDelegate{}, 0, 0),
+		api:    api,
+		styles: styles,
 	}
 	m.list.Title = "Summary"
 	m.list.SetShowStatusBar(false)
@@ -107,17 +98,17 @@ func (m modelSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err != nil {
 				return NotifyMsg{
 					Message: err.Error(),
-					Level:   Warning,
+					Level:   Warn,
 				}
 			}
 			return SummaryUpdateMsg{}
 		}
 	case SummaryUpdateMsg:
 		return m, tea.Sequence(
-			m.list.SetItems(getSummaryItems(m.api)),
+			m.list.SetItems(getSummaryItems(m.api, m.styles)),
 			tea.WindowSize())
-	case tea.WindowSizeMsg:
-		_, v := baseStyle.GetFrameSize()
+	case UpdatePositions:
+		_, v := m.styles.Base.GetFrameSize()
 		l := len(m.list.Items())
 		m.list.SetHeight(l + v + 1)
 		summarySize = m.list.Height()
@@ -126,16 +117,26 @@ func (m modelSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelSummary) View() string {
-	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
+	return m.styles.LeftPanel.Render(m.list.View())
 }
 
-func getSummaryItems(api *firefly.Api) []list.Item {
+func getSummaryItems(api *firefly.Api, styles Styles) []list.Item {
+	var style lipgloss.Style
 	items := []list.Item{}
 	for _, si := range api.Summary {
+		switch {
+		case si.MonetaryValue < 0:
+			style = styles.Withdrawal
+		case si.MonetaryValue > 0:
+			style = styles.Deposit
+		default:
+			style = styles.Normal
+		}
 		item := summaryItem{
 			title:         si.Title,
 			value:         si.ValueParsed,
 			monetaryValue: si.MonetaryValue,
+			style:         style,
 		}
 		items = append(items, item)
 	}

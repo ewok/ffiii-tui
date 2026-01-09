@@ -457,7 +457,7 @@ func (m *modelTransaction) DeleteSplit(index int) tea.Cmd {
 		m.splits = append(m.splits[:index], m.splits[index+1:]...)
 		return tea.Sequence(RedrawForm(), SetView(newView))
 	}
-	return tea.Sequence(Notify("Invalid split index", Warning), SetView(newView))
+	return tea.Sequence(Notify("Invalid split index", Warn), SetView(newView))
 }
 
 func (m *modelTransaction) CreateTransaction() tea.Cmd {
@@ -485,12 +485,16 @@ func (m *modelTransaction) CreateTransaction() tea.Cmd {
 		Transactions:         trx,
 	}); err != nil {
 		return tea.Sequence(
-			Notify(err.Error(), Warning),
+			Notify(err.Error(), Warn),
 			SetView(transactionsView))
 	}
 
 	return tea.Batch(
 		SetView(transactionsView),
+		Cmd(NotifyMsg{
+			Message: "Transaction created successfully",
+			Level:   Log,
+		}),
 		Cmd(ResetTransactionMsg{}),
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
@@ -525,7 +529,7 @@ func (m *modelTransaction) UpdateTransaction() tea.Cmd {
 		Transactions: trx,
 	}); err != nil {
 		return tea.Sequence(
-			Notify(err.Error(), Warning),
+			Notify(err.Error(), Warn),
 			SetView(transactionsView))
 	}
 

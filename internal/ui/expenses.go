@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type (
@@ -42,6 +41,7 @@ type modelExpenses struct {
 	focus  bool
 	sorted bool
 	keymap ExpenseKeyMap
+	styles Styles
 }
 
 func newModelExpenses(api *firefly.Api) modelExpenses {
@@ -51,6 +51,7 @@ func newModelExpenses(api *firefly.Api) modelExpenses {
 		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
 		api:    api,
 		keymap: DefaultExpenseKeyMap(),
+		styles: DefaultStyles(),
 	}
 	m.list.Title = "Expense accounts"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
@@ -72,7 +73,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateExpenseInsights()
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return ExpensesUpdatedMsg{}
 		}
@@ -80,7 +81,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("expense")
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return ExpensesUpdatedMsg{}
 		}
@@ -97,12 +98,12 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewExpenseMsg:
 		err := m.api.CreateExpenseAccount(msg.Account)
 		if err != nil {
-			return m, Notify(err.Error(), Warning)
+			return m, Notify(err.Error(), Warn)
 		}
 		return m, Cmd(RefreshExpensesMsg{})
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
+	case UpdatePositions:
+		h, v := m.styles.Base.GetFrameSize()
+		m.list.SetSize(globalWidth-h, globalHeight-v-topSize)
 	}
 
 	if !m.focus {
@@ -121,9 +122,9 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Filter):
 			i, ok := m.list.SelectedItem().(expenseItem)
 			if ok {
-			    if i.account == "Total" {
-                    return m, nil
-                }
+				if i.account == "Total" {
+					return m, nil
+				}
 				return m, Cmd(FilterMsg{Account: i.account})
 			}
 			return m, nil
@@ -156,7 +157,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelExpenses) View() string {
-	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
+	return m.styles.LeftPanel.Render(m.list.View())
 }
 
 func (m *modelExpenses) Focus() {

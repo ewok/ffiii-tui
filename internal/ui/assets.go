@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type (
@@ -42,6 +41,7 @@ type modelAssets struct {
 	api    *firefly.Api
 	focus  bool
 	keymap AssetKeyMap
+	styles Styles
 }
 
 func newModelAssets(api *firefly.Api) modelAssets {
@@ -51,6 +51,7 @@ func newModelAssets(api *firefly.Api) modelAssets {
 		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
 		api:    api,
 		keymap: DefaultAssetKeyMap(),
+		styles: DefaultStyles(),
 	}
 	m.list.Title = "Asset accounts"
 	m.list.SetShowStatusBar(false)
@@ -74,7 +75,7 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("asset")
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return AssetsUpdateMsg{}
 		}
@@ -86,12 +87,12 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewAssetMsg:
 		err := m.api.CreateAssetAccount(msg.Account, msg.Currency)
 		if err != nil {
-			return m, Notify(err.Error(), Warning)
+			return m, Notify(err.Error(), Warn)
 		}
 		return m, Cmd(RefreshAssetsMsg{})
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-topSize-summarySize)
+	case UpdatePositions:
+		h, v := m.styles.Base.GetFrameSize()
+		m.list.SetSize(globalWidth-h, globalHeight-v-topSize-summarySize)
 	}
 
 	if !m.focus {
@@ -146,7 +147,7 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelAssets) View() string {
-	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
+	return m.styles.LeftPanel.Render(m.list.View())
 }
 
 func (m *modelAssets) Focus() {
@@ -186,10 +187,10 @@ func CmdPromptNewAsset(backCmd tea.Cmd) tea.Cmd {
 					if acc != "" && cur != "" {
 						cmds = append(cmds, Cmd(NewAssetMsg{Account: acc, Currency: cur}))
 					} else {
-						cmds = append(cmds, Notify("Invalid asset name or currency", Warning))
+						cmds = append(cmds, Notify("Invalid asset name or currency", Warn))
 					}
 				} else {
-					cmds = append(cmds, Notify("Invalid asset name or currency", Warning))
+					cmds = append(cmds, Notify("Invalid asset name or currency", Warn))
 				}
 			}
 			cmds = append(cmds, backCmd)
