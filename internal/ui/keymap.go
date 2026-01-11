@@ -118,9 +118,9 @@ type TransactionsKeyMap struct {
 	Filter             key.Binding
 	ResetFilter        key.Binding
 	Search             key.Binding
-	NewEdit            key.Binding
+	NewView            key.Binding
 	Select             key.Binding
-	NewFromTransaction key.Binding
+	NewTransactionFrom key.Binding
 	Delete             key.Binding
 	ToggleFullView     key.Binding
 
@@ -501,11 +501,11 @@ func DefaultTransactionsKeyMap() TransactionsKeyMap {
 			key.WithKeys("s"),
 			key.WithHelp("s", "search transactions"),
 		),
-		NewEdit: key.NewBinding(
+		NewView: key.NewBinding(
 			key.WithKeys("n"),
 			key.WithHelp("n", "new/edit transaction"),
 		),
-		NewFromTransaction: key.NewBinding(
+		NewTransactionFrom: key.NewBinding(
 			key.WithKeys("N"),
 			key.WithHelp("N", "new transaction from..."),
 		),
@@ -620,8 +620,8 @@ func (k TransactionsKeyMap) ShortHelp() []key.Binding {
 		k.Search,
 		k.Filter,
 		k.ResetFilter,
-		k.NewEdit,
-		k.NewFromTransaction,
+		k.NewView,
+		k.NewTransactionFrom,
 		k.Select,
 		k.Delete,
 		k.Refresh,

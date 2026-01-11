@@ -164,3 +164,7 @@ func (api *Api) GetTotalSpentEarnedCategories() (spent, earned float64) {
 	}
 	return
 }
+
+func (c *Category) IsEmpty() bool {
+	return *c == Category{}
+}

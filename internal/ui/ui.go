@@ -7,6 +7,7 @@ package ui
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"ffiii-tui/internal/firefly"
@@ -20,7 +21,7 @@ import (
 )
 
 var (
-	topSize             = 4
+	topSize             = 5
 	leftSize            = 10
 	summarySize         = 15
 	fullTransactionView = false
@@ -87,7 +88,7 @@ func Show(api *firefly.Api) {
 	m := modelUI{
 		api:          api,
 		transactions: newModelTransactions(api),
-		new:          newModelTransaction(api, firefly.Transaction{}, true),
+		new:          newModelTransaction(api),
 		assets:       newModelAssets(api),
 		categories:   newModelCategories(api),
 		expenses:     newModelExpenses(api),
@@ -178,18 +179,17 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		}
 	case UpdatePositions:
-		if m.help.ShowAll {
-			topSize = 4 + lipgloss.Height(m.HelpView())
-		} else {
-			topSize = 4
-		}
-
 		h, _ := m.styles.Base.GetFrameSize()
+		topSize = 5
+
+		if m.help.ShowAll {
+			topSize += lipgloss.Height(m.HelpView())
+		}
 
 		switch m.state {
 		case transactionsView, assetsView:
 			if fullTransactionView {
-				leftSize = globalWidth
+				leftSize = 0
 			} else {
 				leftSize = max(
 					lipgloss.Width(m.assets.View()),
@@ -206,6 +206,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			leftSize = lipgloss.Width(m.liabilities.View()) + h
 		}
 		m.Width = globalWidth - h
+
 	case tea.WindowSizeMsg:
 		globalWidth = msg.Width
 		globalHeight = msg.Height
@@ -340,13 +341,11 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m modelUI) View() string {
 	// TODO: Refactor, too complicated
-	s := ""
+	var s strings.Builder
 
 	// TODO: Move to model
 	if m.prompt.focus {
-		s = s + m.styles.PromptFocused.Render(m.prompt.View()) + "\n"
-	} else if m.notify.text != "" {
-		s = s + m.styles.PromptFocused.Render(m.notify.View()) + "\n"
+		s.WriteString(m.prompt.View() + "\n")
 	} else {
 		header := " ffiii-tui"
 
@@ -368,66 +367,69 @@ func (m modelUI) View() string {
 					m.api.StartDate.Format(time.DateOnly),
 					m.api.EndDate.Format(time.DateOnly))
 			}
-			if m.transactions.currentAccount != "" {
-				header = header + " | Account: " + m.transactions.currentAccount
+			if !m.transactions.currentAccount.IsEmpty() {
+				header = header + " | Account: " + m.transactions.currentAccount.Name
 			}
-			if m.transactions.currentCategory != "" {
-				header = header + " | Category: " + m.transactions.currentCategory
+			if !m.transactions.currentCategory.IsEmpty() {
+				header = header + " | Category: " + m.transactions.currentCategory.Name
 			}
 			if m.transactions.currentFilter != "" {
 				header = header + " | Filter: " + m.transactions.currentFilter
 			}
 		}
-		s = s + headerRenderer.Width(m.Width).Render(header) + "\n"
+
+		s.WriteString(headerRenderer.Width(m.Width).Render(header) + "\n")
 	}
 
 	switch m.state {
 	case transactionsView:
 		if fullTransactionView {
-			s = s + m.styles.BaseFocused.Render(m.transactions.View())
+			s.WriteString(m.styles.BaseFocused.Render(m.transactions.View()))
 		} else {
-			s = s + lipgloss.JoinHorizontal(lipgloss.Top,
+			s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
 				m.styles.Base.Render(
 					lipgloss.JoinVertical(lipgloss.Left, m.summary.View(), m.assets.View())),
-				m.styles.BaseFocused.Render(m.transactions.View()))
+				m.styles.BaseFocused.Render(m.transactions.View())))
 		}
 	case assetsView:
-		s = s + lipgloss.JoinHorizontal(
+		s.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			m.styles.BaseFocused.Render(
 				lipgloss.JoinVertical(lipgloss.Left, m.summary.View(), m.assets.View())),
-			m.styles.Base.Render(m.transactions.View()))
+			m.styles.Base.Render(m.transactions.View())))
 	case categoriesView:
-		s = s + lipgloss.JoinHorizontal(
+		s.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			m.styles.BaseFocused.Render(m.categories.View()),
-			m.styles.Base.Render(m.transactions.View()))
+			m.styles.Base.Render(m.transactions.View())))
 	case expensesView:
-		s = s + lipgloss.JoinHorizontal(
+		s.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			m.styles.BaseFocused.Render(m.expenses.View()),
-			m.styles.Base.Render(m.transactions.View()))
+			m.styles.Base.Render(m.transactions.View())))
 	case revenuesView:
-		s = s + lipgloss.JoinHorizontal(
+		s.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			m.styles.BaseFocused.Render(m.revenues.View()),
-			m.styles.Base.Render(m.transactions.View()))
+			m.styles.Base.Render(m.transactions.View())))
 	case liabilitiesView:
-		s = s + lipgloss.JoinHorizontal(
+		s.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			m.styles.BaseFocused.Render(m.liabilities.View()),
-			m.styles.Base.Render(m.transactions.View()))
+			m.styles.Base.Render(m.transactions.View())))
 	case newView:
-		s = s + lipgloss.JoinHorizontal(
+		s.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			m.styles.Base.Render(
 				lipgloss.JoinVertical(lipgloss.Left, m.summary.View(), m.assets.View())),
-			m.styles.BaseFocused.Render(m.new.View()))
+			m.styles.BaseFocused.Render(m.new.View())))
 	}
+	s.WriteString("\n")
 
-	s = s + "\n" + m.help.Styles.ShortKey.Render(m.HelpView())
+	s.WriteString(m.notify.View() + "\n")
+	s.WriteString(m.help.Styles.ShortKey.Render(m.HelpView()))
 
-	return s
+	return s.String()
 }
 
 func (m *modelUI) HelpView() string {

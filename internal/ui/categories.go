@@ -15,6 +15,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+var totalCategory = firefly.Category{Name: "Total", CurrencyCode: ""}
+
 type (
 	RefreshCategoriesMsg       struct{}
 	RefreshCategoryInsightsMsg struct{}
@@ -25,29 +27,29 @@ type (
 )
 
 type categoryItem struct {
-	category, currency string
-	spent              float64
-	earned             float64
+	category firefly.Category
+	spent    float64
+	earned   float64
 }
 
-func (i categoryItem) Title() string { return i.category }
+func (i categoryItem) Title() string { return i.category.Name }
 func (i categoryItem) Description() string {
 	s := ""
 	if i.spent != 0 {
-		s += fmt.Sprintf("Spent: %.2f %s", i.spent, i.currency)
+		s += fmt.Sprintf("Spent: %.2f %s", i.spent, i.category.CurrencyCode)
 	}
 	if i.earned != 0 {
 		if s != "" {
 			s += " | "
 		}
-		s += fmt.Sprintf("Earned: %.2f %s", i.earned, i.currency)
+		s += fmt.Sprintf("Earned: %.2f %s", i.earned, i.category.CurrencyCode)
 	}
 	if s == "" {
 		s = "No transactions"
 	}
 	return s
 }
-func (i categoryItem) FilterValue() string { return i.category }
+func (i categoryItem) FilterValue() string { return i.category.Name }
 
 type modelCategories struct {
 	list   list.Model
@@ -59,6 +61,9 @@ type modelCategories struct {
 }
 
 func newModelCategories(api *firefly.Api) modelCategories {
+	// Set the currency code for the total category
+	totalCategory.CurrencyCode = api.PrimaryCurrency().Code
+
 	items := getCategoriesItems(api, 0)
 
 	m := modelCategories{
@@ -104,8 +109,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(
 			m.list.SetItems(getCategoriesItems(m.api, m.sorted)),
 			m.list.InsertItem(0, categoryItem{
-				category: "Total",
-				currency: m.api.PrimaryCurrency().Code,
+				category: totalCategory,
 				spent:    tSpent,
 				earned:   tEarned,
 			}),
@@ -141,7 +145,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Filter):
 			i, ok := m.list.SelectedItem().(categoryItem)
 			if ok {
-				if i.category == "Total" {
+				if i.category == totalCategory {
 					return m, nil
 				}
 				return m, Cmd(FilterMsg{Category: i.category})
@@ -209,8 +213,7 @@ func getCategoriesItems(api *firefly.Api, sorted int) []list.Item {
 			continue
 		}
 		items = append(items, categoryItem{
-			category: i.Name,
-			currency: i.CurrencyCode,
+			category: i,
 			spent:    spent,
 			earned:   earned,
 		})

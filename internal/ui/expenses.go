@@ -15,6 +15,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+var totalExpenseAccount = firefly.Account{Name: "Total", CurrencyCode: ""}
+
 type (
 	RefreshExpensesMsg        struct{}
 	RefreshExpenseInsightsMsg struct{}
@@ -25,15 +27,15 @@ type (
 )
 
 type expenseItem struct {
-	account, currency string
-	spent             float64
+	account firefly.Account
+	spent   float64
 }
 
-func (i expenseItem) Title() string { return i.account }
+func (i expenseItem) Title() string { return i.account.Name }
 func (i expenseItem) Description() string {
-	return fmt.Sprintf("Spent: %.2f %s", i.spent, i.currency)
+	return fmt.Sprintf("Spent: %.2f %s", i.spent, i.account.CurrencyCode)
 }
-func (i expenseItem) FilterValue() string { return i.account }
+func (i expenseItem) FilterValue() string { return i.account.Name }
 
 type modelExpenses struct {
 	list   list.Model
@@ -45,6 +47,9 @@ type modelExpenses struct {
 }
 
 func newModelExpenses(api *firefly.Api) modelExpenses {
+	// Set total expense account currency
+	totalExpenseAccount.CurrencyCode = api.PrimaryCurrency().Code
+
 	items := getExpensesItems(api, false)
 
 	m := modelExpenses{
@@ -89,9 +94,8 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Sequence(
 			m.list.SetItems(getExpensesItems(m.api, m.sorted)),
 			m.list.InsertItem(0, expenseItem{
-				account:  "Total",
-				spent:    m.api.GetTotalExpenseDiff(),
-				currency: m.api.PrimaryCurrency().Code,
+				account: totalExpenseAccount,
+				spent:   m.api.GetTotalExpenseDiff(),
 			}),
 			Cmd(DataLoadCompletedMsg{DataType: "expenses"}),
 		)
@@ -125,7 +129,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Filter):
 			i, ok := m.list.SelectedItem().(expenseItem)
 			if ok {
-				if i.account == "Total" {
+				if i.account == totalExpenseAccount {
 					return m, nil
 				}
 				return m, Cmd(FilterMsg{Account: i.account})
@@ -182,9 +186,8 @@ func getExpensesItems(api *firefly.Api, sorted bool) []list.Item {
 			continue
 		}
 		items = append(items, expenseItem{
-			account:  i.Name,
-			currency: i.CurrencyCode,
-			spent:    spent,
+			account: i,
+			spent:   spent,
 		})
 	}
 	if sorted {

@@ -31,15 +31,15 @@ type NewLiabilityMsg struct {
 }
 
 type liabilityItem struct {
-	account, currency string
-	balance           float64
+	account firefly.Account
+	balance float64
 }
 
-func (i liabilityItem) Title() string { return i.account }
+func (i liabilityItem) Title() string { return i.account.Name }
 func (i liabilityItem) Description() string {
-	return fmt.Sprintf("Balance: %.2f %s", i.balance, i.currency)
+	return fmt.Sprintf("Balance: %.2f %s", i.balance, i.account.CurrencyCode)
 }
-func (i liabilityItem) FilterValue() string { return i.account }
+func (i liabilityItem) FilterValue() string { return i.account.Name }
 
 type modelLiabilities struct {
 	list   list.Model
@@ -168,9 +168,8 @@ func getLiabilitiesItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Accounts["liabilities"] {
 		items = append(items, liabilityItem{
-			account:  i.Name,
-			balance:  i.GetBalance(api),
-			currency: i.CurrencyCode,
+			account: i,
+			balance: i.GetBalance(api),
 		})
 	}
 

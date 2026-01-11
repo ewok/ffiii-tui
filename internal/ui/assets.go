@@ -26,15 +26,15 @@ type NewAssetMsg struct {
 }
 
 type assetItem struct {
-	account, currency string
-	balance           float64
+	account firefly.Account
+	balance float64
 }
 
-func (i assetItem) Title() string { return i.account }
+func (i assetItem) Title() string { return i.account.Name }
 func (i assetItem) Description() string {
-	return fmt.Sprintf("Balance: %.2f %s", i.balance, i.currency)
+	return fmt.Sprintf("Balance: %.2f %s", i.balance, i.account.CurrencyCode)
 }
-func (i assetItem) FilterValue() string { return i.account }
+func (i assetItem) FilterValue() string { return i.account.Name }
 
 type modelAssets struct {
 	list   list.Model
@@ -89,7 +89,6 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if err != nil {
 			return m, NotifyWarn(err.Error())
 		}
-		return m, Cmd(RefreshAssetsMsg{})
 		return m, tea.Batch(
 			Cmd(RefreshAssetsMsg{}),
 			NotifyLog(fmt.Sprintf("Asset account '%s' created", msg.Account)),
@@ -168,9 +167,8 @@ func getAssetsItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Accounts["asset"] {
 		items = append(items, assetItem{
-			account:  i.Name,
-			balance:  i.GetBalance(api),
-			currency: i.CurrencyCode,
+			account: i,
+			balance: i.GetBalance(api),
 		})
 	}
 
