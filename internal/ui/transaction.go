@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -412,7 +413,7 @@ func (m *modelTransaction) DeleteSplit(index int) tea.Cmd {
 		m.splits = append(m.splits[:index], m.splits[index+1:]...)
 		return tea.Sequence(RedrawForm(), SetView(newView))
 	}
-	return tea.Sequence(Notify("Invalid split index", Warn), SetView(newView))
+	return tea.Sequence(notify.NotifyWarn("Invalid split index"), SetView(newView))
 }
 
 func (m *modelTransaction) CreateTransaction() tea.Cmd {
@@ -440,7 +441,7 @@ func (m *modelTransaction) CreateTransaction() tea.Cmd {
 		Transactions:         trx,
 	}); err != nil {
 		return tea.Sequence(
-			NotifyError(err.Error()),
+			notify.NotifyError(err.Error()),
 			SetView(transactionsView))
 	}
 
@@ -448,7 +449,7 @@ func (m *modelTransaction) CreateTransaction() tea.Cmd {
 
 	return tea.Batch(
 		SetView(transactionsView),
-		NotifyLog("Transaction created successfully"),
+		notify.NotifyLog("Transaction created successfully"),
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
 		Cmd(RefreshSummaryMsg{}),
@@ -482,7 +483,7 @@ func (m *modelTransaction) UpdateTransaction() tea.Cmd {
 		Transactions: trx,
 	}); err != nil {
 		return tea.Sequence(
-			NotifyError(err.Error()),
+			notify.NotifyError(err.Error()),
 			SetView(transactionsView))
 	}
 
@@ -490,7 +491,7 @@ func (m *modelTransaction) UpdateTransaction() tea.Cmd {
 
 	return tea.Batch(
 		SetView(transactionsView),
-		NotifyLog("Transaction updated successfully"),
+		notify.NotifyLog("Transaction updated successfully"),
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
 		Cmd(RefreshSummaryMsg{}),

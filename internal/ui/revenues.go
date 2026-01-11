@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -77,7 +78,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateRevenueInsights()
 			if err != nil {
-				return Notify(err.Error(), Warn)
+				return notify.NotifyWarn(err.Error())
 			}
 			return RevenuesUpdateMsg{}
 		}
@@ -85,7 +86,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("revenue")
 			if err != nil {
-				return Notify(err.Error(), Warn)
+				return notify.NotifyWarn(err.Error())
 			}
 			return RevenuesUpdateMsg{}
 		}
@@ -101,11 +102,11 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewRevenueMsg:
 		err := m.api.CreateRevenueAccount(msg.Account)
 		if err != nil {
-			return m, NotifyWarn(err.Error())
+			return m, notify.NotifyWarn(err.Error())
 		}
 		return m, tea.Batch(
 			Cmd(RefreshRevenuesMsg{}),
-			NotifyLog(fmt.Sprintf("Revenue account '%s' created", msg.Account)),
+			notify.NotifyLog(fmt.Sprintf("Revenue account '%s' created", msg.Account)),
 		)
 	case UpdatePositions:
 		h, v := m.styles.Base.GetFrameSize()

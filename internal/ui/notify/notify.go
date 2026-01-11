@@ -2,7 +2,7 @@
 Copyright © 2025-2026 Artur Taranchiev <artur.taranchiev@gmail.com>
 SPDX-License-Identifier: Apache-2.0
 */
-package ui
+package notify
 
 import (
 	"fmt"
@@ -67,7 +67,7 @@ type notifyQueue struct {
 	maxSize  int
 }
 
-type modelNotify struct {
+type Model struct {
 	queue        notifyQueue
 	styles       Styles
 	Width        int
@@ -114,15 +114,15 @@ func NotifyError(message string) tea.Cmd {
 	return Notify(message, Err)
 }
 
-func newNotify() modelNotify {
-	return modelNotify{
+func New() Model {
+	return Model{
 		queue:        newNotifyQueue(),
 		styles:       DefaultStyles(),
 		isDisplaying: false,
 	}
 }
 
-func (m modelNotify) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	if m.queue.Size() > 0 && !m.isDisplaying {
 		return tea.Cmd(func() tea.Msg {
 			return NotifyShowNextMsg{}
@@ -131,7 +131,7 @@ func (m modelNotify) Init() tea.Cmd {
 	return nil
 }
 
-func (m modelNotify) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case NotifyMsg:
 		return m.enqueueMessage(msg)
@@ -142,17 +142,17 @@ func (m modelNotify) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NotifyExpireMsg:
 		return m.expireMessage(msg.ID)
 
-	case UpdatePositions:
-		h, _ := m.styles.Base.GetFrameSize()
-		m.Width = globalWidth - h
-		return m, nil
+	// case ui.UpdatePositions:
+	// 	h, _ := m.styles.Base.GetFrameSize()
+	// 	m.Width = msg.GlobalWidth - h
+	// 	return m, nil
 
 	default:
 		return m, nil
 	}
 }
 
-func (m modelNotify) View() string {
+func (m Model) View() string {
 	if m.queue.current == nil || !m.isDisplaying {
 		return ""
 	}
@@ -170,7 +170,7 @@ func (m modelNotify) View() string {
 
 // Private methods for queue management and state machine
 
-func (m modelNotify) enqueueMessage(msg NotifyMsg) (tea.Model, tea.Cmd) {
+func (m Model) enqueueMessage(msg NotifyMsg) (tea.Model, tea.Cmd) {
 	m.queue.Enqueue(msg)
 
 	if m.queue.current == nil && !m.isDisplaying {
@@ -180,7 +180,7 @@ func (m modelNotify) enqueueMessage(msg NotifyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m modelNotify) startDisplaying() (tea.Model, tea.Cmd) {
+func (m Model) startDisplaying() (tea.Model, tea.Cmd) {
 	msg := m.queue.Dequeue()
 	if msg == nil {
 		m.isDisplaying = false
@@ -196,7 +196,7 @@ func (m modelNotify) startDisplaying() (tea.Model, tea.Cmd) {
 	return m, expireCmd
 }
 
-func (m modelNotify) expireMessage(id string) (tea.Model, tea.Cmd) {
+func (m Model) expireMessage(id string) (tea.Model, tea.Cmd) {
 	if m.queue.current != nil && m.queue.current.ID == id {
 		m.queue.current.State = Expired
 		m.queue.current = nil
@@ -208,7 +208,7 @@ func (m modelNotify) expireMessage(id string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m modelNotify) styleMessage(text string, level NotifyLevel) string {
+func (m Model) styleMessage(text string, level NotifyLevel) string {
 	style := m.styles.NotifyLog
 
 	switch level {
@@ -222,6 +222,13 @@ func (m modelNotify) styleMessage(text string, level NotifyLevel) string {
 
 	return style.Width(m.Width).Render(text)
 }
+
+func (m *Model) WithWidth(width int) *Model {
+	m.Width = width
+	return m
+}
+
+// func (m *Model) WithStyles()
 
 // Queue implementation methods
 

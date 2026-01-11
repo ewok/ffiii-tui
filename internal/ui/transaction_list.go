@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -212,12 +213,12 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentSearch != "" {
 				transactions, err = m.api.ListTransactions(url.QueryEscape(m.currentSearch))
 				if err != nil {
-					return NotifyWarn(err.Error())
+					return notify.NotifyWarn(err.Error())
 				}
 			} else {
 				transactions, err = m.api.ListTransactions("")
 				if err != nil {
-					return NotifyWarn(err.Error())
+					return notify.NotifyWarn(err.Error())
 				}
 			}
 			return TransactionsUpdateMsg{
@@ -231,7 +232,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Account:  m.currentAccount,
 			Category: m.currentCategory,
 			Query:    m.currentFilter,
-		}), Notify("Transactions loaded", Log))
+		}), notify.NotifyLog("Transactions loaded"))
 
 	case DeleteTransactionMsg:
 		id := msg.Transaction.TransactionID
@@ -239,11 +240,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			err := m.api.DeleteTransaction(id)
 			if err != nil {
 				return m, tea.Batch(
-					Notify(fmt.Sprint("Error deleting transaction, ", err.Error()), Warn),
+					notify.NotifyError(fmt.Sprint("Error deleting transaction, ", err.Error())),
 					SetView(transactionsView))
 			}
 			return m, tea.Batch(
-				Notify("Transaction deleted successfully.", Log),
+				notify.NotifyLog("Transaction deleted successfully."),
 				SetView(transactionsView),
 				Cmd(RefreshAssetsMsg{}),
 				Cmd(RefreshLiabilitiesMsg{}),
@@ -312,7 +313,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.NewTransactionFrom):
 			trx, err := m.GetCurrentTransaction()
 			if err != nil {
-				return m, Notify(err.Error(), Warn)
+				return m, notify.NotifyWarn(err.Error())
 			}
 			return m, Cmd(NewTransactionFromMsg{Transaction: trx})
 		case key.Matches(msg, m.keymap.ResetFilter):
@@ -332,18 +333,18 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Select):
 			trx, err := m.GetCurrentTransaction()
 			if err != nil {
-				return m, Notify(err.Error(), Warn)
+				return m, notify.NotifyWarn(err.Error())
 			}
 			return m, tea.Sequence(
 				Cmd(EditTransactionMsg{Transaction: trx}),
 				SetView(newView))
 		case key.Matches(msg, m.keymap.Delete):
 			if len(m.table.Rows()) < 1 {
-				return m, Notify("No transactions.", Warn)
+				return m, notify.NotifyWarn("No transactions.")
 			}
 			row := m.table.SelectedRow()
 			if row == nil {
-				return m, Notify("Transaction not selected.", Warn)
+				return m, notify.NotifyWarn("Transaction not selected.")
 			}
 			id, err := strconv.Atoi(row[0])
 			if err != nil {

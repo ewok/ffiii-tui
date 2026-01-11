@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -78,7 +79,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateExpenseInsights()
 			if err != nil {
-				return Notify(err.Error(), Warn)
+				return notify.NotifyWarn(err.Error())
 			}
 			return ExpensesUpdatedMsg{}
 		}
@@ -86,7 +87,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("expense")
 			if err != nil {
-				return Notify(err.Error(), Warn)
+				return notify.NotifyWarn(err.Error())
 			}
 			return ExpensesUpdatedMsg{}
 		}
@@ -102,11 +103,11 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewExpenseMsg:
 		err := m.api.CreateExpenseAccount(msg.Account)
 		if err != nil {
-			return m, NotifyWarn(err.Error())
+			return m, notify.NotifyWarn(err.Error())
 		}
 		return m, tea.Batch(
 			Cmd(RefreshExpensesMsg{}),
-			NotifyLog(fmt.Sprintf("Expense account '%s' created", msg.Account)),
+			notify.NotifyLog(fmt.Sprintf("Expense account '%s' created", msg.Account)),
 		)
 	case UpdatePositions:
 		h, v := m.styles.Base.GetFrameSize()

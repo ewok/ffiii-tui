@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -70,7 +71,7 @@ type modelUI struct {
 	revenues     modelRevenues
 	liabilities  modelLiabilities
 	prompt       modelPrompt
-	notify       modelNotify
+	notify       notify.Model
 	summary      modelSummary
 
 	keymap UIKeyMap
@@ -101,7 +102,7 @@ func Show(api *firefly.Api) {
 				return Cmd(SetFocusedViewMsg{state: transactionsView})
 			},
 		}),
-		notify:  newNotify(),
+		notify:  notify.New(),
 		summary: newModelSummary(api),
 		keymap:  DefaultUIKeyMap(),
 		help:    help.New(),
@@ -270,7 +271,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !loaded {
 				if lazyLoadCounter > m.api.Config.TimeoutSeconds {
 					lazyLoadCounter = 0
-					return m, Notify("Could not load all resources", Warn)
+					return m, notify.NotifyWarn("Could not load all resources")
 				}
 				return m, tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
 					return LazyLoadMsg(t)
@@ -426,7 +427,7 @@ func (m modelUI) View() string {
 	}
 	s.WriteString("\n")
 
-	s.WriteString(m.notify.View() + "\n")
+	s.WriteString(m.notify.WithWidth(globalWidth).View() + "\n")
 	s.WriteString(m.help.Styles.ShortKey.Render(m.HelpView()))
 
 	return s.String()
