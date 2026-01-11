@@ -21,6 +21,8 @@ type modelPrompt struct {
 	input    textinput.Model
 	callback func(value string) tea.Cmd
 	focus    bool
+	styles   Styles
+	Width    int
 }
 
 func newPrompt(msg PromptMsg) modelPrompt {
@@ -31,6 +33,8 @@ func newPrompt(msg PromptMsg) modelPrompt {
 	prompt := modelPrompt{
 		input:    m,
 		callback: msg.Callback,
+		styles:   DefaultStyles(),
+		Width:    80,
 	}
 
 	return prompt
@@ -47,6 +51,9 @@ func (m modelPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PromptMsg:
 		m = newPrompt(msg)
 		return m, SetView(promptView)
+	case UpdatePositions:
+		h, _ := m.styles.Base.GetFrameSize()
+		m.Width = globalWidth - h
 	}
 
 	if !m.focus {
@@ -72,7 +79,7 @@ func (m modelPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelPrompt) View() string {
-	return m.input.View()
+	return m.styles.PromptFocused.Width(m.Width).Render(" " + m.input.View())
 }
 
 func (m *modelPrompt) Focus() {

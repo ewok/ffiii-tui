@@ -20,8 +20,8 @@ import (
 )
 
 type FilterMsg struct {
-	Account  string
-	Category string
+	Account  firefly.Account
+	Category firefly.Category
 	Query    string
 	Reset    bool
 }
@@ -43,12 +43,13 @@ type modelTransactions struct {
 	table           table.Model
 	transactions    []firefly.Transaction
 	api             *firefly.Api
-	currentAccount  string
-	currentCategory string
+	currentAccount  firefly.Account
+	currentCategory firefly.Category
 	currentSearch   string
 	currentFilter   string
 	focus           bool
 	keymap          TransactionsKeyMap
+	styles          Styles
 }
 
 func newModelTransactions(api *firefly.Api) modelTransactions {
@@ -78,6 +79,7 @@ func newModelTransactions(api *firefly.Api) modelTransactions {
 		transactions: transactions,
 		api:          api,
 		keymap:       DefaultTransactionsKeyMap(),
+		styles:       DefaultStyles(),
 	}
 	return m
 }
@@ -93,64 +95,66 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentSearch == "" {
 				return m, nil
 			}
-			m.currentSearch, m.currentAccount, m.currentCategory, m.currentFilter = "", "", "", ""
+			m.currentSearch = ""
+			// m.currentSearch, m.currentAccount, m.currentCategory, m.currentFilter = "", "", "", ""
 		} else {
-			if m.currentSearch == "" {
-				m.currentAccount, m.currentCategory, m.currentFilter = "", "", ""
-			}
+			// if m.currentSearch == "" {
+			// 	m.currentAccount, m.currentCategory, m.currentFilter = "", "", ""
+			// }
 			m.currentSearch = msg.Query
 		}
 		return m, Cmd(RefreshTransactionsMsg{})
+
 	case FilterMsg:
 		// Reset flag
 		if msg.Reset {
-			m.currentAccount = ""
-			m.currentCategory = ""
+			m.currentAccount = firefly.Account{}
+			m.currentCategory = firefly.Category{}
 			m.currentFilter = ""
 		}
 
+		// if msg.Account == "None" {
+		// 	m.currentAccount = firefly.Account{}
+		// }
+		// if msg.Category == "None" {
+		// 	m.currentCategory = firefly.Category{}
+		// }
+
 		// Clear filters if user set to "None"
-		if msg.Account == "None" {
-			m.currentAccount = ""
-		}
-		if msg.Category == "None" {
-			m.currentCategory = ""
-		}
 		if msg.Query == "None" {
 			m.currentFilter = ""
 		}
 
 		// Reset other filters if the same filter is applied again
-		if msg.Account != "" && msg.Account != "None" {
+		if !msg.Account.IsEmpty() {
 			if msg.Account == m.currentAccount {
-				m.currentCategory = ""
+				m.currentCategory = firefly.Category{}
 				m.currentFilter = ""
 			}
 			m.currentAccount = msg.Account
 		}
-		if msg.Category != "" && msg.Category != "None" {
+		if !msg.Category.IsEmpty() {
 			if msg.Category == m.currentCategory {
-				m.currentAccount = ""
+				m.currentAccount = firefly.Account{}
 				m.currentFilter = ""
 			}
 			m.currentCategory = msg.Category
 		}
 		if msg.Query != "" && msg.Query != "None" {
 			if msg.Query == m.currentFilter {
-				m.currentAccount = ""
-				m.currentCategory = ""
+				m.currentAccount = firefly.Account{}
+				m.currentCategory = firefly.Category{}
 			}
 			m.currentFilter = msg.Query
 		}
 
 		transactions := m.transactions
 
-		value := m.currentAccount
-		if value != "" {
+		if !m.currentAccount.IsEmpty() {
 			txs := []firefly.Transaction{}
 			for _, tx := range transactions {
 				for _, split := range tx.Splits {
-					if split.Source.Name == value || split.Destination.Name == value {
+					if split.Source == m.currentAccount || split.Destination == m.currentAccount {
 						txs = append(txs, tx)
 						break
 					}
@@ -159,12 +163,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			transactions = txs
 		}
 
-		value = m.currentCategory
-		if value != "" {
+		if !m.currentCategory.IsEmpty() {
 			txs := []firefly.Transaction{}
 			for _, tx := range transactions {
 				for _, split := range tx.Splits {
-					if split.Category.Name == value {
+					if split.Category == m.currentCategory {
 						txs = append(txs, tx)
 						break
 					}
@@ -173,7 +176,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			transactions = txs
 		}
 
-		value = m.currentFilter
+		value := m.currentFilter
 		if value != "" {
 			txs := []firefly.Transaction{}
 			for _, tx := range transactions {
@@ -209,18 +212,12 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentSearch != "" {
 				transactions, err = m.api.ListTransactions(url.QueryEscape(m.currentSearch))
 				if err != nil {
-					return NotifyMsg{
-						Message: err.Error(),
-						Level:   Warning,
-					}
+					return NotifyWarn(err.Error())
 				}
 			} else {
 				transactions, err = m.api.ListTransactions("")
 				if err != nil {
-					return NotifyMsg{
-						Message: err.Error(),
-						Level:   Warning,
-					}
+					return NotifyWarn(err.Error())
 				}
 			}
 			return TransactionsUpdateMsg{
@@ -230,11 +227,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case TransactionsUpdateMsg:
 		m.transactions = msg.Transactions
-		return m, Cmd(FilterMsg{
+		return m, tea.Batch(Cmd(FilterMsg{
 			Account:  m.currentAccount,
 			Category: m.currentCategory,
 			Query:    m.currentFilter,
-		})
+		}), Notify("Transactions loaded", Log))
 
 	case DeleteTransactionMsg:
 		id := msg.Transaction.TransactionID
@@ -242,7 +239,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			err := m.api.DeleteTransaction(id)
 			if err != nil {
 				return m, tea.Batch(
-					Notify(fmt.Sprint("Error deleting transaction, ", err.Error()), Warning),
+					Notify(fmt.Sprint("Error deleting transaction, ", err.Error()), Warn),
 					SetView(transactionsView))
 			}
 			return m, tea.Batch(
@@ -256,10 +253,10 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Cmd(RefreshRevenueInsightsMsg{}))
 		}
 		return m, SetView(transactionsView)
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.table.SetWidth(msg.Width - h)
-		m.table.SetHeight(msg.Height - v - topSize)
+	case UpdatePositions:
+		h, v := m.styles.Base.GetFrameSize()
+		m.table.SetWidth(globalWidth - leftSize - h)
+		m.table.SetHeight(globalHeight - topSize - v)
 	}
 
 	if !m.focus {
@@ -300,16 +297,24 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return tea.Sequence(cmds...)
 				},
 			})
-		case key.Matches(msg, m.keymap.NewEdit):
-			return m, SetView(newView)
-		case key.Matches(msg, m.keymap.NewFromTransaction):
+		case key.Matches(msg, m.keymap.NewView):
+			return m, Cmd(NewTransactionMsg{
+				Transaction: firefly.Transaction{
+					Splits: []firefly.Split{
+						{
+							Source:      m.currentAccount,
+							Destination: firefly.Account{},
+							Category:    m.currentCategory,
+						},
+					},
+				},
+			})
+		case key.Matches(msg, m.keymap.NewTransactionFrom):
 			trx, err := m.GetCurrentTransaction()
 			if err != nil {
-				return m, Notify(err.Error(), Warning)
+				return m, Notify(err.Error(), Warn)
 			}
-			return m, tea.Sequence(
-				Cmd(NewTransactionMsg{Transaction: trx}),
-				SetView(newView))
+			return m, Cmd(NewTransactionFromMsg{Transaction: trx})
 		case key.Matches(msg, m.keymap.ResetFilter):
 			return m, Cmd(FilterMsg{Reset: true})
 		case key.Matches(msg, m.keymap.ToggleFullView):
@@ -327,18 +332,18 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Select):
 			trx, err := m.GetCurrentTransaction()
 			if err != nil {
-				return m, Notify(err.Error(), Warning)
+				return m, Notify(err.Error(), Warn)
 			}
 			return m, tea.Sequence(
 				Cmd(EditTransactionMsg{Transaction: trx}),
 				SetView(newView))
 		case key.Matches(msg, m.keymap.Delete):
 			if len(m.table.Rows()) < 1 {
-				return m, Notify("No transactions.", Warning)
+				return m, Notify("No transactions.", Warn)
 			}
 			row := m.table.SelectedRow()
 			if row == nil {
-				return m, Notify("Transaction not selected.", Warning)
+				return m, Notify("Transaction not selected.", Warn)
 			}
 			id, err := strconv.Atoi(row[0])
 			if err != nil {

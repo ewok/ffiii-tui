@@ -13,8 +13,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
+
+var totalCategory = firefly.Category{Name: "Total", CurrencyCode: ""}
 
 type (
 	RefreshCategoriesMsg       struct{}
@@ -26,29 +27,29 @@ type (
 )
 
 type categoryItem struct {
-	category, currency string
-	spent              float64
-	earned             float64
+	category firefly.Category
+	spent    float64
+	earned   float64
 }
 
-func (i categoryItem) Title() string { return i.category }
+func (i categoryItem) Title() string { return i.category.Name }
 func (i categoryItem) Description() string {
 	s := ""
 	if i.spent != 0 {
-		s += fmt.Sprintf("Spent: %.2f %s", i.spent, i.currency)
+		s += fmt.Sprintf("Spent: %.2f %s", i.spent, i.category.CurrencyCode)
 	}
 	if i.earned != 0 {
 		if s != "" {
 			s += " | "
 		}
-		s += fmt.Sprintf("Earned: %.2f %s", i.earned, i.currency)
+		s += fmt.Sprintf("Earned: %.2f %s", i.earned, i.category.CurrencyCode)
 	}
 	if s == "" {
 		s = "No transactions"
 	}
 	return s
 }
-func (i categoryItem) FilterValue() string { return i.category }
+func (i categoryItem) FilterValue() string { return i.category.Name }
 
 type modelCategories struct {
 	list   list.Model
@@ -56,15 +57,20 @@ type modelCategories struct {
 	focus  bool
 	sorted int
 	keymap CategoryKeyMap
+	styles Styles
 }
 
 func newModelCategories(api *firefly.Api) modelCategories {
+	// Set the currency code for the total category
+	totalCategory.CurrencyCode = api.PrimaryCurrency().Code
+
 	items := getCategoriesItems(api, 0)
 
 	m := modelCategories{
 		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
 		api:    api,
 		keymap: DefaultCategoryKeyMap(),
+		styles: DefaultStyles(),
 	}
 	m.list.Title = "Categories"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
@@ -86,7 +92,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateCategoriesInsights()
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return CategoriesUpdateMsg{}
 		}
@@ -94,7 +100,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateCategories()
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return CategoriesUpdateMsg{}
 		}
@@ -103,8 +109,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(
 			m.list.SetItems(getCategoriesItems(m.api, m.sorted)),
 			m.list.InsertItem(0, categoryItem{
-				category: "Total",
-				currency: m.api.PrimaryCurrency().Code,
+				category: totalCategory,
 				spent:    tSpent,
 				earned:   tEarned,
 			}),
@@ -113,12 +118,15 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewCategoryMsg:
 		err := m.api.CreateCategory(msg.Category, "")
 		if err != nil {
-			return m, Notify(err.Error(), Warning)
+			return m, NotifyWarn(err.Error())
 		}
-		return m, Cmd(RefreshCategoriesMsg{})
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
+		return m, tea.Batch(
+			Cmd(RefreshCategoriesMsg{}),
+			NotifyLog(fmt.Sprintf("Category '%s' created", msg.Category)),
+		)
+	case UpdatePositions:
+		h, v := m.styles.Base.GetFrameSize()
+		m.list.SetSize(globalWidth-h, globalHeight-v-topSize)
 	}
 
 	if !m.focus {
@@ -137,9 +145,9 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Filter):
 			i, ok := m.list.SelectedItem().(categoryItem)
 			if ok {
-			    if i.category == "Total" {
-                    return m, nil
-                }
+				if i.category == totalCategory {
+					return m, nil
+				}
 				return m, Cmd(FilterMsg{Category: i.category})
 			}
 			return m, nil
@@ -180,7 +188,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelCategories) View() string {
-	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
+	return m.styles.LeftPanel.Render(m.list.View())
 }
 
 func (m *modelCategories) Focus() {
@@ -205,8 +213,7 @@ func getCategoriesItems(api *firefly.Api, sorted int) []list.Item {
 			continue
 		}
 		items = append(items, categoryItem{
-			category: i.Name,
-			currency: i.CurrencyCode,
+			category: i,
 			spent:    spent,
 			earned:   earned,
 		})

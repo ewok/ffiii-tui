@@ -13,8 +13,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
+
+var totalRevenueAccount = firefly.Account{Name: "Total", CurrencyCode: ""}
 
 type (
 	RefreshRevenuesMsg        struct{}
@@ -26,15 +27,15 @@ type (
 )
 
 type revenueItem struct {
-	account, currency string
-	earned            float64
+	account firefly.Account
+	earned  float64
 }
 
-func (i revenueItem) Title() string { return i.account }
+func (i revenueItem) Title() string { return i.account.Name }
 func (i revenueItem) Description() string {
-	return fmt.Sprintf("Earned: %.2f %s", i.earned, i.currency)
+	return fmt.Sprintf("Earned: %.2f %s", i.earned, i.account.CurrencyCode)
 }
-func (i revenueItem) FilterValue() string { return i.account }
+func (i revenueItem) FilterValue() string { return i.account.Name }
 
 type modelRevenues struct {
 	list   list.Model
@@ -42,15 +43,20 @@ type modelRevenues struct {
 	focus  bool
 	sorted bool
 	keymap RevenueKeyMap
+	styles Styles
 }
 
 func newModelRevenues(api *firefly.Api) modelRevenues {
+	// Set total revenue account currency
+	totalRevenueAccount.CurrencyCode = api.PrimaryCurrency().Code
+
 	items := getRevenuesItems(api, false)
 
 	m := modelRevenues{
 		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
 		api:    api,
 		keymap: DefaultRevenueKeyMap(),
+		styles: DefaultStyles(),
 	}
 	m.list.Title = "Revenue accounts"
 	m.list.SetFilteringEnabled(false)
@@ -71,7 +77,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateRevenueInsights()
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return RevenuesUpdateMsg{}
 		}
@@ -79,7 +85,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("revenue")
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return RevenuesUpdateMsg{}
 		}
@@ -87,21 +93,23 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Sequence(
 			m.list.SetItems(getRevenuesItems(m.api, m.sorted)),
 			m.list.InsertItem(0, revenueItem{
-				account:  "Total",
-				earned:   m.api.GetTotalRevenueDiff(),
-				currency: m.api.PrimaryCurrency().Code,
+				account: totalRevenueAccount,
+				earned:  m.api.GetTotalRevenueDiff(),
 			}),
 			Cmd(DataLoadCompletedMsg{DataType: "revenues"}),
 		)
 	case NewRevenueMsg:
 		err := m.api.CreateRevenueAccount(msg.Account)
 		if err != nil {
-			return m, Notify(err.Error(), Warning)
+			return m, NotifyWarn(err.Error())
 		}
-		return m, Cmd(RefreshRevenuesMsg{})
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
+		return m, tea.Batch(
+			Cmd(RefreshRevenuesMsg{}),
+			NotifyLog(fmt.Sprintf("Revenue account '%s' created", msg.Account)),
+		)
+	case UpdatePositions:
+		h, v := m.styles.Base.GetFrameSize()
+		m.list.SetSize(globalWidth-h, globalHeight-v-topSize)
 	}
 
 	if !m.focus {
@@ -120,7 +128,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Filter):
 			i, ok := m.list.SelectedItem().(revenueItem)
 			if ok {
-				if i.account == "Total" {
+				if i.account == totalRevenueAccount {
 					return m, nil
 				}
 				return m, Cmd(FilterMsg{Account: i.account})
@@ -155,7 +163,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelRevenues) View() string {
-	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
+	return m.styles.LeftPanel.Render(m.list.View())
 }
 
 func (m *modelRevenues) Focus() {
@@ -176,9 +184,8 @@ func getRevenuesItems(api *firefly.Api, sorted bool) []list.Item {
 			continue
 		}
 		items = append(items, revenueItem{
-			account:  i.Name,
-			currency: i.CurrencyCode,
-			earned:   earned,
+			account: i,
+			earned:  earned,
 		})
 	}
 	if sorted {

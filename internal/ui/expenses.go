@@ -13,8 +13,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
+
+var totalExpenseAccount = firefly.Account{Name: "Total", CurrencyCode: ""}
 
 type (
 	RefreshExpensesMsg        struct{}
@@ -26,15 +27,15 @@ type (
 )
 
 type expenseItem struct {
-	account, currency string
-	spent             float64
+	account firefly.Account
+	spent   float64
 }
 
-func (i expenseItem) Title() string { return i.account }
+func (i expenseItem) Title() string { return i.account.Name }
 func (i expenseItem) Description() string {
-	return fmt.Sprintf("Spent: %.2f %s", i.spent, i.currency)
+	return fmt.Sprintf("Spent: %.2f %s", i.spent, i.account.CurrencyCode)
 }
-func (i expenseItem) FilterValue() string { return i.account }
+func (i expenseItem) FilterValue() string { return i.account.Name }
 
 type modelExpenses struct {
 	list   list.Model
@@ -42,15 +43,20 @@ type modelExpenses struct {
 	focus  bool
 	sorted bool
 	keymap ExpenseKeyMap
+	styles Styles
 }
 
 func newModelExpenses(api *firefly.Api) modelExpenses {
+	// Set total expense account currency
+	totalExpenseAccount.CurrencyCode = api.PrimaryCurrency().Code
+
 	items := getExpensesItems(api, false)
 
 	m := modelExpenses{
 		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
 		api:    api,
 		keymap: DefaultExpenseKeyMap(),
+		styles: DefaultStyles(),
 	}
 	m.list.Title = "Expense accounts"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
@@ -72,7 +78,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateExpenseInsights()
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return ExpensesUpdatedMsg{}
 		}
@@ -80,7 +86,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("expense")
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return ExpensesUpdatedMsg{}
 		}
@@ -88,21 +94,23 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Sequence(
 			m.list.SetItems(getExpensesItems(m.api, m.sorted)),
 			m.list.InsertItem(0, expenseItem{
-				account:  "Total",
-				spent:    m.api.GetTotalExpenseDiff(),
-				currency: m.api.PrimaryCurrency().Code,
+				account: totalExpenseAccount,
+				spent:   m.api.GetTotalExpenseDiff(),
 			}),
 			Cmd(DataLoadCompletedMsg{DataType: "expenses"}),
 		)
 	case NewExpenseMsg:
 		err := m.api.CreateExpenseAccount(msg.Account)
 		if err != nil {
-			return m, Notify(err.Error(), Warning)
+			return m, NotifyWarn(err.Error())
 		}
-		return m, Cmd(RefreshExpensesMsg{})
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-topSize)
+		return m, tea.Batch(
+			Cmd(RefreshExpensesMsg{}),
+			NotifyLog(fmt.Sprintf("Expense account '%s' created", msg.Account)),
+		)
+	case UpdatePositions:
+		h, v := m.styles.Base.GetFrameSize()
+		m.list.SetSize(globalWidth-h, globalHeight-v-topSize)
 	}
 
 	if !m.focus {
@@ -121,9 +129,9 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Filter):
 			i, ok := m.list.SelectedItem().(expenseItem)
 			if ok {
-			    if i.account == "Total" {
-                    return m, nil
-                }
+				if i.account == totalExpenseAccount {
+					return m, nil
+				}
 				return m, Cmd(FilterMsg{Account: i.account})
 			}
 			return m, nil
@@ -156,7 +164,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelExpenses) View() string {
-	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
+	return m.styles.LeftPanel.Render(m.list.View())
 }
 
 func (m *modelExpenses) Focus() {
@@ -178,9 +186,8 @@ func getExpensesItems(api *firefly.Api, sorted bool) []list.Item {
 			continue
 		}
 		items = append(items, expenseItem{
-			account:  i.Name,
-			currency: i.CurrencyCode,
-			spent:    spent,
+			account: i,
+			spent:   spent,
 		})
 	}
 	if sorted {

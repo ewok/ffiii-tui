@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type (
@@ -27,21 +26,22 @@ type NewAssetMsg struct {
 }
 
 type assetItem struct {
-	account, currency string
-	balance           float64
+	account firefly.Account
+	balance float64
 }
 
-func (i assetItem) Title() string { return i.account }
+func (i assetItem) Title() string { return i.account.Name }
 func (i assetItem) Description() string {
-	return fmt.Sprintf("Balance: %.2f %s", i.balance, i.currency)
+	return fmt.Sprintf("Balance: %.2f %s", i.balance, i.account.CurrencyCode)
 }
-func (i assetItem) FilterValue() string { return i.account }
+func (i assetItem) FilterValue() string { return i.account.Name }
 
 type modelAssets struct {
 	list   list.Model
 	api    *firefly.Api
 	focus  bool
 	keymap AssetKeyMap
+	styles Styles
 }
 
 func newModelAssets(api *firefly.Api) modelAssets {
@@ -51,6 +51,7 @@ func newModelAssets(api *firefly.Api) modelAssets {
 		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
 		api:    api,
 		keymap: DefaultAssetKeyMap(),
+		styles: DefaultStyles(),
 	}
 	m.list.Title = "Asset accounts"
 	m.list.SetShowStatusBar(false)
@@ -74,7 +75,7 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("asset")
 			if err != nil {
-				return Notify(err.Error(), Warning)
+				return Notify(err.Error(), Warn)
 			}
 			return AssetsUpdateMsg{}
 		}
@@ -86,12 +87,15 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewAssetMsg:
 		err := m.api.CreateAssetAccount(msg.Account, msg.Currency)
 		if err != nil {
-			return m, Notify(err.Error(), Warning)
+			return m, NotifyWarn(err.Error())
 		}
-		return m, Cmd(RefreshAssetsMsg{})
-	case tea.WindowSizeMsg:
-		h, v := baseStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-topSize-summarySize)
+		return m, tea.Batch(
+			Cmd(RefreshAssetsMsg{}),
+			NotifyLog(fmt.Sprintf("Asset account '%s' created", msg.Account)),
+		)
+	case UpdatePositions:
+		h, v := m.styles.Base.GetFrameSize()
+		m.list.SetSize(globalWidth-h, globalHeight-v-topSize-summarySize)
 	}
 
 	if !m.focus {
@@ -146,7 +150,7 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelAssets) View() string {
-	return lipgloss.NewStyle().PaddingRight(1).Render(m.list.View())
+	return m.styles.LeftPanel.Render(m.list.View())
 }
 
 func (m *modelAssets) Focus() {
@@ -163,9 +167,8 @@ func getAssetsItems(api *firefly.Api) []list.Item {
 	items := []list.Item{}
 	for _, i := range api.Accounts["asset"] {
 		items = append(items, assetItem{
-			account:  i.Name,
-			balance:  i.GetBalance(api),
-			currency: i.CurrencyCode,
+			account: i,
+			balance: i.GetBalance(api),
 		})
 	}
 
@@ -186,10 +189,10 @@ func CmdPromptNewAsset(backCmd tea.Cmd) tea.Cmd {
 					if acc != "" && cur != "" {
 						cmds = append(cmds, Cmd(NewAssetMsg{Account: acc, Currency: cur}))
 					} else {
-						cmds = append(cmds, Notify("Invalid asset name or currency", Warning))
+						cmds = append(cmds, Notify("Invalid asset name or currency", Warn))
 					}
 				} else {
-					cmds = append(cmds, Notify("Invalid asset name or currency", Warning))
+					cmds = append(cmds, Notify("Invalid asset name or currency", Warn))
 				}
 			}
 			cmds = append(cmds, backCmd)

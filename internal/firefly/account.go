@@ -290,3 +290,7 @@ func (a *Account) GetBalance(api *Api) float64 {
 	}
 	return 0
 }
+
+func (a *Account) IsEmpty() bool {
+	return *a == Account{}
+}
