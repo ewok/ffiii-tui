@@ -2,7 +2,7 @@
 Copyright © 2025-2026 Artur Taranchiev <artur.taranchiev@gmail.com>
 SPDX-License-Identifier: Apache-2.0
 */
-package ui
+package prompt
 
 import (
 	"strings"
@@ -17,7 +17,7 @@ type PromptMsg struct {
 	Callback func(value string) tea.Cmd
 }
 
-type modelPrompt struct {
+type Model struct {
 	input    textinput.Model
 	callback func(value string) tea.Cmd
 	focus    bool
@@ -25,35 +25,32 @@ type modelPrompt struct {
 	Width    int
 }
 
-func newPrompt(msg PromptMsg) modelPrompt {
+func New() Model {
 	m := textinput.New()
-	m.Prompt = msg.Prompt
-	m.SetValue(msg.Value)
 
-	prompt := modelPrompt{
-		input:    m,
-		callback: msg.Callback,
-		styles:   DefaultStyles(),
-		Width:    80,
+	prompt := Model{
+		input:  m,
+		styles: DefaultStyles(),
+		Width:  80,
 	}
 
 	return prompt
 }
 
-func (m modelPrompt) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-func (m modelPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case PromptMsg:
-		m = newPrompt(msg)
-		return m, SetView(promptView)
-	case UpdatePositions:
-		h, _ := m.styles.Base.GetFrameSize()
-		m.Width = globalWidth - h
+		m.input.Prompt = msg.Prompt
+		m.input.SetValue(msg.Value)
+		m.callback = msg.Callback
+		m.Focus()
+		return m, nil
 	}
 
 	if !m.focus {
@@ -68,8 +65,10 @@ func (m modelPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if value == "" {
 				value = "None"
 			}
+			m.Blur()
 			return m, m.callback(value)
 		case "esc":
+			m.Blur()
 			return m, m.callback("None")
 		default:
 			m.input, cmd = m.input.Update(msg)
@@ -78,16 +77,40 @@ func (m modelPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m modelPrompt) View() string {
+func (m Model) View() string {
 	return m.styles.PromptFocused.Width(m.Width).Render(" " + m.input.View())
 }
 
-func (m *modelPrompt) Focus() {
+func (m *Model) Focus() {
 	m.input.Focus()
 	m.focus = true
 }
 
-func (m *modelPrompt) Blur() {
+func (m *Model) Blur() {
 	m.input.Blur()
 	m.focus = false
+}
+
+func (m *Model) Focused() bool {
+	return m.focus
+}
+
+func (m *Model) WithWidth(width int) *Model {
+	m.Width = width
+	return m
+}
+
+func (m *Model) WithStyles(styles Styles) *Model {
+	m.styles = styles
+	return m
+}
+
+func Ask(prompt, value string, callback func(value string) tea.Cmd) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		return PromptMsg{
+			Prompt:   prompt,
+			Value:    value,
+			Callback: callback,
+		}
+	})
 }

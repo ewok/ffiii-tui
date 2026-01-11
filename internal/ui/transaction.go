@@ -14,6 +14,7 @@ import (
 
 	"ffiii-tui/internal/firefly"
 	"ffiii-tui/internal/ui/notify"
+	"ffiii-tui/internal/ui/prompt"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -209,10 +210,10 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.splits = append(m.splits, &split{})
 			return m, RedrawForm()
 		case key.Matches(msg, m.keymap.DeleteSplit):
-			return m, Cmd(PromptMsg{
-				Prompt: "Delete split number: ",
-				Value:  "",
-				Callback: func(value string) tea.Cmd {
+			return m, prompt.Ask(
+				"Delete split number: ",
+				"",
+				func(value string) tea.Cmd {
 					if value != "None" {
 						index, err := strconv.Atoi(value)
 						if err == nil {
@@ -221,7 +222,7 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					return SetView(newView)
 				},
-			})
+			)
 		case key.Matches(msg, m.keymap.ChangeLayout):
 			fullNewForm = !fullNewForm
 			return m, RedrawForm()
@@ -455,7 +456,8 @@ func (m *modelTransaction) CreateTransaction() tea.Cmd {
 		Cmd(RefreshSummaryMsg{}),
 		Cmd(RefreshTransactionsMsg{}),
 		Cmd(RefreshExpenseInsightsMsg{}),
-		Cmd(RefreshRevenueInsightsMsg{}))
+		Cmd(RefreshRevenueInsightsMsg{}),
+		Cmd(RefreshCategoryInsightsMsg{}))
 }
 
 func (m *modelTransaction) UpdateTransaction() tea.Cmd {
@@ -497,7 +499,8 @@ func (m *modelTransaction) UpdateTransaction() tea.Cmd {
 		Cmd(RefreshSummaryMsg{}),
 		Cmd(RefreshTransactionsMsg{}),
 		Cmd(RefreshExpenseInsightsMsg{}),
-		Cmd(RefreshRevenueInsightsMsg{}))
+		Cmd(RefreshRevenueInsightsMsg{}),
+		Cmd(RefreshCategoryInsightsMsg{}))
 }
 
 func (m *modelTransaction) SetTransaction(trx firefly.Transaction, newT bool) error {

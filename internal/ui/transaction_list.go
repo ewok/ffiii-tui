@@ -13,6 +13,7 @@ import (
 
 	"ffiii-tui/internal/firefly"
 	"ffiii-tui/internal/ui/notify"
+	"ffiii-tui/internal/ui/prompt"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -274,22 +275,22 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Refresh):
 			return m, Cmd(RefreshAllMsg{})
 		case key.Matches(msg, m.keymap.Filter):
-			return m, Cmd(PromptMsg{
-				Prompt: "Filter query: ",
-				Value:  m.currentFilter,
-				Callback: func(value string) tea.Cmd {
+			return m, prompt.Ask(
+				"Filter query: ",
+				m.currentFilter,
+				func(value string) tea.Cmd {
 					var cmds []tea.Cmd
 					cmds = append(cmds,
 						Cmd(FilterMsg{Query: value}),
 						SetView(transactionsView))
 					return tea.Sequence(cmds...)
 				},
-			})
+			)
 		case key.Matches(msg, m.keymap.Search):
-			return m, Cmd(PromptMsg{
-				Prompt: "Search query: ",
-				Value:  m.currentSearch,
-				Callback: func(value string) tea.Cmd {
+			return m, prompt.Ask(
+				"Search query: ",
+				m.currentSearch,
+				func(value string) tea.Cmd {
 					var cmds []tea.Cmd
 					cmds = append(cmds,
 						Cmd(SearchMsg{Query: value}),
@@ -297,7 +298,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					)
 					return tea.Sequence(cmds...)
 				},
-			})
+			)
 		case key.Matches(msg, m.keymap.NewView):
 			return m, Cmd(NewTransactionMsg{
 				Transaction: firefly.Transaction{
@@ -351,17 +352,17 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			trx := m.transactions[id]
-			return m, Cmd(PromptMsg{
-				Prompt: fmt.Sprintf("Are you sure you want to delete the transaction? Type 'yes!' to confirm. Transaction: %s - %s: ", trx.TransactionID, trx.Description()),
-				Value:  "no",
-				Callback: func(value string) tea.Cmd {
+			return m, prompt.Ask(
+				fmt.Sprintf("Are you sure you want to delete the transaction? Type 'yes!' to confirm. Transaction: %s - %s: ", trx.TransactionID, trx.Description()),
+				"no",
+				func(value string) tea.Cmd {
 					var cmd tea.Cmd
 					if value == "yes!" {
 						cmd = Cmd(DeleteTransactionMsg{Transaction: trx})
 					}
 					return tea.Sequence(SetView(transactionsView), cmd)
 				},
-			})
+			)
 		}
 	}
 

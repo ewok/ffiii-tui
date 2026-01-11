@@ -11,6 +11,7 @@ import (
 
 	"ffiii-tui/internal/firefly"
 	"ffiii-tui/internal/ui/notify"
+	"ffiii-tui/internal/ui/prompt"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -178,10 +179,10 @@ func getLiabilitiesItems(api *firefly.Api) []list.Item {
 }
 
 func CmdPromptNewLiability(backCmd tea.Cmd) tea.Cmd {
-	return Cmd(PromptMsg{
-		Prompt: "New Liabity(<name>,<currency>,<type:loan|debt|mortage>,<direction:credit|debit>): ",
-		Value:  promptValue,
-		Callback: func(value string) tea.Cmd {
+	return prompt.Ask(
+		"New Liabity(<name>,<currency>,<type:loan|debt|mortage>,<direction:credit|debit>): ",
+		promptValue,
+		func(value string) tea.Cmd {
 			var cmds []tea.Cmd
 			if value != "None" {
 				promptValue = value
@@ -206,5 +207,5 @@ func CmdPromptNewLiability(backCmd tea.Cmd) tea.Cmd {
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
 		},
-	})
+	)
 }

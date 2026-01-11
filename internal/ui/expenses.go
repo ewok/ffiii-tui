@@ -10,6 +10,7 @@ import (
 
 	"ffiii-tui/internal/firefly"
 	"ffiii-tui/internal/ui/notify"
+	"ffiii-tui/internal/ui/prompt"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -201,10 +202,10 @@ func getExpensesItems(api *firefly.Api, sorted bool) []list.Item {
 }
 
 func CmdPromptNewExpense(backCmd tea.Cmd) tea.Cmd {
-	return Cmd(PromptMsg{
-		Prompt: "New Expense(<name>): ",
-		Value:  "",
-		Callback: func(value string) tea.Cmd {
+	return prompt.Ask(
+		"New Expense(<name>): ",
+		"",
+		func(value string) tea.Cmd {
 			var cmds []tea.Cmd
 			if value != "None" {
 				cmds = append(cmds, Cmd(NewExpenseMsg{Account: value}))
@@ -212,5 +213,5 @@ func CmdPromptNewExpense(backCmd tea.Cmd) tea.Cmd {
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
 		},
-	})
+	)
 }

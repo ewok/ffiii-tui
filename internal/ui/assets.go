@@ -10,6 +10,7 @@ import (
 
 	"ffiii-tui/internal/firefly"
 	"ffiii-tui/internal/ui/notify"
+	"ffiii-tui/internal/ui/prompt"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -177,10 +178,10 @@ func getAssetsItems(api *firefly.Api) []list.Item {
 }
 
 func CmdPromptNewAsset(backCmd tea.Cmd) tea.Cmd {
-	return Cmd(PromptMsg{
-		Prompt: "New Asset(<name>,<currency>): ",
-		Value:  "",
-		Callback: func(value string) tea.Cmd {
+	return prompt.Ask(
+		"New Asset(<name>,<currency>): ",
+		"",
+		func(value string) tea.Cmd {
 			var cmds []tea.Cmd
 			if value != "None" {
 				split := strings.SplitN(value, ",", 2)
@@ -199,5 +200,5 @@ func CmdPromptNewAsset(backCmd tea.Cmd) tea.Cmd {
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
 		},
-	})
+	)
 }

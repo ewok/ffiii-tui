@@ -10,6 +10,7 @@ import (
 
 	"ffiii-tui/internal/firefly"
 	"ffiii-tui/internal/ui/notify"
+	"ffiii-tui/internal/ui/prompt"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -233,10 +234,10 @@ func getCategoriesItems(api *firefly.Api, sorted int) []list.Item {
 }
 
 func CmdPromptNewCategory(backCmd tea.Cmd) tea.Cmd {
-	return Cmd(PromptMsg{
-		Prompt: "New Category(<name>): ",
-		Value:  "",
-		Callback: func(value string) tea.Cmd {
+	return prompt.Ask(
+		"New Category(<name>): ",
+		"",
+		func(value string) tea.Cmd {
 			var cmds []tea.Cmd
 			if value != "None" {
 				cmds = append(cmds, Cmd(NewCategoryMsg{Category: value}))
@@ -244,5 +245,5 @@ func CmdPromptNewCategory(backCmd tea.Cmd) tea.Cmd {
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
 		},
-	})
+	)
 }
