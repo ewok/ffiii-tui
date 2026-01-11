@@ -485,16 +485,13 @@ func (m *modelTransaction) CreateTransaction() tea.Cmd {
 		Transactions:         trx,
 	}); err != nil {
 		return tea.Sequence(
-			Notify(err.Error(), Warn),
+			NotifyError(err.Error()),
 			SetView(transactionsView))
 	}
 
 	return tea.Batch(
 		SetView(transactionsView),
-		Cmd(NotifyMsg{
-			Message: "Transaction created successfully",
-			Level:   Log,
-		}),
+		NotifyLog("Transaction created successfully"),
 		Cmd(ResetTransactionMsg{}),
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
@@ -529,11 +526,12 @@ func (m *modelTransaction) UpdateTransaction() tea.Cmd {
 		Transactions: trx,
 	}); err != nil {
 		return tea.Sequence(
-			Notify(err.Error(), Warn),
+			NotifyError(err.Error()),
 			SetView(transactionsView))
 	}
 
 	return tea.Batch(
+		NotifyLog("Transaction updated successfully"),
 		Cmd(ResetTransactionMsg{}),
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),

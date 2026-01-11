@@ -96,10 +96,13 @@ func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Direction:    msg.Direction,
 		})
 		if err != nil {
-			return m, Notify(err.Error(), Warn)
+			return m, NotifyWarn(err.Error())
 		}
 		promptValue = ""
-		return m, Cmd(RefreshLiabilitiesMsg{})
+		return m, tea.Batch(
+			Cmd(RefreshLiabilitiesMsg{}),
+			NotifyLog(fmt.Sprintf("Liability account '%s' created", msg.Account)),
+		)
 	case UpdatePositions:
 		h, v := m.styles.Base.GetFrameSize()
 		m.list.SetSize(globalWidth-h, globalHeight-v-topSize)

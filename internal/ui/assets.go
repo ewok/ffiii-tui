@@ -87,9 +87,13 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewAssetMsg:
 		err := m.api.CreateAssetAccount(msg.Account, msg.Currency)
 		if err != nil {
-			return m, Notify(err.Error(), Warn)
+			return m, NotifyWarn(err.Error())
 		}
 		return m, Cmd(RefreshAssetsMsg{})
+		return m, tea.Batch(
+			Cmd(RefreshAssetsMsg{}),
+			NotifyLog(fmt.Sprintf("Asset account '%s' created", msg.Account)),
+		)
 	case UpdatePositions:
 		h, v := m.styles.Base.GetFrameSize()
 		m.list.SetSize(globalWidth-h, globalHeight-v-topSize-summarySize)

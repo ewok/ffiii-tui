@@ -100,7 +100,7 @@ func Show(api *firefly.Api) {
 				return Cmd(SetFocusedViewMsg{state: transactionsView})
 			},
 		}),
-		notify:  newNotify(NotifyMsg{Message: ""}),
+		notify:  newNotify(),
 		summary: newModelSummary(api),
 		keymap:  DefaultUIKeyMap(),
 		help:    help.New(),

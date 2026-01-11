@@ -97,9 +97,12 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewRevenueMsg:
 		err := m.api.CreateRevenueAccount(msg.Account)
 		if err != nil {
-			return m, Notify(err.Error(), Warn)
+			return m, NotifyWarn(err.Error())
 		}
-		return m, Cmd(RefreshRevenuesMsg{})
+		return m, tea.Batch(
+			Cmd(RefreshRevenuesMsg{}),
+			NotifyLog(fmt.Sprintf("Revenue account '%s' created", msg.Account)),
+		)
 	case UpdatePositions:
 		h, v := m.styles.Base.GetFrameSize()
 		m.list.SetSize(globalWidth-h, globalHeight-v-topSize)

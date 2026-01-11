@@ -211,18 +211,12 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentSearch != "" {
 				transactions, err = m.api.ListTransactions(url.QueryEscape(m.currentSearch))
 				if err != nil {
-					return NotifyMsg{
-						Message: err.Error(),
-						Level:   Warn,
-					}
+					return NotifyWarn(err.Error())
 				}
 			} else {
 				transactions, err = m.api.ListTransactions("")
 				if err != nil {
-					return NotifyMsg{
-						Message: err.Error(),
-						Level:   Warn,
-					}
+					return NotifyWarn(err.Error())
 				}
 			}
 			return TransactionsUpdateMsg{
@@ -236,7 +230,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Account:  m.currentAccount,
 			Category: m.currentCategory,
 			Query:    m.currentFilter,
-		}), Notify("Transactions updated.", Log))
+		}), Notify("Transactions loaded", Log))
 
 	case DeleteTransactionMsg:
 		id := msg.Transaction.TransactionID

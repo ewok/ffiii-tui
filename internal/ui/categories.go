@@ -114,9 +114,12 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewCategoryMsg:
 		err := m.api.CreateCategory(msg.Category, "")
 		if err != nil {
-			return m, Notify(err.Error(), Warn)
+			return m, NotifyWarn(err.Error())
 		}
-		return m, Cmd(RefreshCategoriesMsg{})
+		return m, tea.Batch(
+			Cmd(RefreshCategoriesMsg{}),
+			NotifyLog(fmt.Sprintf("Category '%s' created", msg.Category)),
+		)
 	case UpdatePositions:
 		h, v := m.styles.Base.GetFrameSize()
 		m.list.SetSize(globalWidth-h, globalHeight-v-topSize)

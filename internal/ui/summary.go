@@ -96,10 +96,7 @@ func (m modelSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateSummary()
 			if err != nil {
-				return NotifyMsg{
-					Message: err.Error(),
-					Level:   Warn,
-				}
+				return NotifyWarn(err.Error())
 			}
 			return SummaryUpdateMsg{}
 		}
