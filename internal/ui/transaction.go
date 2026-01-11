@@ -24,7 +24,6 @@ var (
 	triggerCategoryCounter    byte
 	triggerSourceCounter      byte
 	triggerDestinationCounter byte
-	lastWindowWidth           int
 	fullNewForm               bool
 )
 
@@ -52,9 +51,6 @@ type modelTransaction struct {
 
 	splits []*split
 	attr   *transactionAttr
-
-	// For convenience
-	currentTransaction firefly.Transaction
 }
 
 type split struct {
@@ -103,33 +99,32 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RefreshNewAssetMsg:
 		triggerSourceCounter++
 		triggerDestinationCounter++
-		return m, Cmd(RedrawFormMsg{})
+		return m, RedrawForm()
 	case RefreshNewExpenseMsg:
 		triggerDestinationCounter++
-		return m, Cmd(RedrawFormMsg{})
+		return m, RedrawForm()
 	case RefreshNewRevenueMsg:
 		triggerSourceCounter++
-		return m, Cmd(RedrawFormMsg{})
+		return m, RedrawForm()
 	case RefreshNewCategoryMsg:
 		triggerCategoryCounter++
-		return m, Cmd(RedrawFormMsg{})
+		return m, RedrawForm()
 	case NewTransactionMsg:
 		if !m.created {
 			m.SetTransaction(msg.Transaction, true)
 			m.created = true
-			m.currentTransaction = msg.Transaction
-
 		}
-		return m, SetView(newView)
+		return m, tea.Batch(
+			RedrawForm(),
+			SetView(newView),
+		)
 	case NewTransactionFromMsg:
 		m.SetTransaction(msg.Transaction, true)
 		m.created = true
-		m.currentTransaction = msg.Transaction
 		return m, SetView(newView)
 	case EditTransactionMsg:
 		m.SetTransaction(msg.Transaction, false)
 		m.created = true
-		m.currentTransaction = msg.Transaction
 		return m, SetView(newView)
 	case ResetTransactionMsg:
 		trx := firefly.Transaction{}
@@ -141,9 +136,6 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.WindowSize()
 	case DeleteSplitMsg:
 		return m, m.DeleteSplit(msg.Index)
-	case tea.WindowSizeMsg:
-		lastWindowWidth = msg.Width
-		return m, nil
 	}
 
 	if !m.focus {
@@ -457,7 +449,6 @@ func (m *modelTransaction) CreateTransaction() tea.Cmd {
 	return tea.Batch(
 		SetView(transactionsView),
 		NotifyLog("Transaction created successfully"),
-		Cmd(ResetTransactionMsg{}),
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
 		Cmd(RefreshSummaryMsg{}),
@@ -500,7 +491,6 @@ func (m *modelTransaction) UpdateTransaction() tea.Cmd {
 	return tea.Batch(
 		SetView(transactionsView),
 		NotifyLog("Transaction updated successfully"),
-		Cmd(ResetTransactionMsg{}),
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
 		Cmd(RefreshSummaryMsg{}),
@@ -571,8 +561,6 @@ func (m *modelTransaction) SetTransaction(trx firefly.Transaction, newT bool) er
 		}
 		m.new = true
 	}
-
-	m.UpdateForm()
 
 	return nil
 }
