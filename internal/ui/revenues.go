@@ -9,6 +9,8 @@ import (
 	"slices"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
+	"ffiii-tui/internal/ui/prompt"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -77,7 +79,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateRevenueInsights()
 			if err != nil {
-				return Notify(err.Error(), Warn)
+				return notify.NotifyWarn(err.Error())
 			}
 			return RevenuesUpdateMsg{}
 		}
@@ -85,7 +87,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("revenue")
 			if err != nil {
-				return Notify(err.Error(), Warn)
+				return notify.NotifyWarn(err.Error())
 			}
 			return RevenuesUpdateMsg{}
 		}
@@ -101,11 +103,11 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewRevenueMsg:
 		err := m.api.CreateRevenueAccount(msg.Account)
 		if err != nil {
-			return m, NotifyWarn(err.Error())
+			return m, notify.NotifyWarn(err.Error())
 		}
 		return m, tea.Batch(
 			Cmd(RefreshRevenuesMsg{}),
-			NotifyLog(fmt.Sprintf("Revenue account '%s' created", msg.Account)),
+			notify.NotifyLog(fmt.Sprintf("Revenue account '%s' created", msg.Account)),
 		)
 	case UpdatePositions:
 		h, v := m.styles.Base.GetFrameSize()
@@ -197,10 +199,10 @@ func getRevenuesItems(api *firefly.Api, sorted bool) []list.Item {
 }
 
 func CmdPromptNewRevenue(backCmd tea.Cmd) tea.Cmd {
-	return Cmd(PromptMsg{
-		Prompt: "New Revenue(<name>): ",
-		Value:  "",
-		Callback: func(value string) tea.Cmd {
+	return prompt.Ask(
+		"New Revenue(<name>): ",
+		"",
+		func(value string) tea.Cmd {
 			var cmds []tea.Cmd
 			if value != "None" {
 				cmds = append(cmds, Cmd(NewRevenueMsg{Account: value}))
@@ -208,5 +210,5 @@ func CmdPromptNewRevenue(backCmd tea.Cmd) tea.Cmd {
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
 		},
-	})
+	)
 }

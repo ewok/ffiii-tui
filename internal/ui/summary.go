@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -96,7 +97,7 @@ func (m modelSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateSummary()
 			if err != nil {
-				return NotifyWarn(err.Error())
+				return notify.NotifyWarn(err.Error())
 			}
 			return SummaryUpdateMsg{}
 		}

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
+	"ffiii-tui/internal/ui/prompt"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -42,7 +44,7 @@ const (
 	expensesView
 	revenuesView
 	liabilitiesView
-	promptView
+	// promptView
 )
 
 type (
@@ -56,7 +58,9 @@ type (
 	LazyLoadMsg          time.Time
 	AllBaseDataLoadedMsg struct{}
 	RefreshAllMsg        struct{}
-	UpdatePositions      struct{}
+	UpdatePositions      struct {
+		GlobalWidth int
+	}
 )
 
 type modelUI struct {
@@ -69,8 +73,8 @@ type modelUI struct {
 	expenses     modelExpenses
 	revenues     modelRevenues
 	liabilities  modelLiabilities
-	prompt       modelPrompt
-	notify       modelNotify
+	prompt       prompt.Model
+	notify       notify.Model
 	summary      modelSummary
 
 	keymap UIKeyMap
@@ -94,19 +98,13 @@ func Show(api *firefly.Api) {
 		expenses:     newModelExpenses(api),
 		revenues:     newModelRevenues(api),
 		liabilities:  newModelLiabilities(api),
-		prompt: newPrompt(PromptMsg{
-			Prompt: "",
-			Value:  "",
-			Callback: func(value string) tea.Cmd {
-				return Cmd(SetFocusedViewMsg{state: transactionsView})
-			},
-		}),
-		notify:  newNotify(),
-		summary: newModelSummary(api),
-		keymap:  DefaultUIKeyMap(),
-		help:    help.New(),
-		styles:  DefaultStyles(),
-		Width:   80,
+		prompt:       prompt.New(),
+		notify:       notify.New(),
+		summary:      newModelSummary(api),
+		keymap:       DefaultUIKeyMap(),
+		help:         help.New(),
+		styles:       DefaultStyles(),
+		Width:        80,
 		loadStatus: map[string]bool{
 			"assets":      false,
 			"expenses":    false,
@@ -252,12 +250,8 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.new.Blur()
 		}
-		if msg.state == promptView {
-			m.prompt.Focus()
-		} else {
-			m.prompt.Blur()
-			m.SetState(msg.state)
-		}
+
+		m.SetState(msg.state)
 
 	case ViewFullTransactionViewMsg:
 		fullTransactionView = !fullTransactionView
@@ -270,7 +264,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !loaded {
 				if lazyLoadCounter > m.api.Config.TimeoutSeconds {
 					lazyLoadCounter = 0
-					return m, Notify("Could not load all resources", Warn)
+					return m, notify.NotifyWarn("Could not load all resources")
 				}
 				return m, tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
 					return LazyLoadMsg(t)
@@ -308,6 +302,9 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.prompt, cmd = updateModel(m.prompt, msg)
 	cmds = append(cmds, cmd)
+	if m.prompt.Focused() {
+		return m, tea.Batch(cmds...)
+	}
 
 	m.notify, cmd = updateModel(m.notify, msg)
 	cmds = append(cmds, cmd)
@@ -344,8 +341,8 @@ func (m modelUI) View() string {
 	var s strings.Builder
 
 	// TODO: Move to model
-	if m.prompt.focus {
-		s.WriteString(m.prompt.View() + "\n")
+	if m.prompt.Focused() {
+		s.WriteString(m.prompt.WithWidth(globalWidth).View() + "\n")
 	} else {
 		header := " ffiii-tui"
 
@@ -426,7 +423,7 @@ func (m modelUI) View() string {
 	}
 	s.WriteString("\n")
 
-	s.WriteString(m.notify.View() + "\n")
+	s.WriteString(m.notify.WithWidth(globalWidth).View() + "\n")
 	s.WriteString(m.help.Styles.ShortKey.Render(m.HelpView()))
 
 	return s.String()

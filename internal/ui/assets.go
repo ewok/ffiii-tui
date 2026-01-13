@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
+	"ffiii-tui/internal/ui/prompt"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -75,7 +77,7 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("asset")
 			if err != nil {
-				return Notify(err.Error(), Warn)
+				return notify.NotifyWarn(err.Error())
 			}
 			return AssetsUpdateMsg{}
 		}
@@ -87,11 +89,11 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewAssetMsg:
 		err := m.api.CreateAssetAccount(msg.Account, msg.Currency)
 		if err != nil {
-			return m, NotifyWarn(err.Error())
+			return m, notify.NotifyWarn(err.Error())
 		}
 		return m, tea.Batch(
 			Cmd(RefreshAssetsMsg{}),
-			NotifyLog(fmt.Sprintf("Asset account '%s' created", msg.Account)),
+			notify.NotifyLog(fmt.Sprintf("Asset account '%s' created", msg.Account)),
 		)
 	case UpdatePositions:
 		h, v := m.styles.Base.GetFrameSize()
@@ -176,10 +178,10 @@ func getAssetsItems(api *firefly.Api) []list.Item {
 }
 
 func CmdPromptNewAsset(backCmd tea.Cmd) tea.Cmd {
-	return Cmd(PromptMsg{
-		Prompt: "New Asset(<name>,<currency>): ",
-		Value:  "",
-		Callback: func(value string) tea.Cmd {
+	return prompt.Ask(
+		"New Asset(<name>,<currency>): ",
+		"",
+		func(value string) tea.Cmd {
 			var cmds []tea.Cmd
 			if value != "None" {
 				split := strings.SplitN(value, ",", 2)
@@ -189,14 +191,14 @@ func CmdPromptNewAsset(backCmd tea.Cmd) tea.Cmd {
 					if acc != "" && cur != "" {
 						cmds = append(cmds, Cmd(NewAssetMsg{Account: acc, Currency: cur}))
 					} else {
-						cmds = append(cmds, Notify("Invalid asset name or currency", Warn))
+						cmds = append(cmds, notify.NotifyWarn("Invalid asset name or currency"))
 					}
 				} else {
-					cmds = append(cmds, Notify("Invalid asset name or currency", Warn))
+					cmds = append(cmds, notify.NotifyWarn("Invalid asset name or currency"))
 				}
 			}
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
 		},
-	})
+	)
 }

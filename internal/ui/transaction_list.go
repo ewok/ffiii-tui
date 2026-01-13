@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
+	"ffiii-tui/internal/ui/prompt"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -212,12 +214,12 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentSearch != "" {
 				transactions, err = m.api.ListTransactions(url.QueryEscape(m.currentSearch))
 				if err != nil {
-					return NotifyWarn(err.Error())
+					return notify.NotifyWarn(err.Error())
 				}
 			} else {
 				transactions, err = m.api.ListTransactions("")
 				if err != nil {
-					return NotifyWarn(err.Error())
+					return notify.NotifyWarn(err.Error())
 				}
 			}
 			return TransactionsUpdateMsg{
@@ -231,7 +233,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Account:  m.currentAccount,
 			Category: m.currentCategory,
 			Query:    m.currentFilter,
-		}), Notify("Transactions loaded", Log))
+		}), notify.NotifyLog("Transactions loaded"))
 
 	case DeleteTransactionMsg:
 		id := msg.Transaction.TransactionID
@@ -239,11 +241,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			err := m.api.DeleteTransaction(id)
 			if err != nil {
 				return m, tea.Batch(
-					Notify(fmt.Sprint("Error deleting transaction, ", err.Error()), Warn),
+					notify.NotifyError(fmt.Sprint("Error deleting transaction, ", err.Error())),
 					SetView(transactionsView))
 			}
 			return m, tea.Batch(
-				Notify("Transaction deleted successfully.", Log),
+				notify.NotifyLog("Transaction deleted successfully."),
 				SetView(transactionsView),
 				Cmd(RefreshAssetsMsg{}),
 				Cmd(RefreshLiabilitiesMsg{}),
@@ -273,22 +275,22 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Refresh):
 			return m, Cmd(RefreshAllMsg{})
 		case key.Matches(msg, m.keymap.Filter):
-			return m, Cmd(PromptMsg{
-				Prompt: "Filter query: ",
-				Value:  m.currentFilter,
-				Callback: func(value string) tea.Cmd {
+			return m, prompt.Ask(
+				"Filter query: ",
+				m.currentFilter,
+				func(value string) tea.Cmd {
 					var cmds []tea.Cmd
 					cmds = append(cmds,
 						Cmd(FilterMsg{Query: value}),
 						SetView(transactionsView))
 					return tea.Sequence(cmds...)
 				},
-			})
+			)
 		case key.Matches(msg, m.keymap.Search):
-			return m, Cmd(PromptMsg{
-				Prompt: "Search query: ",
-				Value:  m.currentSearch,
-				Callback: func(value string) tea.Cmd {
+			return m, prompt.Ask(
+				"Search query: ",
+				m.currentSearch,
+				func(value string) tea.Cmd {
 					var cmds []tea.Cmd
 					cmds = append(cmds,
 						Cmd(SearchMsg{Query: value}),
@@ -296,7 +298,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					)
 					return tea.Sequence(cmds...)
 				},
-			})
+			)
 		case key.Matches(msg, m.keymap.NewView):
 			return m, Cmd(NewTransactionMsg{
 				Transaction: firefly.Transaction{
@@ -312,7 +314,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.NewTransactionFrom):
 			trx, err := m.GetCurrentTransaction()
 			if err != nil {
-				return m, Notify(err.Error(), Warn)
+				return m, notify.NotifyWarn(err.Error())
 			}
 			return m, Cmd(NewTransactionFromMsg{Transaction: trx})
 		case key.Matches(msg, m.keymap.ResetFilter):
@@ -332,35 +334,35 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Select):
 			trx, err := m.GetCurrentTransaction()
 			if err != nil {
-				return m, Notify(err.Error(), Warn)
+				return m, notify.NotifyWarn(err.Error())
 			}
 			return m, tea.Sequence(
 				Cmd(EditTransactionMsg{Transaction: trx}),
 				SetView(newView))
 		case key.Matches(msg, m.keymap.Delete):
 			if len(m.table.Rows()) < 1 {
-				return m, Notify("No transactions.", Warn)
+				return m, notify.NotifyWarn("No transactions.")
 			}
 			row := m.table.SelectedRow()
 			if row == nil {
-				return m, Notify("Transaction not selected.", Warn)
+				return m, notify.NotifyWarn("Transaction not selected.")
 			}
 			id, err := strconv.Atoi(row[0])
 			if err != nil {
 				return m, nil
 			}
 			trx := m.transactions[id]
-			return m, Cmd(PromptMsg{
-				Prompt: fmt.Sprintf("Are you sure you want to delete the transaction? Type 'yes!' to confirm. Transaction: %s - %s: ", trx.TransactionID, trx.Description()),
-				Value:  "no",
-				Callback: func(value string) tea.Cmd {
+			return m, prompt.Ask(
+				fmt.Sprintf("Are you sure you want to delete the transaction? Type 'yes!' to confirm. Transaction: %s - %s: ", trx.TransactionID, trx.Description()),
+				"no",
+				func(value string) tea.Cmd {
 					var cmd tea.Cmd
 					if value == "yes!" {
 						cmd = Cmd(DeleteTransactionMsg{Transaction: trx})
 					}
 					return tea.Sequence(SetView(transactionsView), cmd)
 				},
-			})
+			)
 		}
 	}
 
