@@ -317,20 +317,6 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, notify.NotifyWarn(err.Error())
 			}
 			return m, Cmd(NewTransactionFromMsg{Transaction: trx})
-		case key.Matches(msg, m.keymap.ResetFilter):
-			return m, Cmd(FilterMsg{Reset: true})
-		case key.Matches(msg, m.keymap.ToggleFullView):
-			return m, Cmd(ViewFullTransactionViewMsg{})
-		case key.Matches(msg, m.keymap.ViewAssets):
-			return m, SetView(assetsView)
-		case key.Matches(msg, m.keymap.ViewCategories):
-			return m, SetView(categoriesView)
-		case key.Matches(msg, m.keymap.ViewExpenses):
-			return m, SetView(expensesView)
-		case key.Matches(msg, m.keymap.ViewRevenues):
-			return m, SetView(revenuesView)
-		case key.Matches(msg, m.keymap.ViewLiabilities):
-			return m, SetView(liabilitiesView)
 		case key.Matches(msg, m.keymap.Select):
 			trx, err := m.GetCurrentTransaction()
 			if err != nil {
@@ -363,6 +349,20 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return tea.Sequence(SetView(transactionsView), cmd)
 				},
 			)
+		case key.Matches(msg, m.keymap.ResetFilter):
+			return m, Cmd(FilterMsg{Reset: true})
+		case key.Matches(msg, m.keymap.ToggleFullView):
+			return m, Cmd(ViewFullTransactionViewMsg{})
+		case key.Matches(msg, m.keymap.ViewAssets):
+			return m, SetView(assetsView)
+		case key.Matches(msg, m.keymap.ViewCategories):
+			return m, SetView(categoriesView)
+		case key.Matches(msg, m.keymap.ViewExpenses):
+			return m, SetView(expensesView)
+		case key.Matches(msg, m.keymap.ViewRevenues):
+			return m, SetView(revenuesView)
+		case key.Matches(msg, m.keymap.ViewLiabilities):
+			return m, SetView(liabilitiesView)
 		}
 	}
 

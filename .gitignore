@@ -26,6 +26,7 @@ go.work.sum
 
 # env file
 .env
+.envrc
 
 # Editor/IDE
 # .idea/
@@ -33,3 +34,5 @@ go.work.sum
 
 config.yaml
 messages.log
+ffiii-tui
+.local/

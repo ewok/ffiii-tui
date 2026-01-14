@@ -123,11 +123,17 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NewTransactionFromMsg:
 		m.SetTransaction(msg.Transaction, true)
 		m.created = true
-		return m, SetView(newView)
+		return m, tea.Batch(
+			RedrawForm(),
+			SetView(newView),
+		)
 	case EditTransactionMsg:
 		m.SetTransaction(msg.Transaction, false)
 		m.created = true
-		return m, SetView(newView)
+		return m, tea.Batch(
+			RedrawForm(),
+			SetView(newView),
+		)
 	case ResetTransactionMsg:
 		trx := firefly.Transaction{}
 		m.SetTransaction(trx, true)

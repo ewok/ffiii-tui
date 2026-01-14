@@ -17,6 +17,8 @@ type PromptMsg struct {
 	Callback func(value string) tea.Cmd
 }
 
+type PromptBlur struct{}
+
 type Model struct {
 	input    textinput.Model
 	callback func(value string) tea.Cmd
@@ -51,6 +53,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.callback = msg.Callback
 		m.Focus()
 		return m, nil
+	case PromptBlur:
+		m.Blur()
+		return m, nil
 	}
 
 	if !m.focus {
@@ -65,11 +70,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if value == "" {
 				value = "None"
 			}
-			m.Blur()
-			return m, m.callback(value)
+			return m, tea.Sequence(
+				tea.Cmd(func() tea.Msg {
+					return PromptBlur{}
+				}),
+				m.callback(value),
+			)
 		case "esc":
-			m.Blur()
-			return m, m.callback("None")
+			return m, tea.Sequence(
+				tea.Cmd(func() tea.Msg {
+					return PromptBlur{}
+				}),
+				m.callback("None"),
+			)
 		default:
 			m.input, cmd = m.input.Update(msg)
 		}
