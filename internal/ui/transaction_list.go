@@ -44,7 +44,7 @@ type (
 type modelTransactions struct {
 	table           table.Model
 	transactions    []firefly.Transaction
-	api             *firefly.Api
+	api             TransactionAPI
 	currentAccount  firefly.Account
 	currentCategory firefly.Category
 	currentSearch   string
@@ -54,7 +54,7 @@ type modelTransactions struct {
 	styles          Styles
 }
 
-func newModelTransactions(api *firefly.Api) modelTransactions {
+func NewModelTransactions(api TransactionAPI) modelTransactions {
 	transactions := []firefly.Transaction{}
 
 	rows, columns := getRows(transactions)
@@ -210,17 +210,13 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RefreshTransactionsMsg:
 		return m, func() tea.Msg {
 			var err error
-			transactions := []firefly.Transaction{}
+			searchQuery := ""
 			if m.currentSearch != "" {
-				transactions, err = m.api.ListTransactions(url.QueryEscape(m.currentSearch))
-				if err != nil {
-					return notify.NotifyWarn(err.Error())
-				}
-			} else {
-				transactions, err = m.api.ListTransactions("")
-				if err != nil {
-					return notify.NotifyWarn(err.Error())
-				}
+				searchQuery = url.QueryEscape(m.currentSearch)
+			}
+			transactions, err := m.api.ListTransactions(searchQuery)
+			if err != nil {
+				return notify.NotifyWarn(err.Error())()
 			}
 			return TransactionsUpdateMsg{
 				Transactions: transactions,
@@ -491,19 +487,19 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 
 func (m *modelTransactions) GetCurrentTransaction() (firefly.Transaction, error) {
 	if len(m.table.Rows()) < 1 {
-		return firefly.Transaction{}, fmt.Errorf("No transactions in the list")
+		return firefly.Transaction{}, fmt.Errorf("no transactions in the list")
 	}
 	row := m.table.SelectedRow()
 	if row == nil {
-		return firefly.Transaction{}, fmt.Errorf("Transaction not selected")
+		return firefly.Transaction{}, fmt.Errorf("transaction not selected")
 	}
 	id, err := strconv.Atoi(row[0])
 	if err != nil {
-		return firefly.Transaction{}, fmt.Errorf("Wrong transaction id: %s", row[0])
+		return firefly.Transaction{}, fmt.Errorf("wrong transaction id: %s", row[0])
 	}
 
 	if id >= len(m.transactions) {
-		return firefly.Transaction{}, fmt.Errorf("Index out of range: %d", id)
+		return firefly.Transaction{}, fmt.Errorf("index out of range: %d", id)
 	}
 
 	return m.transactions[id], nil

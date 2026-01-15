@@ -11,7 +11,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"ffiii-tui/internal/firefly"
 	"ffiii-tui/internal/ui/notify"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -65,11 +64,11 @@ func (d summaryDelegate) Render(w io.Writer, m list.Model, index int, listItem l
 
 type modelSummary struct {
 	list   list.Model
-	api    *firefly.Api
+	api    SummaryAPI
 	styles Styles
 }
 
-func newModelSummary(api *firefly.Api) modelSummary {
+func newModelSummary(api SummaryAPI) modelSummary {
 	styles := DefaultStyles()
 	items := getSummaryItems(api, styles)
 	m := modelSummary{
@@ -97,7 +96,7 @@ func (m modelSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateSummary()
 			if err != nil {
-				return notify.NotifyWarn(err.Error())
+				return notify.NotifyWarn(err.Error())()
 			}
 			return SummaryUpdateMsg{}
 		}
@@ -118,10 +117,10 @@ func (m modelSummary) View() string {
 	return m.styles.LeftPanel.Render(m.list.View())
 }
 
-func getSummaryItems(api *firefly.Api, styles Styles) []list.Item {
+func getSummaryItems(api SummaryAPI, styles Styles) []list.Item {
 	var style lipgloss.Style
 	items := []list.Item{}
-	for _, si := range api.Summary {
+	for _, si := range api.SummaryItems() {
 		switch {
 		case si.MonetaryValue < 0:
 			style = styles.Withdrawal

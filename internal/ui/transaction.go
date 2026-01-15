@@ -44,7 +44,7 @@ type (
 
 type modelTransaction struct {
 	form   *huh.Form
-	api    *firefly.Api
+	api    TransactionFormAPI
 	keymap TransactionFormKeyMap
 	focus  bool
 
@@ -78,7 +78,7 @@ type transactionAttr struct {
 	trxID string // For editing existing transactions
 }
 
-func newModelTransaction(api *firefly.Api) modelTransaction {
+func newModelTransaction(api TransactionFormAPI) modelTransaction {
 	return modelTransaction{
 		api:    api,
 		keymap: DefaultTransactionFormKeyMap(),
@@ -289,7 +289,7 @@ func (m *modelTransaction) UpdateForm() {
 				Options(huh.NewOption(s.category.Name, s.category)).
 				OptionsFunc(func() []huh.Option[firefly.Category] {
 					options := []huh.Option[firefly.Category]{}
-					for _, category := range m.api.Categories {
+					for _, category := range m.api.CategoriesList() {
 						options = append(options, huh.NewOption(category.Name, category))
 					}
 					return options
@@ -626,10 +626,10 @@ func (m *modelTransaction) trxSourceOptions(i int, s *split) (func() []huh.Optio
 				options = append(options, huh.NewOption(m.attr.source.Name, m.attr.source))
 				s.source = m.attr.source
 			} else {
-				for _, account := range m.api.Accounts["revenue"] {
+				for _, account := range m.api.AccountsByType("revenue") {
 					options = append(options, huh.NewOption(account.Name, account))
 				}
-				for _, account := range m.api.Accounts["liabilities"] {
+				for _, account := range m.api.AccountsByType("liabilities") {
 					options = append(options, huh.NewOption(account.Name, account))
 				}
 			}
@@ -639,13 +639,13 @@ func (m *modelTransaction) trxSourceOptions(i int, s *split) (func() []huh.Optio
 
 	return func() []huh.Option[firefly.Account] {
 		options := []huh.Option[firefly.Account]{}
-		for _, account := range m.api.Accounts["asset"] {
+		for _, account := range m.api.AccountsByType("asset") {
 			options = append(options, huh.NewOption(account.Name, account))
 		}
-		for _, account := range m.api.Accounts["revenue"] {
+		for _, account := range m.api.AccountsByType("revenue") {
 			options = append(options, huh.NewOption(account.Name, account))
 		}
-		for _, account := range m.api.Accounts["liabilities"] {
+		for _, account := range m.api.AccountsByType("liabilities") {
 			options = append(options, huh.NewOption(account.Name, account))
 		}
 		return options
@@ -665,24 +665,24 @@ func (m *modelTransaction) trxDestinationOptions(i int, s *split) (func() []huh.
 			} else {
 				switch s.source.Type {
 				case "asset":
-					for _, account := range m.api.Accounts["expense"] {
+					for _, account := range m.api.AccountsByType("expense") {
 						options = append(options, huh.NewOption(account.Name, account))
 					}
-					for _, account := range m.api.Accounts["liabilities"] {
+					for _, account := range m.api.AccountsByType("liabilities") {
 						options = append(options, huh.NewOption(account.Name, account))
 					}
 				case "revenue":
-					for _, account := range m.api.Accounts["asset"] {
+					for _, account := range m.api.AccountsByType("asset") {
 						options = append(options, huh.NewOption(account.Name, account))
 					}
-					for _, account := range m.api.Accounts["liabilities"] {
+					for _, account := range m.api.AccountsByType("liabilities") {
 						options = append(options, huh.NewOption(account.Name, account))
 					}
 				case "liabilities":
-					for _, account := range m.api.Accounts["asset"] {
+					for _, account := range m.api.AccountsByType("asset") {
 						options = append(options, huh.NewOption(account.Name, account))
 					}
-					for _, account := range m.api.Accounts["expense"] {
+					for _, account := range m.api.AccountsByType("expense") {
 						options = append(options, huh.NewOption(account.Name, account))
 					}
 				}
@@ -695,30 +695,30 @@ func (m *modelTransaction) trxDestinationOptions(i int, s *split) (func() []huh.
 		options := []huh.Option[firefly.Account]{}
 		switch s.source.Type {
 		case "asset":
-			for _, account := range m.api.Accounts["expense"] {
+			for _, account := range m.api.AccountsByType("expense") {
 				options = append(options, huh.NewOption(account.Name, account))
 			}
-			for _, account := range m.api.Accounts["asset"] {
+			for _, account := range m.api.AccountsByType("asset") {
 				options = append(options, huh.NewOption(account.Name, account))
 			}
-			for _, account := range m.api.Accounts["liabilities"] {
+			for _, account := range m.api.AccountsByType("liabilities") {
 				options = append(options, huh.NewOption(account.Name, account))
 			}
 		case "revenue":
-			for _, account := range m.api.Accounts["asset"] {
+			for _, account := range m.api.AccountsByType("asset") {
 				options = append(options, huh.NewOption(account.Name, account))
 			}
-			for _, account := range m.api.Accounts["liabilities"] {
+			for _, account := range m.api.AccountsByType("liabilities") {
 				options = append(options, huh.NewOption(account.Name, account))
 			}
 		case "liabilities":
-			for _, account := range m.api.Accounts["asset"] {
+			for _, account := range m.api.AccountsByType("asset") {
 				options = append(options, huh.NewOption(account.Name, account))
 			}
-			for _, account := range m.api.Accounts["expense"] {
+			for _, account := range m.api.AccountsByType("expense") {
 				options = append(options, huh.NewOption(account.Name, account))
 			}
-			for _, account := range m.api.Accounts["liabilities"] {
+			for _, account := range m.api.AccountsByType("liabilities") {
 				options = append(options, huh.NewOption(account.Name, account))
 			}
 		}

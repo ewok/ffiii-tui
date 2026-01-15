@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"ffiii-tui/internal/firefly"
 	"ffiii-tui/internal/ui/notify"
 	"ffiii-tui/internal/ui/prompt"
 
@@ -66,7 +65,7 @@ type (
 type modelUI struct {
 	state        state
 	transactions modelTransactions
-	api          *firefly.Api
+	api          UIAPI
 	new          modelTransaction
 	assets       modelAssets
 	categories   modelCategories
@@ -86,12 +85,12 @@ type modelUI struct {
 	loadStatus map[string]bool
 }
 
-func Show(api *firefly.Api) {
+func Show(api UIAPI) {
 	fullTransactionView = viper.GetBool("ui.full_view")
 
 	m := modelUI{
 		api:          api,
-		transactions: newModelTransactions(api),
+		transactions: NewModelTransactions(api),
 		new:          newModelTransaction(api),
 		assets:       newModelAssets(api),
 		categories:   newModelCategories(api),
@@ -262,7 +261,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		lazyLoadCounter++
 		for _, loaded := range m.loadStatus {
 			if !loaded {
-				if lazyLoadCounter > m.api.Config.TimeoutSeconds {
+				if lazyLoadCounter > m.api.TimeoutSeconds() {
 					lazyLoadCounter = 0
 					return m, notify.NotifyWarn("Could not load all resources")
 				}
@@ -361,8 +360,9 @@ func (m modelUI) View() string {
 				header = header + " | Search: " + m.transactions.currentSearch
 			} else {
 				header = header + fmt.Sprintf(" | Period: %s - %s",
-					m.api.StartDate.Format(time.DateOnly),
-					m.api.EndDate.Format(time.DateOnly))
+					m.api.PeriodStart().Format(time.DateOnly),
+					m.api.PeriodEnd().Format(time.DateOnly))
+
 			}
 			if !m.transactions.currentAccount.IsEmpty() {
 				header = header + " | Account: " + m.transactions.currentAccount.Name

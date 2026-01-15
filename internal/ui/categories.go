@@ -55,14 +55,14 @@ func (i categoryItem) FilterValue() string { return i.category.Name }
 
 type modelCategories struct {
 	list   list.Model
-	api    *firefly.Api
+	api    CategoryAPI
 	focus  bool
 	sorted int
 	keymap CategoryKeyMap
 	styles Styles
 }
 
-func newModelCategories(api *firefly.Api) modelCategories {
+func newModelCategories(api CategoryAPI) modelCategories {
 	// Set the currency code for the total category
 	totalCategory.CurrencyCode = api.PrimaryCurrency().Code
 
@@ -94,7 +94,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateCategoriesInsights()
 			if err != nil {
-				return notify.NotifyWarn(err.Error())
+				return notify.NotifyWarn(err.Error())()
 			}
 			return CategoriesUpdateMsg{}
 		}
@@ -102,7 +102,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateCategories()
 			if err != nil {
-				return notify.NotifyWarn(err.Error())
+				return notify.NotifyWarn(err.Error())()
 			}
 			return CategoriesUpdateMsg{}
 		}
@@ -203,11 +203,11 @@ func (m *modelCategories) Blur() {
 	m.focus = false
 }
 
-func getCategoriesItems(api *firefly.Api, sorted int) []list.Item {
+func getCategoriesItems(api CategoriesAPI, sorted int) []list.Item {
 	items := []list.Item{}
-	for _, i := range api.Categories {
-		spent := i.GetSpent(api)
-		earned := i.GetEarned(api)
+	for _, category := range api.CategoriesList() {
+		spent := api.CategorySpent(category.ID)
+		earned := api.CategoryEarned(category.ID)
 		if sorted < 0 && spent == 0 {
 			continue
 		}
@@ -215,7 +215,7 @@ func getCategoriesItems(api *firefly.Api, sorted int) []list.Item {
 			continue
 		}
 		items = append(items, categoryItem{
-			category: i,
+			category: category,
 			spent:    spent,
 			earned:   earned,
 		})

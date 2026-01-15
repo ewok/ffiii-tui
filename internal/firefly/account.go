@@ -13,8 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const accountsEndpoint = "%s/accounts?page=%d&type=%s"
-
 type Account struct {
 	ID           string
 	Name         string
@@ -284,11 +282,23 @@ func (api *Api) CashAccount() Account {
 	return Account{}
 }
 
-func (a *Account) GetBalance(api *Api) float64 {
-	if balance, ok := api.accountBalances[a.ID]; ok {
+// AccountsByType returns the cached accounts for the given type.
+// It returns a copy of the slice to avoid accidental mutation by callers.
+func (api *Api) AccountsByType(accountType string) []Account {
+	accounts := api.Accounts[accountType]
+	return append([]Account(nil), accounts...)
+}
+
+// AccountBalance returns the cached balance for the given account ID.
+func (api *Api) AccountBalance(accountID string) float64 {
+	if balance, ok := api.accountBalances[accountID]; ok {
 		return balance
 	}
 	return 0
+}
+
+func (a *Account) GetBalance(api *Api) float64 {
+	return api.AccountBalance(a.ID)
 }
 
 func (a *Account) IsEmpty() bool {

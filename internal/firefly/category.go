@@ -27,10 +27,6 @@ type apiCategoryAttr struct {
 	CurrencyCode string `json:"primary_currency_code"`
 }
 
-type apiCategoriesResponse struct {
-	Data []apiCategory `json:"data"`
-}
-
 func (api *Api) CreateCategory(name, notes string) error {
 	endpoint := fmt.Sprintf("%s/categories", api.Config.ApiUrl)
 
@@ -143,18 +139,34 @@ func (api *Api) GetCategoryByID(ID string) Category {
 	return Category{}
 }
 
-func (c *Category) GetSpent(api *Api) float64 {
-	if insight, ok := api.categoryInsights[c.ID]; ok {
+// CategoriesList returns the cached categories.
+// It returns a copy of the slice to avoid accidental mutation by callers.
+func (api *Api) CategoriesList() []Category {
+	return append([]Category(nil), api.Categories...)
+}
+
+// CategorySpent returns the cached spent amount for a category.
+func (api *Api) CategorySpent(categoryID string) float64 {
+	if insight, ok := api.categoryInsights[categoryID]; ok {
 		return insight.Spent
 	}
 	return 0
 }
 
-func (c *Category) GetEarned(api *Api) float64 {
-	if insight, ok := api.categoryInsights[c.ID]; ok {
+// CategoryEarned returns the cached earned amount for a category.
+func (api *Api) CategoryEarned(categoryID string) float64 {
+	if insight, ok := api.categoryInsights[categoryID]; ok {
 		return insight.Earned
 	}
 	return 0
+}
+
+func (c *Category) GetSpent(api *Api) float64 {
+	return api.CategorySpent(c.ID)
+}
+
+func (c *Category) GetEarned(api *Api) float64 {
+	return api.CategoryEarned(c.ID)
 }
 
 func (api *Api) GetTotalSpentEarnedCategories() (spent, earned float64) {

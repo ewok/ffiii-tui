@@ -79,3 +79,15 @@ func (api *Api) NextPeriod() {
 	api.StartDate = time.Date(api.StartDate.Year(), api.StartDate.Month()+1, 1, 0, 0, 0, 0, api.StartDate.Location())
 	api.EndDate = api.StartDate.AddDate(0, 1, 0).Add(-time.Nanosecond)
 }
+
+func (api *Api) TimeoutSeconds() int {
+	return api.Config.TimeoutSeconds
+}
+
+func (api *Api) PeriodStart() time.Time {
+	return api.StartDate
+}
+
+func (api *Api) PeriodEnd() time.Time {
+	return api.EndDate
+}

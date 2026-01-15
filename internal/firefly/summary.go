@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"time"
 	"unicode/utf8"
@@ -128,6 +129,11 @@ func (api *Api) UpdateSummary() error {
 	}
 	api.Summary = summary
 	return nil
+}
+
+// SummaryItems returns a shallow copy of cached summary items.
+func (api *Api) SummaryItems() map[string]SummaryItem {
+	return maps.Clone(api.Summary)
 }
 
 func (api *Api) GetMaxWidth() int {
