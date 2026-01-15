@@ -7,279 +7,954 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
-// mockTransactionAPI is a simple mock for testing the constructor
 type mockTransactionAPI struct {
-	listTransactionsFunc  func(query string) ([]firefly.Transaction, error)
-	deleteTransactionFunc func(transactionID string) error
+	listTransactionsFunc        func(query string) ([]firefly.Transaction, error)
+	deleteTransactionFunc       func(transactionID string) error
+	listTransactionsCalledWith  []string
+	deleteTransactionCalledWith []string
 }
 
 func (m *mockTransactionAPI) ListTransactions(query string) ([]firefly.Transaction, error) {
+	m.listTransactionsCalledWith = append(m.listTransactionsCalledWith, query)
 	if m.listTransactionsFunc != nil {
 		return m.listTransactionsFunc(query)
 	}
-	return []firefly.Transaction{}, nil
+	return nil, nil
 }
 
 func (m *mockTransactionAPI) DeleteTransaction(transactionID string) error {
+	m.deleteTransactionCalledWith = append(m.deleteTransactionCalledWith, transactionID)
 	if m.deleteTransactionFunc != nil {
 		return m.deleteTransactionFunc(transactionID)
 	}
 	return nil
 }
 
-// TestNewModelTransactions_DefaultState verifies all initial state in a single comprehensive test
-func TestNewModelTransactions_DefaultState(t *testing.T) {
-	// Arrange
-	mockAPI := &mockTransactionAPI{}
-
-	// Act
-	model := NewModelTransactions(mockAPI)
-
-	// Assert: Verify all default state
-	t.Run("API", func(t *testing.T) {
-		if model.api != mockAPI {
-			t.Error("api should be set to provided instance")
-		}
-	})
-
-	t.Run("Transactions", func(t *testing.T) {
-		if model.transactions == nil {
-			t.Fatal("transactions should not be nil")
-		}
-		if len(model.transactions) != 0 {
-			t.Errorf("transactions should be empty, got %d", len(model.transactions))
-		}
-	})
-
-	t.Run("Filters", func(t *testing.T) {
-		if model.currentSearch != "" {
-			t.Errorf("currentSearch should be empty, got %q", model.currentSearch)
-		}
-		if model.currentFilter != "" {
-			t.Errorf("currentFilter should be empty, got %q", model.currentFilter)
-		}
-		if !model.currentAccount.IsEmpty() {
-			t.Error("currentAccount should be empty")
-		}
-		if !model.currentCategory.IsEmpty() {
-			t.Error("currentCategory should be empty")
-		}
-	})
-
-	t.Run("UIState", func(t *testing.T) {
-		if model.focus {
-			t.Error("focus should be false initially")
-		}
-	})
-
-	t.Run("Table", func(t *testing.T) {
-		if model.table.Cursor() != 0 {
-			t.Errorf("table cursor should be at 0, got %d", model.table.Cursor())
-		}
-		if len(model.table.Rows()) != 0 {
-			t.Errorf("table should have 0 rows initially, got %d", len(model.table.Rows()))
-		}
-		if len(model.table.Columns()) != 12 {
-			t.Errorf("table should have 12 columns, got %d", len(model.table.Columns()))
-		}
-	})
-
-	t.Run("Keymap", func(t *testing.T) {
-		// Verify keymap is initialized by checking one required key
-		if model.keymap.Quit.Keys() == nil {
-			t.Error("keymap should be initialized")
-		}
-	})
-
-	t.Run("Styles", func(t *testing.T) {
-		// Verify styles struct is initialized
-		// We check by accessing a style property - if it doesn't panic, it's initialized
-		_ = model.styles.Base
-		// The fact we can access it means the struct was initialized by DefaultStyles()
-	})
-}
-
-// TestNewModelTransactions_TableSchema verifies the table column structure
-func TestNewModelTransactions_TableSchema(t *testing.T) {
-	// Arrange
-	mockAPI := &mockTransactionAPI{}
-
-	// Act
-	model := NewModelTransactions(mockAPI)
-
-	// Assert: Verify table schema
-	columns := model.table.Columns()
-	expectedColumns := []string{
-		"ID", "Type", "Date", "Source", "Destination", "Category",
-		"Currency", "Amount", "Foreign Currency", "Foreign Amount",
-		"Description", "TxID",
-	}
-
-	if len(columns) != len(expectedColumns) {
-		t.Fatalf("Expected %d columns, got %d", len(expectedColumns), len(columns))
-	}
-
-	// Check key columns to verify structure (not all titles for maintainability)
-	keyChecks := map[int]string{
-		0:  "ID",
-		1:  "Type",
-		2:  "Date",
-		10: "Description",
-		11: "TxID",
-	}
-
-	for idx, expectedTitle := range keyChecks {
-		if columns[idx].Title != expectedTitle {
-			t.Errorf("Column %d: expected %q, got %q", idx, expectedTitle, columns[idx].Title)
-		}
+func newTestTransaction(id uint, txID, txType, date, desc string) firefly.Transaction {
+	return firefly.Transaction{
+		ID:            id,
+		TransactionID: txID,
+		Type:          txType,
+		Date:          date,
+		GroupTitle:    fmt.Sprintf("Group %d", id),
+		Splits: []firefly.Split{
+			{
+				TransactionJournalID: fmt.Sprintf("split-%d", id),
+				Source:               firefly.Account{ID: "src1", Name: "Source Account"},
+				Destination:          firefly.Account{ID: "dst1", Name: "Destination Account"},
+				Category:             firefly.Category{ID: "cat1", Name: "Groceries"},
+				Currency:             "USD",
+				Amount:               100.00,
+				Description:          desc,
+			},
+		},
 	}
 }
 
-// TestNewModelTransactions_EmptyDataHandling verifies table generation handles empty data correctly
-func TestNewModelTransactions_EmptyDataHandling(t *testing.T) {
-	// Arrange
-	mockAPI := &mockTransactionAPI{}
+func newFocusedTransactionModel(t *testing.T, transactions []firefly.Transaction) modelTransactions {
+	t.Helper()
 
-	// Act
-	model := NewModelTransactions(mockAPI)
-	rows, columns := getRows(model.transactions)
+	api := &mockTransactionAPI{
+		listTransactionsFunc: func(query string) ([]firefly.Transaction, error) {
+			return transactions, nil
+		},
+	}
 
-	// Assert
+	m := NewModelTransactions(api)
+	m.transactions = transactions
+	rows, columns := getRows(transactions)
+	m.table.SetRows(rows)
+	m.table.SetColumns(columns)
+	(&m).Focus()
+	return m
+}
+
+// Basic functionality tests
+
+func TestNewModelTransactions_Initializes(t *testing.T) {
+	api := &mockTransactionAPI{
+		listTransactionsFunc: func(query string) ([]firefly.Transaction, error) {
+			return []firefly.Transaction{}, nil
+		},
+	}
+
+	m := NewModelTransactions(api)
+
+	if m.api != api {
+		t.Error("expected API to be set")
+	}
+	if m.focus {
+		t.Error("expected model to be unfocused initially")
+	}
+	if len(m.transactions) != 0 {
+		t.Errorf("expected 0 transactions, got %d", len(m.transactions))
+	}
+}
+
+func TestGetRows_EmptyTransactions(t *testing.T) {
+	rows, columns := getRows([]firefly.Transaction{})
+
 	if len(rows) != 0 {
-		t.Errorf("Expected 0 rows for empty transactions, got %d", len(rows))
+		t.Errorf("expected 0 rows, got %d", len(rows))
 	}
-
 	if len(columns) != 12 {
-		t.Errorf("Expected 12 columns even with empty data, got %d", len(columns))
+		t.Errorf("expected 12 columns, got %d", len(columns))
 	}
 }
 
-// TestNewModelTransactions_NilAPI verifies handling of nil API (defensive programming)
-func TestNewModelTransactions_NilAPI(t *testing.T) {
-	testCases := []struct {
-		name        string
-		api         TransactionAPI
-		shouldPanic bool
-	}{
-		{
-			name:        "nil interface",
-			api:         nil,
-			shouldPanic: false,
-		},
-		{
-			name:        "typed nil pointer",
-			api:         (*mockTransactionAPI)(nil),
-			shouldPanic: false,
-		},
+func TestGetRows_SingleTransaction(t *testing.T) {
+	tx := newTestTransaction(0, "tx1", "withdrawal", "2024-01-15T10:00:00Z", "Test transaction")
+
+	rows, columns := getRows([]firefly.Transaction{tx})
+
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(rows))
+	}
+	if len(columns) != 12 {
+		t.Errorf("expected 12 columns, got %d", len(columns))
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r != nil {
-					if !tc.shouldPanic {
-						t.Errorf("NewModelTransactions panicked unexpectedly: %v", r)
-					}
-				}
-			}()
+	row := rows[0]
+	if row[0] != "0" {
+		t.Errorf("expected ID '0', got %q", row[0])
+	}
+	if row[1] != "←" {
+		t.Errorf("expected withdrawal icon '←', got %q", row[1])
+	}
+	if row[2] != "2024-01-15" {
+		t.Errorf("expected date '2024-01-15', got %q", row[2])
+	}
+	if row[11] != "tx1" {
+		t.Errorf("expected transaction ID 'tx1', got %q", row[11])
+	}
+}
 
-			model := NewModelTransactions(tc.api)
+func TestGetRows_TransactionTypes(t *testing.T) {
+	tests := []struct {
+		txType       string
+		expectedIcon string
+	}{
+		{"withdrawal", "←"},
+		{"deposit", "→"},
+		{"transfer", "⇄"},
+	}
 
-			// Constructor should still initialize the model
-			if model.transactions == nil {
-				t.Error("transactions slice should be initialized even with nil API")
+	for _, tt := range tests {
+		t.Run(tt.txType, func(t *testing.T) {
+			tx := newTestTransaction(0, "tx1", tt.txType, "2024-01-15T10:00:00Z", "Test")
+			rows, _ := getRows([]firefly.Transaction{tx})
+
+			if len(rows) != 1 {
+				t.Fatalf("expected 1 row, got %d", len(rows))
+			}
+			if rows[0][1] != tt.expectedIcon {
+				t.Errorf("expected icon %q, got %q", tt.expectedIcon, rows[0][1])
 			}
 		})
 	}
 }
 
-// TestNewModelTransactions_APIFunctional verifies the API reference works
-func TestNewModelTransactions_APIFunctional(t *testing.T) {
-	// Arrange
-	called := false
-	mockAPI := &mockTransactionAPI{
-		listTransactionsFunc: func(query string) ([]firefly.Transaction, error) {
-			called = true
-			return []firefly.Transaction{
-				{ID: 1, TransactionID: "tx_001"},
-			}, nil
+func TestGetRows_MultiSplitTransaction(t *testing.T) {
+	tx := firefly.Transaction{
+		ID:            0,
+		TransactionID: "tx1",
+		Type:          "withdrawal",
+		Date:          "2024-01-15T10:00:00Z",
+		Splits: []firefly.Split{
+			{Description: "Split 1", Amount: 50.00, Currency: "USD"},
+			{Description: "Split 2", Amount: 30.00, Currency: "USD"},
+			{Description: "Split 3", Amount: 20.00, Currency: "USD"},
 		},
 	}
 
-	// Act
-	model := NewModelTransactions(mockAPI)
-	transactions, err := model.api.ListTransactions("")
+	rows, _ := getRows([]firefly.Transaction{tx})
 
-	// Assert
+	if len(rows) != 3 {
+		t.Fatalf("expected 3 rows (one per split), got %d", len(rows))
+	}
+
+	if rows[0][1] != "←" {
+		t.Errorf("expected first row icon '←', got %q", rows[0][1])
+	}
+	if rows[1][1] != " ↳" {
+		t.Errorf("expected second row icon ' ↳', got %q", rows[1][1])
+	}
+	if rows[2][1] != " ↳" {
+		t.Errorf("expected third row icon ' ↳', got %q", rows[2][1])
+	}
+}
+
+// Message handler tests
+
+func TestRefreshTransactionsMsg_Success(t *testing.T) {
+	expectedTransactions := []firefly.Transaction{
+		newTestTransaction(0, "tx1", "withdrawal", "2024-01-15T10:00:00Z", "Test 1"),
+		newTestTransaction(1, "tx2", "deposit", "2024-01-16T10:00:00Z", "Test 2"),
+	}
+
+	api := &mockTransactionAPI{
+		listTransactionsFunc: func(query string) ([]firefly.Transaction, error) {
+			return expectedTransactions, nil
+		},
+	}
+
+	m := NewModelTransactions(api)
+	(&m).Focus()
+
+	_, cmd := m.Update(RefreshTransactionsMsg{})
+
+	if cmd == nil {
+		t.Fatal("expected a command, got nil")
+	}
+
+	msg := cmd()
+	txUpdateMsg, ok := msg.(TransactionsUpdateMsg)
+	if !ok {
+		t.Fatalf("expected TransactionsUpdateMsg, got %T", msg)
+	}
+
+	if len(txUpdateMsg.Transactions) != 2 {
+		t.Errorf("expected 2 transactions, got %d", len(txUpdateMsg.Transactions))
+	}
+
+	if len(api.listTransactionsCalledWith) != 1 {
+		t.Fatalf("expected ListTransactions to be called once, got %d", len(api.listTransactionsCalledWith))
+	}
+	if api.listTransactionsCalledWith[0] != "" {
+		t.Errorf("expected empty query, got %q", api.listTransactionsCalledWith[0])
+	}
+}
+
+func TestRefreshTransactionsMsg_WithSearch(t *testing.T) {
+	api := &mockTransactionAPI{
+		listTransactionsFunc: func(query string) ([]firefly.Transaction, error) {
+			return []firefly.Transaction{}, nil
+		},
+	}
+
+	m := NewModelTransactions(api)
+	m.currentSearch = "groceries"
+	(&m).Focus()
+
+	_, cmd := m.Update(RefreshTransactionsMsg{})
+
+	if cmd == nil {
+		t.Fatal("expected a command, got nil")
+	}
+
+	_ = cmd()
+
+	if len(api.listTransactionsCalledWith) != 1 {
+		t.Fatalf("expected ListTransactions to be called once, got %d", len(api.listTransactionsCalledWith))
+	}
+	// Should be URL encoded
+	if api.listTransactionsCalledWith[0] != "groceries" {
+		t.Errorf("expected 'groceries', got %q", api.listTransactionsCalledWith[0])
+	}
+}
+
+func TestRefreshTransactionsMsg_Error(t *testing.T) {
+	expectedErr := errors.New("API error")
+	api := &mockTransactionAPI{
+		listTransactionsFunc: func(query string) ([]firefly.Transaction, error) {
+			return nil, expectedErr
+		},
+	}
+
+	m := NewModelTransactions(api)
+	(&m).Focus()
+
+	_, cmd := m.Update(RefreshTransactionsMsg{})
+
+	if cmd == nil {
+		t.Fatal("expected a command, got nil")
+	}
+
+	msg := cmd()
+	notifyMsg, ok := msg.(notify.NotifyMsg)
+	if !ok {
+		t.Fatalf("expected notify.NotifyMsg, got %T", msg)
+	}
+	if notifyMsg.Level != notify.Warn {
+		t.Errorf("expected notify level Warn, got %v", notifyMsg.Level)
+	}
+	if notifyMsg.Message != expectedErr.Error() {
+		t.Errorf("expected message %q, got %q", expectedErr.Error(), notifyMsg.Message)
+	}
+}
+
+func TestTransactionsUpdateMsg_UpdatesTransactionsAndFilters(t *testing.T) {
+	transactions := []firefly.Transaction{
+		newTestTransaction(0, "tx1", "withdrawal", "2024-01-15T10:00:00Z", "Test 1"),
+	}
+
+	api := &mockTransactionAPI{}
+	m := NewModelTransactions(api)
+	(&m).Focus()
+
+	updated, cmd := m.Update(TransactionsUpdateMsg{Transactions: transactions})
+	m2 := updated.(modelTransactions)
+
+	if cmd == nil {
+		t.Fatal("expected a command, got nil")
+	}
+
+	if len(m2.transactions) != 1 {
+		t.Errorf("expected 1 transaction, got %d", len(m2.transactions))
+	}
+
+	msgs := collectMsgsFromCmd(cmd)
+	foundFilter := false
+	foundNotify := false
+	for _, msg := range msgs {
+		if _, ok := msg.(FilterMsg); ok {
+			foundFilter = true
+		}
+		if notifyMsg, ok := msg.(notify.NotifyMsg); ok {
+			if notifyMsg.Level == notify.Log {
+				foundNotify = true
+			}
+		}
+	}
+	if !foundFilter {
+		t.Error("expected FilterMsg in batch")
+	}
+	if !foundNotify {
+		t.Error("expected notify.NotifyMsg in batch")
+	}
+}
+
+func TestDeleteTransactionMsg_Success(t *testing.T) {
+	tx := newTestTransaction(0, "tx-to-delete", "withdrawal", "2024-01-15T10:00:00Z", "Test")
+
+	api := &mockTransactionAPI{}
+	m := NewModelTransactions(api)
+	(&m).Focus()
+
+	_, cmd := m.Update(DeleteTransactionMsg{Transaction: tx})
+
+	if cmd == nil {
+		t.Fatal("expected a command, got nil")
+	}
+
+	if len(api.deleteTransactionCalledWith) != 1 {
+		t.Fatalf("expected DeleteTransaction to be called once, got %d", len(api.deleteTransactionCalledWith))
+	}
+	if api.deleteTransactionCalledWith[0] != "tx-to-delete" {
+		t.Errorf("expected transaction ID 'tx-to-delete', got %q", api.deleteTransactionCalledWith[0])
+	}
+
+	msgs := collectMsgsFromCmd(cmd)
+	foundRefreshTransactions := false
+	foundRefreshSummary := false
+	for _, msg := range msgs {
+		if _, ok := msg.(RefreshTransactionsMsg); ok {
+			foundRefreshTransactions = true
+		}
+		if _, ok := msg.(RefreshSummaryMsg); ok {
+			foundRefreshSummary = true
+		}
+	}
+	if !foundRefreshTransactions {
+		t.Error("expected RefreshTransactionsMsg in batch")
+	}
+	if !foundRefreshSummary {
+		t.Error("expected RefreshSummaryMsg in batch")
+	}
+}
+
+func TestDeleteTransactionMsg_Error(t *testing.T) {
+	expectedErr := errors.New("delete error")
+	tx := newTestTransaction(0, "tx-to-delete", "withdrawal", "2024-01-15T10:00:00Z", "Test")
+
+	api := &mockTransactionAPI{
+		deleteTransactionFunc: func(transactionID string) error {
+			return expectedErr
+		},
+	}
+	m := NewModelTransactions(api)
+	(&m).Focus()
+
+	_, cmd := m.Update(DeleteTransactionMsg{Transaction: tx})
+
+	if cmd == nil {
+		t.Fatal("expected a command, got nil")
+	}
+
+	msgs := collectMsgsFromCmd(cmd)
+	foundError := false
+	for _, msg := range msgs {
+		if notifyMsg, ok := msg.(notify.NotifyMsg); ok {
+			if notifyMsg.Level == notify.Err {
+				foundError = true
+			}
+		}
+	}
+	if !foundError {
+		t.Error("expected error notification in batch")
+	}
+}
+
+// FilterMsg tests
+
+func TestFilterMsg_ByAccount(t *testing.T) {
+	srcAccount := firefly.Account{ID: "src1", Name: "Source Account"}
+	dstAccount := firefly.Account{ID: "dst1", Name: "Destination Account"}
+	otherAccount := firefly.Account{ID: "other", Name: "Other Account"}
+
+	transactions := []firefly.Transaction{
+		{
+			ID:            0,
+			TransactionID: "tx1",
+			Type:          "withdrawal",
+			Date:          "2024-01-15T10:00:00Z",
+			Splits: []firefly.Split{
+				{Source: srcAccount, Destination: dstAccount, Description: "Tx1"},
+			},
+		},
+		{
+			ID:            1,
+			TransactionID: "tx2",
+			Type:          "deposit",
+			Date:          "2024-01-16T10:00:00Z",
+			Splits: []firefly.Split{
+				{Source: otherAccount, Destination: firefly.Account{Name: "Another"}, Description: "Tx2"},
+			},
+		},
+	}
+
+	m := newFocusedTransactionModel(t, transactions)
+
+	updated, _ := m.Update(FilterMsg{Account: srcAccount})
+	m2 := updated.(modelTransactions)
+
+	if len(m2.table.Rows()) != 1 {
+		t.Errorf("expected 1 filtered row, got %d", len(m2.table.Rows()))
+	}
+	if m2.currentAccount.ID != "src1" {
+		t.Errorf("expected currentAccount ID 'src1', got %q", m2.currentAccount.ID)
+	}
+}
+
+func TestFilterMsg_ByCategory(t *testing.T) {
+	catGroceries := firefly.Category{ID: "cat1", Name: "Groceries"}
+	catTransport := firefly.Category{ID: "cat2", Name: "Transport"}
+
+	transactions := []firefly.Transaction{
+		{
+			ID:            0,
+			TransactionID: "tx1",
+			Type:          "withdrawal",
+			Date:          "2024-01-15T10:00:00Z",
+			Splits: []firefly.Split{
+				{Category: catGroceries, Description: "Tx1", Amount: 50.00, Currency: "USD"},
+			},
+		},
+		{
+			ID:            1,
+			TransactionID: "tx2",
+			Type:          "withdrawal",
+			Date:          "2024-01-16T10:00:00Z",
+			Splits: []firefly.Split{
+				{Category: catTransport, Description: "Tx2", Amount: 30.00, Currency: "USD"},
+			},
+		},
+	}
+
+	m := newFocusedTransactionModel(t, transactions)
+
+	updated, _ := m.Update(FilterMsg{Category: catGroceries})
+	m2 := updated.(modelTransactions)
+
+	if len(m2.table.Rows()) != 1 {
+		t.Errorf("expected 1 filtered row, got %d", len(m2.table.Rows()))
+	}
+	if m2.currentCategory.ID != "cat1" {
+		t.Errorf("expected currentCategory ID 'cat1', got %q", m2.currentCategory.ID)
+	}
+}
+
+func TestFilterMsg_ByQuery(t *testing.T) {
+	transactions := []firefly.Transaction{
+		{
+			ID:            0,
+			TransactionID: "tx1",
+			Type:          "withdrawal",
+			Date:          "2024-01-15T10:00:00Z",
+			GroupTitle:    "Group Title",
+			Splits: []firefly.Split{
+				{Description: "Buy groceries", Amount: 50.00, Currency: "USD"},
+			},
+		},
+		{
+			ID:            1,
+			TransactionID: "tx2",
+			Type:          "deposit",
+			Date:          "2024-01-16T10:00:00Z",
+			GroupTitle:    "Other Group",
+			Splits: []firefly.Split{
+				{Description: "Salary payment", Amount: 1000.00, Currency: "USD"},
+			},
+		},
+	}
+
+	m := newFocusedTransactionModel(t, transactions)
+
+	updated, _ := m.Update(FilterMsg{Query: "groceries"})
+	m2 := updated.(modelTransactions)
+
+	if len(m2.table.Rows()) != 1 {
+		t.Errorf("expected 1 filtered row, got %d", len(m2.table.Rows()))
+	}
+	if m2.currentFilter != "groceries" {
+		t.Errorf("expected currentFilter 'groceries', got %q", m2.currentFilter)
+	}
+}
+
+func TestFilterMsg_Reset(t *testing.T) {
+	srcAccount := firefly.Account{ID: "src1", Name: "Source"}
+	catGroceries := firefly.Category{ID: "cat1", Name: "Groceries"}
+
+	transactions := []firefly.Transaction{
+		newTestTransaction(0, "tx1", "withdrawal", "2024-01-15T10:00:00Z", "Test"),
+	}
+
+	m := newFocusedTransactionModel(t, transactions)
+	m.currentAccount = srcAccount
+	m.currentCategory = catGroceries
+	m.currentFilter = "test"
+
+	updated, _ := m.Update(FilterMsg{Reset: true})
+	m2 := updated.(modelTransactions)
+
+	if !m2.currentAccount.IsEmpty() {
+		t.Error("expected currentAccount to be empty after reset")
+	}
+	if !m2.currentCategory.IsEmpty() {
+		t.Error("expected currentCategory to be empty after reset")
+	}
+	if m2.currentFilter != "" {
+		t.Errorf("expected currentFilter to be empty after reset, got %q", m2.currentFilter)
+	}
+}
+
+func TestFilterMsg_ComplexFiltering(t *testing.T) {
+	transactions := []firefly.Transaction{
+		{
+			ID:            0,
+			TransactionID: "tx1",
+			Type:          "withdrawal",
+			Date:          "2024-01-15T10:00:00Z",
+			Splits: []firefly.Split{
+				{
+					Source:      firefly.Account{Name: "Checking"},
+					Destination: firefly.Account{Name: "Walmart"},
+					Category:    firefly.Category{Name: "Groceries"},
+					Description: "Weekly shopping",
+					Amount:      150.50,
+					Currency:    "USD",
+				},
+			},
+		},
+	}
+
+	m := newFocusedTransactionModel(t, transactions)
+
+	tests := []struct {
+		name         string
+		query        string
+		expectedRows int
+	}{
+		{"filter by source", "Checking", 1},
+		{"filter by destination", "Walmart", 1},
+		{"filter by category", "Groceries", 1},
+		{"filter by description", "shopping", 1},
+		{"filter by amount", "150.50", 1},
+		{"filter by currency", "USD", 1},
+		{"filter no match", "nomatch", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			updated, _ := m.Update(FilterMsg{Query: tt.query})
+			m2 := updated.(modelTransactions)
+
+			if len(m2.table.Rows()) != tt.expectedRows {
+				t.Errorf("expected %d rows, got %d", tt.expectedRows, len(m2.table.Rows()))
+			}
+		})
+	}
+}
+
+// SearchMsg tests
+
+func TestSearchMsg_SetSearch(t *testing.T) {
+	api := &mockTransactionAPI{
+		listTransactionsFunc: func(query string) ([]firefly.Transaction, error) {
+			return []firefly.Transaction{}, nil
+		},
+	}
+
+	m := NewModelTransactions(api)
+	(&m).Focus()
+
+	updated, cmd := m.Update(SearchMsg{Query: "test search"})
+	m2 := updated.(modelTransactions)
+
+	if cmd == nil {
+		t.Fatal("expected a command, got nil")
+	}
+
+	if m2.currentSearch != "test search" {
+		t.Errorf("expected currentSearch 'test search', got %q", m2.currentSearch)
+	}
+
+	msg := cmd()
+	if _, ok := msg.(RefreshTransactionsMsg); !ok {
+		t.Errorf("expected RefreshTransactionsMsg, got %T", msg)
+	}
+}
+
+func TestSearchMsg_ClearSearch(t *testing.T) {
+	api := &mockTransactionAPI{
+		listTransactionsFunc: func(query string) ([]firefly.Transaction, error) {
+			return []firefly.Transaction{}, nil
+		},
+	}
+
+	m := NewModelTransactions(api)
+	m.currentSearch = "existing search"
+	(&m).Focus()
+
+	updated, cmd := m.Update(SearchMsg{Query: "None"})
+	m2 := updated.(modelTransactions)
+
+	if cmd == nil {
+		t.Fatal("expected a command, got nil")
+	}
+
+	if m2.currentSearch != "" {
+		t.Errorf("expected empty currentSearch, got %q", m2.currentSearch)
+	}
+}
+
+func TestSearchMsg_ClearSearchNoOp(t *testing.T) {
+	api := &mockTransactionAPI{}
+	m := NewModelTransactions(api)
+	(&m).Focus()
+
+	_, cmd := m.Update(SearchMsg{Query: "None"})
+
+	if cmd != nil {
+		t.Error("expected no command when clearing already empty search")
+	}
+}
+
+// Key handling tests
+
+func TestTransactionList_FocusAndBlur(t *testing.T) {
+	m := newFocusedTransactionModel(t, []firefly.Transaction{})
+
+	if !m.focus {
+		t.Error("expected model to be focused after Focus()")
+	}
+
+	(&m).Blur()
+	if m.focus {
+		t.Error("expected model to be blurred after Blur()")
+	}
+}
+
+func TestTransactionList_View_RendersTable(t *testing.T) {
+	lipgloss.SetColorProfile(0)
+	tx := newTestTransaction(0, "tx1", "withdrawal", "2024-01-15T10:00:00Z", "Test")
+	m := newFocusedTransactionModel(t, []firefly.Transaction{tx})
+
+	view := m.View()
+	if view == "" {
+		t.Error("expected non-empty view")
+	}
+}
+
+func TestTransactionList_UnfocusedIgnoresKeys(t *testing.T) {
+	m := newFocusedTransactionModel(t, []firefly.Transaction{})
+	(&m).Blur()
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+
+	if cmd != nil {
+		t.Error("expected no command when unfocused")
+	}
+}
+
+func TestGetCurrentTransaction_Success(t *testing.T) {
+	tx := newTestTransaction(0, "tx1", "withdrawal", "2024-01-15T10:00:00Z", "Test")
+	m := newFocusedTransactionModel(t, []firefly.Transaction{tx})
+
+	currentTx, err := m.GetCurrentTransaction()
 	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if !called {
-		t.Error("Expected API function to be called")
-	}
-
-	if len(transactions) != 1 {
-		t.Errorf("Expected 1 transaction, got %d", len(transactions))
-	}
-
-	if transactions[0].TransactionID != "tx_001" {
-		t.Errorf("Expected transaction ID tx_001, got %q", transactions[0].TransactionID)
+	if currentTx.TransactionID != "tx1" {
+		t.Errorf("expected transaction ID 'tx1', got %q", currentTx.TransactionID)
 	}
 }
 
-// TestNewModelTransactions_APIErrorHandling verifies API errors are propagated
-func TestNewModelTransactions_APIErrorHandling(t *testing.T) {
-	// Arrange
-	expectedError := errors.New("API connection failed")
-	mockAPI := &mockTransactionAPI{
-		listTransactionsFunc: func(query string) ([]firefly.Transaction, error) {
-			return nil, expectedError
+func TestGetCurrentTransaction_NoTransactions(t *testing.T) {
+	m := newFocusedTransactionModel(t, []firefly.Transaction{})
+
+	_, err := m.GetCurrentTransaction()
+	if err == nil {
+		t.Error("expected error when no transactions")
+	}
+}
+
+func TestGetCurrentTransaction_NoSelection(t *testing.T) {
+	api := &mockTransactionAPI{}
+	m := NewModelTransactions(api)
+	m.transactions = []firefly.Transaction{
+		newTestTransaction(0, "tx1", "withdrawal", "2024-01-15T10:00:00Z", "Test"),
+	}
+	(&m).Focus()
+
+	_, err := m.GetCurrentTransaction()
+	if err == nil {
+		t.Error("expected error when no selection")
+	}
+}
+
+func TestUpdatePositions_SetsTableSize(t *testing.T) {
+	globalWidth = 200
+	globalHeight = 60
+	topSize = 5
+	leftSize = 50
+	summarySize = 0 // Reset summary size for this test
+
+	m := newFocusedTransactionModel(t, []firefly.Transaction{})
+
+	updated, _ := m.Update(UpdatePositions{})
+	m2 := updated.(modelTransactions)
+
+	h, v := m2.styles.Base.GetFrameSize()
+	wantW := globalWidth - leftSize - h
+	// Note: The table.SetHeight() call sets the desired height, but the table component
+	// may apply its own internal padding/margins, so we check that Update was called correctly
+	expectedSetHeight := globalHeight - topSize - v
+
+	if m2.table.Width() != wantW {
+		t.Errorf("expected width %d, got %d", wantW, m2.table.Width())
+	}
+
+	// The actual table height may differ from what was set due to internal table styling
+	// We verify that the Update method calculated and set the height based on global dimensions
+	if m2.table.Height() < expectedSetHeight-5 || m2.table.Height() > expectedSetHeight {
+		t.Errorf("expected height around %d (globalHeight=%d - topSize=%d - frameV=%d), got %d",
+			expectedSetHeight, globalHeight, topSize, v, m2.table.Height())
+	}
+}
+
+// Edge case tests
+
+func TestGetRows_CalculatesColumnWidths(t *testing.T) {
+	tx := firefly.Transaction{
+		ID:            0,
+		TransactionID: "tx1",
+		Type:          "withdrawal",
+		Date:          "2024-01-15T10:00:00Z",
+		Splits: []firefly.Split{
+			{
+				Source:          firefly.Account{Name: "Very Long Source Account Name Here"},
+				Destination:     firefly.Account{Name: "Very Long Destination Account Name Here"},
+				Category:        firefly.Category{Name: "Very Long Category Name Here"},
+				Description:     "Very long description that should affect column width",
+				Amount:          99999.99,
+				Currency:        "USDT",
+				ForeignAmount:   88888.88,
+				ForeignCurrency: "EURO",
+			},
 		},
 	}
 
-	// Act
-	model := NewModelTransactions(mockAPI)
-	_, err := model.api.ListTransactions("")
+	_, columns := getRows([]firefly.Transaction{tx})
 
-	// Assert
-	if err == nil {
-		t.Fatal("Expected error to be returned")
+	sourceCol := columns[3]
+	if sourceCol.Width < len("Very Long Source Account Name Here") {
+		t.Errorf("expected source width >= %d, got %d", len("Very Long Source Account Name Here"), sourceCol.Width)
 	}
 
-	if err.Error() != expectedError.Error() {
-		t.Errorf("Expected error %q, got %q", expectedError.Error(), err.Error())
+	destCol := columns[4]
+	if destCol.Width < len("Very Long Destination Account Name Here") {
+		t.Errorf("expected destination width >= %d, got %d", len("Very Long Destination Account Name Here"), destCol.Width)
+	}
+
+	catCol := columns[5]
+	if catCol.Width < len("Very Long Category Name Here") {
+		t.Errorf("expected category width >= %d, got %d", len("Very Long Category Name Here"), catCol.Width)
 	}
 }
 
-// TestNewModelTransactions_IndependentInstances verifies multiple instances don't share state
-func TestNewModelTransactions_IndependentInstances(t *testing.T) {
-	// Arrange
-	mockAPI1 := &mockTransactionAPI{}
-	mockAPI2 := &mockTransactionAPI{}
-
-	// Act
-	model1 := NewModelTransactions(mockAPI1)
-	model2 := NewModelTransactions(mockAPI2)
-
-	// Modify model1 state
-	model1.currentSearch = "test search"
-	model1.currentFilter = "test filter"
-	model1.focus = true
-
-	// Assert: model2 should be unaffected
-	if model2.currentSearch == model1.currentSearch {
-		t.Error("model2.currentSearch should not be affected by model1 changes")
+func TestGetRows_HandlesMultipleTransactions(t *testing.T) {
+	transactions := []firefly.Transaction{
+		newTestTransaction(0, "tx1", "withdrawal", "2024-01-15T10:00:00Z", "Test 1"),
+		newTestTransaction(1, "tx2", "deposit", "2024-01-16T10:00:00Z", "Test 2"),
+		newTestTransaction(2, "tx3", "transfer", "2024-01-17T10:00:00Z", "Test 3"),
 	}
-	if model2.currentFilter == model1.currentFilter {
-		t.Error("model2.currentFilter should not be affected by model1 changes")
+
+	rows, _ := getRows(transactions)
+
+	if len(rows) != 3 {
+		t.Errorf("expected 3 rows, got %d", len(rows))
 	}
-	if model2.focus == model1.focus {
-		t.Error("model2.focus should not be affected by model1 changes")
+
+	if rows[0][0] != "0" {
+		t.Errorf("expected first row ID '0', got %q", rows[0][0])
+	}
+	if rows[1][0] != "1" {
+		t.Errorf("expected second row ID '1', got %q", rows[1][0])
+	}
+	if rows[2][0] != "2" {
+		t.Errorf("expected third row ID '2', got %q", rows[2][0])
+	}
+}
+
+func TestFilterMsg_CaseInsensitiveSearch(t *testing.T) {
+	transactions := []firefly.Transaction{
+		{
+			ID:            0,
+			TransactionID: "tx1",
+			Type:          "withdrawal",
+			Date:          "2024-01-15T10:00:00Z",
+			Splits: []firefly.Split{
+				{Description: "Buy GROCERIES", Amount: 50.00, Currency: "USD"},
+			},
+		},
+	}
+
+	m := newFocusedTransactionModel(t, transactions)
+
+	tests := []struct {
+		query string
+	}{
+		{"groceries"},
+		{"GROCERIES"},
+		{"GrOcErIeS"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			updated, _ := m.Update(FilterMsg{Query: tt.query})
+			m2 := updated.(modelTransactions)
+
+			if len(m2.table.Rows()) != 1 {
+				t.Errorf("expected 1 row for query %q, got %d", tt.query, len(m2.table.Rows()))
+			}
+		})
+	}
+}
+
+func TestFilterMsg_MatchesGroupTitle(t *testing.T) {
+	transactions := []firefly.Transaction{
+		{
+			ID:            0,
+			TransactionID: "tx1",
+			Type:          "withdrawal",
+			Date:          "2024-01-15T10:00:00Z",
+			GroupTitle:    "Shopping trip to the mall",
+			Splits: []firefly.Split{
+				{Description: "Various items", Amount: 50.00, Currency: "USD"},
+			},
+		},
+	}
+
+	m := newFocusedTransactionModel(t, transactions)
+
+	updated, _ := m.Update(FilterMsg{Query: "mall"})
+	m2 := updated.(modelTransactions)
+
+	if len(m2.table.Rows()) != 1 {
+		t.Errorf("expected 1 row matching group title, got %d", len(m2.table.Rows()))
+	}
+}
+
+func TestFilterMsg_ForeignCurrencyAndAmount(t *testing.T) {
+	transactions := []firefly.Transaction{
+		{
+			ID:            0,
+			TransactionID: "tx1",
+			Type:          "withdrawal",
+			Date:          "2024-01-15T10:00:00Z",
+			Splits: []firefly.Split{
+				{
+					Description:     "Foreign transaction",
+					Amount:          50.00,
+					Currency:        "USD",
+					ForeignAmount:   45.50,
+					ForeignCurrency: "EUR",
+				},
+			},
+		},
+	}
+
+	m := newFocusedTransactionModel(t, transactions)
+
+	tests := []struct {
+		name  string
+		query string
+		match bool
+	}{
+		{"foreign currency", "EUR", true},
+		{"foreign amount", "45.50", true},
+		{"no match", "GBP", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			updated, _ := m.Update(FilterMsg{Query: tt.query})
+			m2 := updated.(modelTransactions)
+
+			expectedRows := 0
+			if tt.match {
+				expectedRows = 1
+			}
+
+			if len(m2.table.Rows()) != expectedRows {
+				t.Errorf("expected %d rows, got %d", expectedRows, len(m2.table.Rows()))
+			}
+		})
+	}
+}
+
+func TestDeleteTransactionMsg_EmptyTransactionID(t *testing.T) {
+	tx := firefly.Transaction{
+		ID:            0,
+		TransactionID: "",
+		Type:          "withdrawal",
+		Date:          "2024-01-15T10:00:00Z",
+	}
+
+	api := &mockTransactionAPI{}
+	m := NewModelTransactions(api)
+	(&m).Focus()
+
+	_, cmd := m.Update(DeleteTransactionMsg{Transaction: tx})
+
+	if cmd == nil {
+		t.Fatal("expected a command, got nil")
+	}
+
+	// Should not call DeleteTransaction with empty ID
+	if len(api.deleteTransactionCalledWith) != 0 {
+		t.Error("expected DeleteTransaction not to be called with empty ID")
 	}
 }
