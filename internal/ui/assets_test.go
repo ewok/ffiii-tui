@@ -286,7 +286,6 @@ func TestModelAssets_AssetsUpdate_EmitsDataLoadCompleted(t *testing.T) {
 			if accountType != "asset" {
 				t.Fatalf("expected accountType 'asset', got %q", accountType)
 			}
-			// return []firefly.Account{}
 			return []firefly.Account{
 				{ID: "a1", Name: "Checking", CurrencyCode: "USD", Type: "asset"},
 				{ID: "a2", Name: "Savings", CurrencyCode: "EUR", Type: "asset"},
@@ -315,7 +314,7 @@ func TestModelAssets_AssetsUpdate_EmitsDataLoadCompleted(t *testing.T) {
 		t.Fatalf("expected DataLoadCompletedMsg, got %T", msg)
 	}
 	if loader.DataType != "assets" {
-		t.Fatalf("expected DataType 'assets', got %q", loader)
+		t.Fatalf("expected DataType 'assets', got %q", loader.DataType)
 	}
 
 	listItems := m.list.Items()
@@ -403,10 +402,10 @@ func TestModelAssets_KeyRefresh_BatchesAssetsAndSummaryRefresh(t *testing.T) {
 
 	_, ok := msgs[0].(RefreshAssetsMsg)
 	if !ok {
-		t.Fatalf("expected SetFocusedViewMsg, got %T", msgs[0])
+		t.Fatalf("expected RefreshAssetsMsg, got %T", msgs[0])
 	}
 	if _, ok := msgs[1].(RefreshSummaryMsg); !ok {
-		t.Fatalf("expected UpdatePositions, got %T", msgs[1])
+		t.Fatalf("expected RefreshSummaryMsg, got %T", msgs[1])
 	}
 }
 
@@ -522,94 +521,70 @@ func TestModelAssets_KeyNew_ReturnsPromptMsg(t *testing.T) {
 	}
 }
 
-func TestModelAssets_KeyViewCategories_SetsCategoriesView(t *testing.T) {
-	m := newFocusedAssetsModelWithAccount(t, firefly.Account{ID: "a1", Name: "Checking", CurrencyCode: "USD", Type: "asset"})
-
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
-	msgs := collectMsgsFromCmd(cmd)
-
-	focused, ok := msgs[0].(SetFocusedViewMsg)
-	if !ok {
-		t.Fatalf("expected SetFocusedViewMsg, got %T", msgs[0])
-	}
-	if focused.state != categoriesView {
-		t.Fatalf("expected categoriesView, got %v", focused.state)
-	}
-}
-
-func TestModelAssets_KeyViewExpenses_SetsExpensesView(t *testing.T) {
-	m := newFocusedAssetsModelWithAccount(t, firefly.Account{ID: "a1", Name: "Checking", CurrencyCode: "USD", Type: "asset"})
-
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
-	msgs := collectMsgsFromCmd(cmd)
-
-	focused, ok := msgs[0].(SetFocusedViewMsg)
-	if !ok {
-		t.Fatalf("expected SetFocusedViewMsg, got %T", msgs[0])
-	}
-	if focused.state != expensesView {
-		t.Fatalf("expected expensesView, got %v", focused.state)
-	}
-}
-
-func TestModelAssets_KeyViewRevenues_SetsRevenuesView(t *testing.T) {
-	m := newFocusedAssetsModelWithAccount(t, firefly.Account{ID: "a1", Name: "Checking", CurrencyCode: "USD", Type: "asset"})
-
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
-	msgs := collectMsgsFromCmd(cmd)
-
-	focused, ok := msgs[0].(SetFocusedViewMsg)
-	if !ok {
-		t.Fatalf("expected SetFocusedViewMsg, got %T", msgs[0])
-	}
-	if focused.state != revenuesView {
-		t.Fatalf("expected revenuesView, got %v", focused.state)
-	}
-}
-
-func TestModelAssets_KeyViewLiabilities_SetsLiabilitiesView(t *testing.T) {
-	m := newFocusedAssetsModelWithAccount(t, firefly.Account{ID: "a1", Name: "Checking", CurrencyCode: "USD", Type: "asset"})
-
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
-	msgs := collectMsgsFromCmd(cmd)
-
-	focused, ok := msgs[0].(SetFocusedViewMsg)
-	if !ok {
-		t.Fatalf("expected SetFocusedViewMsg, got %T", msgs[0])
-	}
-	if focused.state != liabilitiesView {
-		t.Fatalf("expected liabilitiesView, got %v", focused.state)
-	}
-}
-
-func TestModelAssets_KeyViewTransactions_SetsTransactionsView(t *testing.T) {
-	m := newFocusedAssetsModelWithAccount(t, firefly.Account{ID: "a1", Name: "Checking", CurrencyCode: "USD", Type: "asset"})
-
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
-	msgs := collectMsgsFromCmd(cmd)
-
-	focused, ok := msgs[0].(SetFocusedViewMsg)
-	if !ok {
-		t.Fatalf("expected SetFocusedViewMsg, got %T", msgs[0])
-	}
-	if focused.state != transactionsView {
-		t.Fatalf("expected transactionsView, got %v", focused.state)
-	}
-}
-
-func TestModelAssets_KeyViewAssets_IsDisabled(t *testing.T) {
-	m := newFocusedAssetsModelWithAccount(t, firefly.Account{ID: "a1", Name: "Checking", CurrencyCode: "USD", Type: "asset"})
-
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
-	if cmd == nil {
-		return
+// Table-driven test for view navigation key bindings
+func TestModelAssets_KeyViewNavigation(t *testing.T) {
+	tests := []struct {
+		name         string
+		key          rune
+		expectedView state
+		shouldChange bool
+		expectedMsgs int
+	}{
+		{"categories", 'c', categoriesView, true, 2},
+		{"expenses", 'e', expensesView, true, 2},
+		{"revenues", 'i', revenuesView, true, 2},
+		{"liabilities", 'o', liabilitiesView, true, 2},
+		{"transactions", 't', transactionsView, true, 2},
+		{"assets (self)", 'a', assetsView, false, 0},
 	}
 
-	msgs := collectMsgsFromCmd(cmd)
-	for _, msg := range msgs {
-		if _, ok := msg.(SetFocusedViewMsg); ok {
-			t.Fatalf("expected no view change, got %T", msg)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newFocusedAssetsModelWithAccount(t, firefly.Account{
+				ID:           "a1",
+				Name:         "Checking",
+				CurrencyCode: "USD",
+				Type:         "asset",
+			})
+
+			_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{tt.key}})
+
+			if !tt.shouldChange {
+				// For 'a' key, no view change should occur
+				if cmd == nil {
+					return
+				}
+				msgs := collectMsgsFromCmd(cmd)
+				for _, msg := range msgs {
+					if _, ok := msg.(SetFocusedViewMsg); ok {
+						t.Fatalf("expected no view change for key %q, got SetFocusedViewMsg", tt.key)
+					}
+				}
+				return
+			}
+
+			if cmd == nil {
+				t.Fatalf("expected cmd for key %q", tt.key)
+			}
+
+			msgs := collectMsgsFromCmd(cmd)
+			if len(msgs) != tt.expectedMsgs {
+				t.Fatalf("key %q: expected %d messages, got %d (%T)", tt.key, tt.expectedMsgs, len(msgs), msgs)
+			}
+
+			focused, ok := msgs[0].(SetFocusedViewMsg)
+			if !ok {
+				t.Fatalf("key %q: expected SetFocusedViewMsg, got %T", tt.key, msgs[0])
+			}
+			if focused.state != tt.expectedView {
+				t.Fatalf("key %q: expected view %v, got %v", tt.key, tt.expectedView, focused.state)
+			}
+
+			// All view changes should also emit UpdatePositions
+			if _, ok := msgs[1].(UpdatePositions); !ok {
+				t.Fatalf("key %q: expected UpdatePositions as second message, got %T", tt.key, msgs[1])
+			}
+		})
 	}
 }
 
@@ -708,5 +683,314 @@ func TestCmdPromptNewAsset_CallbackNone_EmitsOnlyBackCmd(t *testing.T) {
 	}
 	if focused.state != assetsView {
 		t.Fatalf("expected assetsView, got %v", focused.state)
+	}
+}
+
+// Edge case tests
+
+func TestModelAssets_EmptyAccountList(t *testing.T) {
+	api := &mockAssetAPI{
+		accountsByTypeFunc: func(accountType string) []firefly.Account {
+			return []firefly.Account{}
+		},
+	}
+	m := newModelAssets(api)
+	(&m).Focus()
+
+	// Verify no panics when updating with empty list
+	_, cmd := m.Update(AssetsUpdateMsg{})
+	if cmd == nil {
+		t.Fatal("expected cmd")
+	}
+
+	msg := cmd()
+	if _, ok := msg.(DataLoadCompletedMsg); !ok {
+		t.Fatalf("expected DataLoadCompletedMsg, got %T", msg)
+	}
+
+	// Verify empty list state
+	if len(m.list.Items()) != 0 {
+		t.Fatalf("expected 0 items, got %d", len(m.list.Items()))
+	}
+
+	// Verify filter key with empty list doesn't panic
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
+	if cmd != nil {
+		t.Fatalf("expected nil cmd when filtering empty list, got %T", cmd)
+	}
+
+	// Verify view rendering with empty list doesn't panic
+	view := m.View()
+	if view == "" {
+		t.Fatal("expected non-empty view")
+	}
+}
+
+func TestModelAssets_NilAPI(t *testing.T) {
+	// Document that nil API is not currently handled gracefully.
+	// The constructor calls getAssetsItems() which will panic on nil API.
+	// If nil-safety is desired, add nil checks in getAssetsItems() or newModelAssets().
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic when constructing with nil API, but no panic occurred")
+		}
+	}()
+
+	// This will panic
+	_ = newModelAssets(nil)
+}
+
+func TestModelAssets_BalanceBoundaryValues(t *testing.T) {
+	tests := []struct {
+		name            string
+		balance         float64
+		expectedDisplay string
+	}{
+		{"zero balance", 0.0, "Balance: 0.00 USD"},
+		{"negative balance", -150.50, "Balance: -150.50 USD"},
+		{"very large balance", 999999999.99, "Balance: 999999999.99 USD"},
+		{"small positive", 0.01, "Balance: 0.01 USD"},
+		{"small negative", -0.01, "Balance: -0.01 USD"},
+		{"many decimals", 123.456789, "Balance: 123.46 USD"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := &mockAssetAPI{
+				accountsByTypeFunc: func(accountType string) []firefly.Account {
+					return []firefly.Account{
+						{ID: "a1", Name: "Test Account", CurrencyCode: "USD", Type: "asset"},
+					}
+				},
+				accountBalanceFunc: func(accountID string) float64 {
+					return tt.balance
+				},
+			}
+
+			items := getAssetsItems(api)
+			if len(items) != 1 {
+				t.Fatalf("expected 1 item, got %d", len(items))
+			}
+
+			item, ok := items[0].(assetItem)
+			if !ok {
+				t.Fatalf("expected assetItem, got %T", items[0])
+			}
+
+			if item.balance != tt.balance {
+				t.Errorf("expected balance %v, got %v", tt.balance, item.balance)
+			}
+
+			if item.Description() != tt.expectedDisplay {
+				t.Errorf("expected description %q, got %q", tt.expectedDisplay, item.Description())
+			}
+		})
+	}
+}
+
+func TestModelAssets_AccountNameEdgeCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		accountName string
+	}{
+		{"empty name", ""},
+		{"very long name", "This is an extremely long account name that might cause display issues in the UI if not handled properly"},
+		{"special characters", "Account™ with 💰 émojis & spëcial çhars"},
+		{"whitespace only", "   "},
+		{"newlines", "Account\nWith\nNewlines"},
+		{"tabs", "Account\tWith\tTabs"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := &mockAssetAPI{
+				accountsByTypeFunc: func(accountType string) []firefly.Account {
+					return []firefly.Account{
+						{ID: "a1", Name: tt.accountName, CurrencyCode: "USD", Type: "asset"},
+					}
+				},
+				accountBalanceFunc: func(accountID string) float64 {
+					return 100.0
+				},
+			}
+
+			// Should not panic
+			items := getAssetsItems(api)
+			if len(items) != 1 {
+				t.Fatalf("expected 1 item, got %d", len(items))
+			}
+
+			item, ok := items[0].(assetItem)
+			if !ok {
+				t.Fatalf("expected assetItem, got %T", items[0])
+			}
+
+			// Verify the name is preserved (not modified)
+			if item.account.Name != tt.accountName {
+				t.Errorf("expected name %q, got %q", tt.accountName, item.account.Name)
+			}
+
+			// Verify Title() doesn't panic
+			title := item.Title()
+			if title != tt.accountName {
+				t.Errorf("expected title %q, got %q", tt.accountName, title)
+			}
+		})
+	}
+}
+
+func TestModelAssets_MissingCurrencyCode(t *testing.T) {
+	api := &mockAssetAPI{
+		accountsByTypeFunc: func(accountType string) []firefly.Account {
+			return []firefly.Account{
+				{ID: "a1", Name: "No Currency", CurrencyCode: "", Type: "asset"},
+			}
+		},
+		accountBalanceFunc: func(accountID string) float64 {
+			return 100.0
+		},
+	}
+
+	items := getAssetsItems(api)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+
+	item, ok := items[0].(assetItem)
+	if !ok {
+		t.Fatalf("expected assetItem, got %T", items[0])
+	}
+
+	// Verify description handles empty currency
+	desc := item.Description()
+	if desc != "Balance: 100.00 " {
+		t.Errorf("expected description %q, got %q", "Balance: 100.00 ", desc)
+	}
+}
+
+func TestModelAssets_MultipleAccountsWithSameID(t *testing.T) {
+	api := &mockAssetAPI{
+		accountsByTypeFunc: func(accountType string) []firefly.Account {
+			return []firefly.Account{
+				{ID: "a1", Name: "Account One", CurrencyCode: "USD", Type: "asset"},
+				{ID: "a1", Name: "Account One Duplicate", CurrencyCode: "USD", Type: "asset"},
+			}
+		},
+		accountBalanceFunc: func(accountID string) float64 {
+			return 100.0
+		},
+	}
+
+	items := getAssetsItems(api)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+
+	// Both items should use the same balance
+	for i, item := range items {
+		assetItem, ok := item.(assetItem)
+		if !ok {
+			t.Fatalf("item %d: expected assetItem, got %T", i, item)
+		}
+		if assetItem.balance != 100.0 {
+			t.Errorf("item %d: expected balance 100.0, got %v", i, assetItem.balance)
+		}
+	}
+}
+
+func TestModelAssets_FocusToggle(t *testing.T) {
+	api := &mockAssetAPI{
+		accountsByTypeFunc: func(accountType string) []firefly.Account {
+			return []firefly.Account{
+				{ID: "a1", Name: "Test", CurrencyCode: "USD", Type: "asset"},
+			}
+		},
+		accountBalanceFunc: func(accountID string) float64 { return 0 },
+	}
+
+	m := newModelAssets(api)
+
+	// Initially not focused
+	if m.focus {
+		t.Fatal("expected focus to be false initially")
+	}
+
+	// Focus
+	(&m).Focus()
+	if !m.focus {
+		t.Fatal("expected focus to be true after Focus()")
+	}
+
+	// Verify keys work when focused
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	if cmd == nil {
+		t.Fatal("expected cmd when focused")
+	}
+
+	// Blur
+	(&m).Blur()
+	if m.focus {
+		t.Fatal("expected focus to be false after Blur()")
+	}
+
+	// Verify keys don't work when blurred
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	if cmd != nil {
+		t.Fatal("expected nil cmd when blurred")
+	}
+}
+
+func TestModelAssets_UpdatePositions_WithVariousDimensions(t *testing.T) {
+	tests := []struct {
+		name              string
+		globalWidth       int
+		globalHeight      int
+		topSize           int
+		summarySize       int
+		expectedMinWidth  int
+		expectedMinHeight int
+	}{
+		{"normal dimensions", 100, 40, 5, 10, 1, 1},
+		{"minimum dimensions", 20, 20, 5, 10, 1, 1},
+		{"very large dimensions", 1000, 500, 5, 10, 1, 1},
+		{"zero top and summary", 100, 40, 0, 0, 1, 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Save original values
+			origWidth := globalWidth
+			origHeight := globalHeight
+			origTop := topSize
+			origSummary := summarySize
+			defer func() {
+				globalWidth = origWidth
+				globalHeight = origHeight
+				topSize = origTop
+				summarySize = origSummary
+			}()
+
+			globalWidth = tt.globalWidth
+			globalHeight = tt.globalHeight
+			topSize = tt.topSize
+			summarySize = tt.summarySize
+
+			api := &mockAssetAPI{
+				accountsByTypeFunc: func(accountType string) []firefly.Account { return nil },
+			}
+			m := newModelAssets(api)
+
+			updated, _ := m.Update(UpdatePositions{})
+			m2 := updated.(modelAssets)
+
+			// Verify dimensions are set (positive values)
+			if m2.list.Width() < tt.expectedMinWidth {
+				t.Errorf("expected width >= %d, got %d", tt.expectedMinWidth, m2.list.Width())
+			}
+			if m2.list.Height() < tt.expectedMinHeight {
+				t.Errorf("expected height >= %d, got %d", tt.expectedMinHeight, m2.list.Height())
+			}
+		})
 	}
 }
