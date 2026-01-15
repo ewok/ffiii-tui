@@ -64,8 +64,14 @@ func NewApi(config ApiConfig) (*Api, error) {
 	api.Accounts = make(map[string][]Account, 0)
 	api.accountBalances = make(map[string]float64)
 
-	api.UpdateAccounts("special")
-	api.UpdateCurrencies()
+	err = api.UpdateAccounts("special")
+	if err != nil {
+		return nil, fmt.Errorf("failed to update special accounts: %w", err)
+	}
+	err = api.UpdateCurrencies()
+	if err != nil {
+		return nil, fmt.Errorf("failed to update currencies: %w", err)
+	}
 
 	return api, nil
 }
@@ -78,4 +84,16 @@ func (api *Api) PreviousPeriod() {
 func (api *Api) NextPeriod() {
 	api.StartDate = time.Date(api.StartDate.Year(), api.StartDate.Month()+1, 1, 0, 0, 0, 0, api.StartDate.Location())
 	api.EndDate = api.StartDate.AddDate(0, 1, 0).Add(-time.Nanosecond)
+}
+
+func (api *Api) TimeoutSeconds() int {
+	return api.Config.TimeoutSeconds
+}
+
+func (api *Api) PeriodStart() time.Time {
+	return api.StartDate
+}
+
+func (api *Api) PeriodEnd() time.Time {
+	return api.EndDate
 }

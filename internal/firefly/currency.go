@@ -42,12 +42,6 @@ type apiCurrencyAttr struct {
 	Symbol  string `json:"symbol"`
 }
 
-type apiCurrenciesResponse struct {
-	Data []apiCurrency `json:"data"`
-}
-
-const currenciesEndpoint = "%s/currencies?page=%d"
-
 func (api *Api) UpdateCurrencies() error {
 	currencies, err := api.ListCurrencies()
 	if err != nil {

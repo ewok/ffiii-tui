@@ -10,6 +10,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type insightItem struct {
@@ -52,7 +54,13 @@ func (api *Api) GetInsights(ep string) ([]insightItem, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			zap.L().Warn("Failed to close response body",
+				zap.Error(closeErr),
+				zap.String("endpoint", endpoint))
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

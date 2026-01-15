@@ -41,14 +41,14 @@ func (i revenueItem) FilterValue() string { return i.account.Name }
 
 type modelRevenues struct {
 	list   list.Model
-	api    *firefly.Api
+	api    RevenueAPI
 	focus  bool
 	sorted bool
 	keymap RevenueKeyMap
 	styles Styles
 }
 
-func newModelRevenues(api *firefly.Api) modelRevenues {
+func newModelRevenues(api RevenueAPI) modelRevenues {
 	// Set total revenue account currency
 	totalRevenueAccount.CurrencyCode = api.PrimaryCurrency().Code
 
@@ -79,7 +79,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateRevenueInsights()
 			if err != nil {
-				return notify.NotifyWarn(err.Error())
+				return notify.NotifyWarn(err.Error())()
 			}
 			return RevenuesUpdateMsg{}
 		}
@@ -87,7 +87,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("revenue")
 			if err != nil {
-				return notify.NotifyWarn(err.Error())
+				return notify.NotifyWarn(err.Error())()
 			}
 			return RevenuesUpdateMsg{}
 		}
@@ -178,15 +178,15 @@ func (m *modelRevenues) Blur() {
 	m.focus = false
 }
 
-func getRevenuesItems(api *firefly.Api, sorted bool) []list.Item {
+func getRevenuesItems(api RevenueAPI, sorted bool) []list.Item {
 	items := []list.Item{}
-	for _, i := range api.Accounts["revenue"] {
-		earned := api.GetRevenueDiff(i.ID)
+	for _, account := range api.AccountsByType("revenue") {
+		earned := api.GetRevenueDiff(account.ID)
 		if sorted && earned == 0 {
 			continue
 		}
 		items = append(items, revenueItem{
-			account: i,
+			account: account,
 			earned:  earned,
 		})
 	}

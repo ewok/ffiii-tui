@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"time"
 	"unicode/utf8"
@@ -61,7 +62,13 @@ func (api *Api) GetSummary() (map[string]SummaryItem, error) {
 			zap.Duration("request_duration", requestDuration))
 		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			zap.L().Warn("Failed to close response body",
+				zap.Error(closeErr),
+				zap.String("endpoint", endpoint))
+		}
+	}()
 
 	zap.L().Debug("Summary API request completed",
 		zap.Int("status_code", resp.StatusCode),
@@ -130,9 +137,18 @@ func (api *Api) UpdateSummary() error {
 	return nil
 }
 
+// SummaryItems returns a shallow copy of cached summary items.
+func (api *Api) SummaryItems() map[string]SummaryItem {
+	return maps.Clone(api.Summary)
+}
+
 func (api *Api) GetMaxWidth() int {
 	if len(api.Summary) < 1 {
-		api.UpdateSummary()
+		err := api.UpdateSummary()
+		if err != nil {
+			zap.L().Error("Failed to update summary for max width calculation", zap.Error(err))
+			return 0
+		}
 	}
 	maxLength := 0
 	for _, s := range api.Summary {

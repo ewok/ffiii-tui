@@ -45,13 +45,13 @@ func (i liabilityItem) FilterValue() string { return i.account.Name }
 
 type modelLiabilities struct {
 	list   list.Model
-	api    *firefly.Api
+	api    LiabilityAPI
 	focus  bool
 	keymap LiabilityKeyMap
 	styles Styles
 }
 
-func newModelLiabilities(api *firefly.Api) modelLiabilities {
+func newModelLiabilities(api LiabilityAPI) modelLiabilities {
 	items := getLiabilitiesItems(api)
 
 	m := modelLiabilities{
@@ -81,7 +81,7 @@ func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("liabilities")
 			if err != nil {
-				return notify.NotifyWarn(err.Error())
+				return notify.NotifyWarn(err.Error())()
 			}
 			return LiabilitiesUpdateMsg{}
 		}
@@ -166,12 +166,12 @@ func (m *modelLiabilities) Blur() {
 	m.focus = false
 }
 
-func getLiabilitiesItems(api *firefly.Api) []list.Item {
+func getLiabilitiesItems(api AccountsAPI) []list.Item {
 	items := []list.Item{}
-	for _, i := range api.Accounts["liabilities"] {
+	for _, account := range api.AccountsByType("liabilities") {
 		items = append(items, liabilityItem{
-			account: i,
-			balance: i.GetBalance(api),
+			account: account,
+			balance: api.AccountBalance(account.ID),
 		})
 	}
 
