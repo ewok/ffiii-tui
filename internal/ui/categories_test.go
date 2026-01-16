@@ -762,13 +762,13 @@ func TestKeyPresses_NavigateToCorrectViews(t *testing.T) {
 		disabled     bool
 		expectedMsgs int
 	}{
-		{"assets", 'a', assetsView, false, 2},
+		{"assets", 'a', assetsView, false, 1},
 		{"categories (self)", 'c', categoriesView, true, 0},
-		{"expenses", 'e', expensesView, false, 2},
-		{"transactions", 't', transactionsView, false, 2},
-		{"liabilities", 'o', liabilitiesView, false, 2},
-		{"revenues", 'i', revenuesView, false, 2},
-		{"quit to transactions", 'q', transactionsView, false, 2},
+		{"expenses", 'e', expensesView, false, 1},
+		{"transactions", 't', transactionsView, false, 1},
+		{"liabilities", 'o', liabilitiesView, false, 1},
+		{"revenues", 'i', revenuesView, false, 1},
+		{"quit to transactions", 'q', transactionsView, false, 1},
 	}
 
 	for _, tt := range tests {
@@ -804,10 +804,6 @@ func TestKeyPresses_NavigateToCorrectViews(t *testing.T) {
 			}
 			if focused.state != tt.expectedView {
 				t.Fatalf("key %q: expected view %v, got %v", tt.key, tt.expectedView, focused.state)
-			}
-
-			if _, ok := msgs[1].(UpdatePositions); !ok {
-				t.Fatalf("key %q: expected UpdatePositions as second message, got %T", tt.key, msgs[1])
 			}
 		})
 	}
@@ -1117,11 +1113,17 @@ func TestModelCategories_UpdatePositions(t *testing.T) {
 	cat := firefly.Category{ID: "c1", Name: "Groceries", CurrencyCode: "USD"}
 	m := newFocusedCategoriesModelWithCategory(t, cat)
 
-	globalWidth = 100
-	globalHeight = 50
-	topSize = 5
+	globalWidth := 100
+	globalHeight := 50
+	topSize := 5
 
-	updated, _ := m.Update(UpdatePositions{})
+	updated, _ := m.Update(UpdatePositions{
+		layout: &LayoutConfig{
+			Width:   globalWidth,
+			Height:  globalHeight,
+			TopSize: topSize,
+		},
+	})
 	m2 := updated.(modelCategories)
 
 	h, v := m2.styles.Base.GetFrameSize()
@@ -1158,11 +1160,17 @@ func TestModelCategories_SmallDimensions(t *testing.T) {
 	cat := firefly.Category{ID: "c1", Name: "Groceries", CurrencyCode: "USD"}
 	m := newFocusedCategoriesModelWithCategory(t, cat)
 
-	globalWidth = 10
-	globalHeight = 5
-	topSize = 2
+	globalWidth := 10
+	globalHeight := 5
+	topSize := 2
 
-	updated, _ := m.Update(UpdatePositions{})
+	updated, _ := m.Update(UpdatePositions{
+		layout: &LayoutConfig{
+			Width:   globalWidth,
+			Height:  globalHeight,
+			TopSize: topSize,
+		},
+	})
 	m2 := updated.(modelCategories)
 
 	w, h := m2.list.Width(), m2.list.Height()
@@ -1175,11 +1183,17 @@ func TestModelCategories_LargeDimensions(t *testing.T) {
 	cat := firefly.Category{ID: "c1", Name: "Groceries", CurrencyCode: "USD"}
 	m := newFocusedCategoriesModelWithCategory(t, cat)
 
-	globalWidth = 1000
-	globalHeight = 1000
-	topSize = 10
+	globalWidth := 1000
+	globalHeight := 1000
+	topSize := 10
 
-	updated, _ := m.Update(UpdatePositions{})
+	updated, _ := m.Update(UpdatePositions{
+		layout: &LayoutConfig{
+			Width:   globalWidth,
+			Height:  globalHeight,
+			TopSize: topSize,
+		},
+	})
 	m2 := updated.(modelCategories)
 
 	w, h := m2.list.Width(), m2.list.Height()

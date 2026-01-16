@@ -324,22 +324,24 @@ func TestModelAssets_AssetsUpdate_EmitsDataLoadCompleted(t *testing.T) {
 }
 
 func TestModelAssets_UpdatePositions_SetsListSize(t *testing.T) {
-	globalWidth = 100
-	globalHeight = 40
-	topSize = 5
-	summarySize = 10
-
 	api := &mockAssetAPI{
 		accountsByTypeFunc: func(accountType string) []firefly.Account { return nil },
 	}
 	m := newModelAssets(api)
 
-	updated, _ := m.Update(UpdatePositions{})
+	updated, _ := m.Update(UpdatePositions{
+		layout: &LayoutConfig{
+			Width:       100,
+			Height:      40,
+			TopSize:     5,
+			SummarySize: 10,
+		},
+	})
 	m2 := updated.(modelAssets)
 
 	h, v := m2.styles.Base.GetFrameSize()
-	wantW := globalWidth - h
-	wantH := globalHeight - v - topSize - summarySize
+	wantW := 100 - h
+	wantH := 40 - v - 5 - 10
 	if m2.list.Width() != wantW {
 		t.Fatalf("expected width %d, got %d", wantW, m2.list.Width())
 	}
@@ -453,7 +455,7 @@ func TestModelAssets_KeyQuit_SetsTransactionsView(t *testing.T) {
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
 	msgs := collectMsgsFromCmd(cmd)
 
-	if len(msgs) != 2 {
+	if len(msgs) != 1 {
 		t.Fatalf("expected 2 messages, got %d (%T)", len(msgs), msgs)
 	}
 
@@ -464,9 +466,9 @@ func TestModelAssets_KeyQuit_SetsTransactionsView(t *testing.T) {
 	if focused.state != transactionsView {
 		t.Fatalf("expected transactionsView, got %v", focused.state)
 	}
-	if _, ok := msgs[1].(UpdatePositions); !ok {
-		t.Fatalf("expected UpdatePositions, got %T", msgs[1])
-	}
+	// if _, ok := msgs[1].(UpdatePositions); !ok {
+	// 	t.Fatalf("expected UpdatePositions, got %T", msgs[1])
+	// }
 }
 
 func TestModelAssets_KeySelect_SequencesFilterAndView(t *testing.T) {
@@ -476,7 +478,7 @@ func TestModelAssets_KeySelect_SequencesFilterAndView(t *testing.T) {
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	msgs := collectMsgsFromCmd(cmd)
 
-	if len(msgs) != 3 {
+	if len(msgs) != 2 {
 		t.Fatalf("expected 3 messages, got %d (%T)", len(msgs), msgs)
 	}
 
@@ -494,9 +496,6 @@ func TestModelAssets_KeySelect_SequencesFilterAndView(t *testing.T) {
 	}
 	if focused.state != transactionsView {
 		t.Fatalf("expected transactionsView, got %v", focused.state)
-	}
-	if _, ok := msgs[2].(UpdatePositions); !ok {
-		t.Fatalf("expected UpdatePositions, got %T", msgs[2])
 	}
 }
 
@@ -530,11 +529,11 @@ func TestModelAssets_KeyViewNavigation(t *testing.T) {
 		shouldChange bool
 		expectedMsgs int
 	}{
-		{"categories", 'c', categoriesView, true, 2},
-		{"expenses", 'e', expensesView, true, 2},
-		{"revenues", 'i', revenuesView, true, 2},
-		{"liabilities", 'o', liabilitiesView, true, 2},
-		{"transactions", 't', transactionsView, true, 2},
+		{"categories", 'c', categoriesView, true, 1},
+		{"expenses", 'e', expensesView, true, 1},
+		{"revenues", 'i', revenuesView, true, 1},
+		{"liabilities", 'o', liabilitiesView, true, 1},
+		{"transactions", 't', transactionsView, true, 1},
 		{"assets (self)", 'a', assetsView, false, 0},
 	}
 
@@ -578,11 +577,6 @@ func TestModelAssets_KeyViewNavigation(t *testing.T) {
 			}
 			if focused.state != tt.expectedView {
 				t.Fatalf("key %q: expected view %v, got %v", tt.key, tt.expectedView, focused.state)
-			}
-
-			// All view changes should also emit UpdatePositions
-			if _, ok := msgs[1].(UpdatePositions); !ok {
-				t.Fatalf("key %q: expected UpdatePositions as second message, got %T", tt.key, msgs[1])
 			}
 		})
 	}
@@ -944,10 +938,10 @@ func TestModelAssets_FocusToggle(t *testing.T) {
 func TestModelAssets_UpdatePositions_WithVariousDimensions(t *testing.T) {
 	tests := []struct {
 		name              string
-		globalWidth       int
-		globalHeight      int
-		topSize           int
-		summarySize       int
+		Width             int
+		Height            int
+		TopSize           int
+		SummarySize       int
 		expectedMinWidth  int
 		expectedMinHeight int
 	}{
@@ -959,29 +953,20 @@ func TestModelAssets_UpdatePositions_WithVariousDimensions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save original values
-			origWidth := globalWidth
-			origHeight := globalHeight
-			origTop := topSize
-			origSummary := summarySize
-			defer func() {
-				globalWidth = origWidth
-				globalHeight = origHeight
-				topSize = origTop
-				summarySize = origSummary
-			}()
-
-			globalWidth = tt.globalWidth
-			globalHeight = tt.globalHeight
-			topSize = tt.topSize
-			summarySize = tt.summarySize
 
 			api := &mockAssetAPI{
 				accountsByTypeFunc: func(accountType string) []firefly.Account { return nil },
 			}
 			m := newModelAssets(api)
 
-			updated, _ := m.Update(UpdatePositions{})
+			updated, _ := m.Update(UpdatePositions{
+				layout: &LayoutConfig{
+					Width:       tt.Width,
+					Height:      tt.Height,
+					TopSize:     tt.TopSize,
+					SummarySize: tt.SummarySize,
+				},
+			})
 			m2 := updated.(modelAssets)
 
 			// Verify dimensions are set (positive values)

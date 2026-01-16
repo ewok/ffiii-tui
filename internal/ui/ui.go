@@ -21,17 +21,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	topSize             = 5
-	leftSize            = 10
-	summarySize         = 15
-	fullTransactionView = false
-	lazyLoadCounter     = 0
-
-	globalWidth  = 0
-	globalHeight = 0
-)
-
 type state uint
 
 const (
@@ -54,11 +43,14 @@ type (
 	DataLoadCompletedMsg struct {
 		DataType string
 	}
-	LazyLoadMsg          time.Time
+	LazyLoadMsg struct {
+		t time.Time
+		c int
+	}
 	AllBaseDataLoadedMsg struct{}
 	RefreshAllMsg        struct{}
 	UpdatePositions      struct {
-		GlobalWidth int
+		layout *LayoutConfig
 	}
 )
 
@@ -80,13 +72,24 @@ type modelUI struct {
 	help   help.Model
 	styles Styles
 
-	Width int
+	Width  int
+	layout *LayoutConfig
 
 	loadStatus map[string]bool
 }
 
 func Show(api UIAPI) {
-	fullTransactionView = viper.GetBool("ui.full_view")
+	m := NewModelUI(api)
+
+	if _, err := tea.NewProgram(m).Run(); err != nil {
+		fmt.Println("Error running program:", err)
+		os.Exit(1)
+	}
+}
+
+func NewModelUI(api UIAPI) modelUI {
+	lc := NewDefaultLayout()
+	lc = lc.WithFullTransactionView(viper.GetBool("ui.full_view"))
 
 	m := modelUI{
 		api:          api,
@@ -104,6 +107,7 @@ func Show(api UIAPI) {
 		help:         help.New(),
 		styles:       DefaultStyles(),
 		Width:        80,
+		layout:       lc,
 		loadStatus: map[string]bool{
 			"assets":      false,
 			"expenses":    false,
@@ -116,10 +120,7 @@ func Show(api UIAPI) {
 	m.help.Styles.FullKey = m.styles.HelpFullKey
 	m.help.Styles.ShortKey = m.styles.HelpShortKey
 
-	if _, err := tea.NewProgram(m).Run(); err != nil {
-		fmt.Println("Error running program:", err)
-		os.Exit(1)
-	}
+	return m
 }
 
 func (m modelUI) Init() tea.Cmd {
@@ -176,18 +177,26 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		}
 	case UpdatePositions:
-		h, _ := m.styles.Base.GetFrameSize()
-		topSize = 5
+		// TODO: Refactor, bad design
+		// Use current layout
+		globalWidth := m.layout.Width
+		fullView := msg.layout.GetFullTransactionView()
+		if msg.layout.Width != 0 {
+			globalWidth = msg.layout.Width
+		}
 
+		h, _ := m.styles.Base.GetFrameSize()
+		m.Width = globalWidth - h
+
+		topSize := 5
 		if m.help.ShowAll {
 			topSize += lipgloss.Height(m.HelpView())
 		}
 
+		leftSize := 0
 		switch m.state {
 		case transactionsView, assetsView:
-			if fullTransactionView {
-				leftSize = 0
-			} else {
+			if !fullView {
 				leftSize = max(
 					lipgloss.Width(m.assets.View()),
 					lipgloss.Width(m.summary.View()),
@@ -202,16 +211,14 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case liabilitiesView:
 			leftSize = lipgloss.Width(m.liabilities.View()) + h
 		}
-		m.Width = globalWidth - h
+		m.layout = m.layout.
+			WithTopSize(topSize).
+			WithLeftSize(leftSize)
 
 	case tea.WindowSizeMsg:
-		globalWidth = msg.Width
-		globalHeight = msg.Height
-		zap.L().Debug(
-			"Window size update: ",
-			zap.Int("width", globalWidth),
-			zap.Int("height", globalHeight))
-		return m, Cmd(UpdatePositions{})
+		return m, Cmd(UpdatePositions{
+			layout: m.layout.WithSize(msg.Width, msg.Height),
+		})
 
 	case SetFocusedViewMsg:
 		if msg.state == transactionsView {
@@ -251,26 +258,24 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.SetState(msg.state)
+		return m, Cmd(UpdatePositions{layout: m.layout})
 
 	case ViewFullTransactionViewMsg:
-		fullTransactionView = !fullTransactionView
-		viper.Set("ui.full_view", fullTransactionView)
+		viper.Set("ui.full_view", m.layout.ToggleFullTransactionView())
 	case DataLoadCompletedMsg:
 		m.loadStatus[msg.DataType] = true
 	case LazyLoadMsg:
-		lazyLoadCounter++
+		c := msg.c - 1
 		for _, loaded := range m.loadStatus {
 			if !loaded {
-				if lazyLoadCounter > m.api.TimeoutSeconds() {
-					lazyLoadCounter = 0
+				if c <= 0 {
 					return m, notify.NotifyWarn("Could not load all resources")
 				}
 				return m, tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
-					return LazyLoadMsg(t)
+					return LazyLoadMsg{t: t, c: c}
 				})
 			}
 		}
-		lazyLoadCounter = 0
 		return m, tea.Batch(
 			Cmd(RefreshTransactionsMsg{}),
 			Cmd(RefreshSummaryMsg{}))
@@ -291,7 +296,10 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Cmd(RefreshRevenuesMsg{}),
 			Cmd(RefreshCategoriesMsg{}),
 			tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
-				return LazyLoadMsg(t)
+				return LazyLoadMsg{
+					t: t,
+					c: m.api.TimeoutSeconds(),
+				}
 			}),
 		)
 	}
@@ -341,7 +349,7 @@ func (m modelUI) View() string {
 
 	// TODO: Move to model
 	if m.prompt.Focused() {
-		s.WriteString(m.prompt.WithWidth(globalWidth).View() + "\n")
+		s.WriteString(m.prompt.WithWidth(m.layout.GetWidth()).View() + "\n")
 	} else {
 		header := " ffiii-tui"
 
@@ -362,7 +370,6 @@ func (m modelUI) View() string {
 				header = header + fmt.Sprintf(" | Period: %s - %s",
 					m.api.PeriodStart().Format(time.DateOnly),
 					m.api.PeriodEnd().Format(time.DateOnly))
-
 			}
 			if !m.transactions.currentAccount.IsEmpty() {
 				header = header + " | Account: " + m.transactions.currentAccount.Name
@@ -380,7 +387,7 @@ func (m modelUI) View() string {
 
 	switch m.state {
 	case transactionsView:
-		if fullTransactionView {
+		if m.layout.GetFullTransactionView() {
 			s.WriteString(m.styles.BaseFocused.Render(m.transactions.View()))
 		} else {
 			s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
@@ -423,7 +430,7 @@ func (m modelUI) View() string {
 	}
 	s.WriteString("\n")
 
-	s.WriteString(m.notify.WithWidth(globalWidth).View() + "\n")
+	s.WriteString(m.notify.WithWidth(m.layout.GetWidth()).View() + "\n")
 	s.WriteString(m.help.Styles.ShortKey.Render(m.HelpView()))
 
 	return s.String()
@@ -458,7 +465,5 @@ func (m *modelUI) SetState(s state) {
 }
 
 func SetView(state state) tea.Cmd {
-	return tea.Sequence(
-		Cmd(SetFocusedViewMsg{state: state}),
-		Cmd(UpdatePositions{}))
+	return Cmd(SetFocusedViewMsg{state: state})
 }

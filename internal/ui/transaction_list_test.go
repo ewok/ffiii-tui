@@ -735,15 +735,23 @@ func TestGetCurrentTransaction_NoSelection(t *testing.T) {
 }
 
 func TestUpdatePositions_SetsTableSize(t *testing.T) {
-	globalWidth = 200
-	globalHeight = 60
-	topSize = 5
-	leftSize = 50
-	summarySize = 0 // Reset summary size for this test
+	globalWidth := 200
+	globalHeight := 60
+	topSize := 5
+	leftSize := 50
+	summarySize := 0 // Reset summary size for this test
 
 	m := newFocusedTransactionModel(t, []firefly.Transaction{})
 
-	updated, _ := m.Update(UpdatePositions{})
+	updated, _ := m.Update(UpdatePositions{
+		layout: &LayoutConfig{
+			Width:       globalWidth,
+			Height:      globalHeight,
+			TopSize:     topSize,
+			LeftSize:    leftSize,
+			SummarySize: summarySize,
+		},
+	})
 	m2 := updated.(modelTransactions)
 
 	h, v := m2.styles.Base.GetFrameSize()

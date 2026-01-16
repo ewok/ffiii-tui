@@ -36,11 +36,6 @@ func (api *Api) GetSummary() (map[string]SummaryItem, error) {
 		api.StartDate.Format("2006-01-02"),
 		api.EndDate.Format("2006-01-02"))
 
-	zap.L().Debug("Fetching summary data",
-		zap.String("endpoint", endpoint),
-		zap.String("start_date", api.StartDate.Format("2006-01-02")),
-		zap.String("end_date", api.EndDate.Format("2006-01-02")))
-
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		zap.L().Error("Failed to create HTTP request", zap.Error(err))

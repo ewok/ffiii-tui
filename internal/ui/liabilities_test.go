@@ -378,9 +378,9 @@ func TestNewLiabilityMsg_Error(t *testing.T) {
 }
 
 func TestUpdatePositions_SetsListSize(t *testing.T) {
-	globalWidth = 100
-	globalHeight = 40
-	topSize = 5
+	globalWidth := 100
+	globalHeight := 40
+	topSize := 5
 
 	api := &mockLiabilityAPI{
 		accountsByTypeFunc: func(accountType string) []firefly.Account {
@@ -389,7 +389,13 @@ func TestUpdatePositions_SetsListSize(t *testing.T) {
 	}
 	m := newModelLiabilities(api)
 
-	updated, _ := m.Update(UpdatePositions{})
+	updated, _ := m.Update(UpdatePositions{
+		layout: &LayoutConfig{
+			Width:   globalWidth,
+			Height:  globalHeight,
+			TopSize: topSize,
+		},
+	})
 	m2 := updated.(modelLiabilities)
 
 	h, v := m2.styles.Base.GetFrameSize()
@@ -529,13 +535,13 @@ func TestLiabilities_KeyPresses_NavigateToCorrectViews(t *testing.T) {
 		disabled     bool
 		expectedMsgs int
 	}{
-		{"assets", 'a', assetsView, false, 2},
-		{"categories", 'c', categoriesView, false, 2},
-		{"expenses", 'e', expensesView, false, 2},
-		{"transactions", 't', transactionsView, false, 2},
+		{"assets", 'a', assetsView, false, 1},
+		{"categories", 'c', categoriesView, false, 1},
+		{"expenses", 'e', expensesView, false, 1},
+		{"transactions", 't', transactionsView, false, 1},
 		{"liabilities (self)", 'o', liabilitiesView, true, 0},
-		{"revenues", 'i', revenuesView, false, 2},
-		{"quit to transactions", 'q', transactionsView, false, 2},
+		{"revenues", 'i', revenuesView, false, 1},
+		{"quit to transactions", 'q', transactionsView, false, 1},
 	}
 
 	for _, tt := range tests {
@@ -571,10 +577,6 @@ func TestLiabilities_KeyPresses_NavigateToCorrectViews(t *testing.T) {
 			}
 			if focused.state != tt.expectedView {
 				t.Fatalf("key %q: expected view %v, got %v", tt.key, tt.expectedView, focused.state)
-			}
-
-			if _, ok := msgs[1].(UpdatePositions); !ok {
-				t.Fatalf("key %q: expected UpdatePositions as second message, got %T", tt.key, msgs[1])
 			}
 		})
 	}
@@ -852,11 +854,17 @@ func TestModelLiabilities_SmallDimensions(t *testing.T) {
 	acc := firefly.Account{ID: "l1", Name: "Mortgage", CurrencyCode: "USD", Type: "liabilities"}
 	m := newFocusedLiabilitiesModelWithAccount(t, acc)
 
-	globalWidth = 10
-	globalHeight = 5
-	topSize = 2
+	globalWidth := 10
+	globalHeight := 5
+	topSize := 2
 
-	updated, _ := m.Update(UpdatePositions{})
+	updated, _ := m.Update(UpdatePositions{
+		layout: &LayoutConfig{
+			Width:   globalWidth,
+			Height:  globalHeight,
+			TopSize: topSize,
+		},
+	})
 	m2 := updated.(modelLiabilities)
 
 	w, h := m2.list.Width(), m2.list.Height()
@@ -869,11 +877,17 @@ func TestModelLiabilities_LargeDimensions(t *testing.T) {
 	acc := firefly.Account{ID: "l1", Name: "Mortgage", CurrencyCode: "USD", Type: "liabilities"}
 	m := newFocusedLiabilitiesModelWithAccount(t, acc)
 
-	globalWidth = 1000
-	globalHeight = 1000
-	topSize = 10
+	globalWidth := 1000
+	globalHeight := 1000
+	topSize := 10
 
-	updated, _ := m.Update(UpdatePositions{})
+	updated, _ := m.Update(UpdatePositions{
+		layout: &LayoutConfig{
+			Width:   globalWidth,
+			Height:  globalHeight,
+			TopSize: topSize,
+		},
+	})
 	m2 := updated.(modelLiabilities)
 
 	w, h := m2.list.Width(), m2.list.Height()
