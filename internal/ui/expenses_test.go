@@ -470,9 +470,9 @@ func TestModelExpenses_ExpensesUpdated_EmitsDataLoadCompleted(t *testing.T) {
 }
 
 func TestModelExpenses_UpdatePositions_SetsListSize(t *testing.T) {
-	globalWidth = 100
-	globalHeight = 40
-	topSize = 5
+	globalWidth := 100
+	globalHeight := 40
+	topSize := 5
 
 	api := &mockExpenseAPI{
 		accountsByTypeFunc: func(accountType string) []firefly.Account {
@@ -484,7 +484,13 @@ func TestModelExpenses_UpdatePositions_SetsListSize(t *testing.T) {
 	}
 	m := newModelExpenses(api)
 
-	updated, _ := m.Update(UpdatePositions{})
+	updated, _ := m.Update(UpdatePositions{
+		layout: &LayoutConfig{
+			Width:   globalWidth,
+			Height:  globalHeight,
+			TopSize: topSize,
+		},
+	})
 	m2 := updated.(modelExpenses)
 
 	h, v := m2.styles.Base.GetFrameSize()
@@ -701,13 +707,13 @@ func TestModelExpenses_KeyViewNavigation(t *testing.T) {
 		disabled     bool
 		expectedMsgs int
 	}{
-		{"assets", 'a', assetsView, false, 2},
-		{"categories", 'c', categoriesView, false, 2},
-		{"revenues", 'i', revenuesView, false, 2},
-		{"transactions", 't', transactionsView, false, 2},
-		{"liabilities", 'o', liabilitiesView, false, 2},
+		{"assets", 'a', assetsView, false, 1},
+		{"categories", 'c', categoriesView, false, 1},
+		{"revenues", 'i', revenuesView, false, 1},
+		{"transactions", 't', transactionsView, false, 1},
+		{"liabilities", 'o', liabilitiesView, false, 1},
 		{"expenses (self)", 'e', expensesView, true, 0},
-		{"quit to transactions", 'q', transactionsView, false, 2},
+		{"quit to transactions", 'q', transactionsView, false, 1},
 	}
 
 	for _, tt := range tests {
@@ -749,10 +755,6 @@ func TestModelExpenses_KeyViewNavigation(t *testing.T) {
 			}
 			if focused.state != tt.expectedView {
 				t.Fatalf("key %q: expected view %v, got %v", tt.key, tt.expectedView, focused.state)
-			}
-
-			if _, ok := msgs[1].(UpdatePositions); !ok {
-				t.Fatalf("key %q: expected UpdatePositions as second message, got %T", tt.key, msgs[1])
 			}
 		})
 	}
@@ -1044,19 +1046,6 @@ func TestModelExpenses_UpdatePositions_WithVariousDimensions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			origWidth := globalWidth
-			origHeight := globalHeight
-			origTop := topSize
-			defer func() {
-				globalWidth = origWidth
-				globalHeight = origHeight
-				topSize = origTop
-			}()
-
-			globalWidth = tt.globalWidth
-			globalHeight = tt.globalHeight
-			topSize = tt.topSize
-
 			api := &mockExpenseAPI{
 				accountsByTypeFunc: func(accountType string) []firefly.Account {
 					return []firefly.Account{}
@@ -1067,7 +1056,13 @@ func TestModelExpenses_UpdatePositions_WithVariousDimensions(t *testing.T) {
 			}
 			m := newModelExpenses(api)
 
-			updated, _ := m.Update(UpdatePositions{})
+			updated, _ := m.Update(UpdatePositions{
+				layout: &LayoutConfig{
+					Width:   tt.globalWidth,
+					Height:  tt.globalHeight,
+					TopSize: tt.topSize,
+				},
+			})
 			m2 := updated.(modelExpenses)
 
 			if m2.list.Width() < tt.expectedMinWidth {

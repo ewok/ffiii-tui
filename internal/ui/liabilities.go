@@ -106,8 +106,13 @@ func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			notify.NotifyLog(fmt.Sprintf("Liability account '%s' created", msg.Account)),
 		)
 	case UpdatePositions:
-		h, v := m.styles.Base.GetFrameSize()
-		m.list.SetSize(globalWidth-h, globalHeight-v-topSize)
+		if msg.layout != nil {
+			h, v := m.styles.Base.GetFrameSize()
+			m.list.SetSize(
+				msg.layout.Width-h,
+				msg.layout.Height-v-msg.layout.TopSize,
+			)
+		}
 	}
 
 	if !m.focus {

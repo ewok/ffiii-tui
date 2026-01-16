@@ -62,7 +62,7 @@ func (d summaryDelegate) Render(w io.Writer, m list.Model, index int, listItem l
 
 	_, err := fmt.Fprint(w, str)
 	if err != nil {
-		zap.L().Debug("failed to render summary item", zap.Error(err))
+		zap.L().Error("failed to render summary item", zap.Error(err))
 	}
 }
 
@@ -95,7 +95,7 @@ func (m modelSummary) Init() tea.Cmd {
 }
 
 func (m modelSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case RefreshSummaryMsg:
 		return m, func() tea.Msg {
 			err := m.api.UpdateSummary()
@@ -109,10 +109,12 @@ func (m modelSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list.SetItems(getSummaryItems(m.api, m.styles)),
 			tea.WindowSize())
 	case UpdatePositions:
-		_, v := m.styles.Base.GetFrameSize()
-		l := len(m.list.Items())
-		m.list.SetHeight(l + v + 1)
-		summarySize = m.list.Height()
+		if msg.layout != nil {
+			_, v := m.styles.Base.GetFrameSize()
+			l := len(m.list.Items())
+			m.list.SetHeight(l + v + 1)
+			msg.layout.SummarySize = m.list.Height()
+		}
 	}
 	return m, nil
 }

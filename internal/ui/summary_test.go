@@ -349,14 +349,12 @@ func TestSummary_Update_UpdatePositions(t *testing.T) {
 
 	m := newModelSummary(api)
 	initialHeight := m.list.Height()
-	oldSummarySize := summarySize
 
-	// Clean up after test to avoid affecting other tests
-	defer func() {
-		summarySize = oldSummarySize
-	}()
-
-	updatedModel, cmd := m.Update(UpdatePositions{})
+	updatedModel, cmd := m.Update(UpdatePositions{
+		layout: &LayoutConfig{
+			SummarySize: 0,
+		},
+	})
 
 	if cmd != nil {
 		t.Error("Expected UpdatePositions to return nil command")
@@ -373,11 +371,6 @@ func TestSummary_Update_UpdatePositions(t *testing.T) {
 		if m2.list.Height() == 0 {
 			t.Error("Expected list height to be updated")
 		}
-	}
-
-	// summarySize global should be set
-	if summarySize == 0 {
-		t.Error("Expected summarySize to be set")
 	}
 }
 

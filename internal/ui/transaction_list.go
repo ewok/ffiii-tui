@@ -252,9 +252,11 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, SetView(transactionsView)
 	case UpdatePositions:
-		h, v := m.styles.Base.GetFrameSize()
-		m.table.SetWidth(globalWidth - leftSize - h)
-		m.table.SetHeight(globalHeight - topSize - v)
+		if msg.layout != nil {
+			h, v := m.styles.Base.GetFrameSize()
+			m.table.SetWidth(msg.layout.Width - msg.layout.LeftSize - h)
+			m.table.SetHeight(msg.layout.Height - msg.layout.TopSize - v)
+		}
 	}
 
 	if !m.focus {
