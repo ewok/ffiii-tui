@@ -205,14 +205,30 @@ func (api *Api) UpdateAccounts(accType string) error {
 
 	switch accType {
 	case "expense":
-		api.UpdateExpenseInsights()
 		api.Accounts["expense"] = append(api.Accounts["expense"], api.CashAccount())
+		err := api.UpdateExpenseInsights()
+		if err != nil {
+			return fmt.Errorf("failed to update expense insights: %v", err)
+		}
 	case "revenue":
-		api.UpdateRevenueInsights()
+		err := api.UpdateRevenueInsights()
+		if err != nil {
+			return fmt.Errorf("failed to update revenue insights: %v", err)
+		}
 	case "all":
-		api.UpdateExpenseInsights()
-		api.UpdateRevenueInsights()
 		api.Accounts["expense"] = append(api.Accounts["expense"], api.CashAccount())
+		errs := []error{}
+		err1 := api.UpdateExpenseInsights()
+		if err1 != nil {
+			errs = append(errs, fmt.Errorf("failed to update expense insights: %v", err1))
+		}
+		err2 := api.UpdateRevenueInsights()
+		if err2 != nil {
+			errs = append(errs, fmt.Errorf("failed to update revenue insights: %v", err2))
+		}
+		if len(errs) > 0 {
+			return fmt.Errorf("multiple errors: %v", errs)
+		}
 	}
 
 	return nil

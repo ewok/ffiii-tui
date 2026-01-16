@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"go.uber.org/zap"
 )
 
 type (
@@ -59,7 +60,10 @@ func (d summaryDelegate) Render(w io.Writer, m list.Model, index int, listItem l
 		strings.Repeat(" ", spacingNeeded),
 		styledValue)
 
-	fmt.Fprint(w, str)
+	_, err := fmt.Fprint(w, str)
+	if err != nil {
+		zap.L().Debug("failed to render summary item", zap.Error(err))
+	}
 }
 
 type modelSummary struct {

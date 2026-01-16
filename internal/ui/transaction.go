@@ -509,7 +509,7 @@ func (m *modelTransaction) UpdateTransaction() tea.Cmd {
 		Cmd(RefreshCategoryInsightsMsg{}))
 }
 
-func (m *modelTransaction) SetTransaction(trx firefly.Transaction, newT bool) error {
+func (m *modelTransaction) SetTransaction(trx firefly.Transaction, newT bool) {
 	zap.L().Debug("newModelTransaction", zap.Any("trx", trx))
 
 	m.new = newT
@@ -571,8 +571,6 @@ func (m *modelTransaction) SetTransaction(trx firefly.Transaction, newT bool) er
 		}
 		m.new = true
 	}
-
-	return nil
 }
 
 func RedrawForm() tea.Cmd {

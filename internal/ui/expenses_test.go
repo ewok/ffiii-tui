@@ -622,7 +622,7 @@ func TestModelExpenses_KeySort_TogglesSort(t *testing.T) {
 	}
 
 	// Press 's' again to toggle back
-	updated, cmd = m2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
 	m3 := updated.(modelExpenses)
 
 	if m3.sorted {

@@ -12,7 +12,6 @@ import (
 	"ffiii-tui/internal/firefly"
 	"ffiii-tui/internal/ui/notify"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -64,22 +63,6 @@ func (m *mockSummaryAPI) SummaryItems() map[string]firefly.SummaryItem {
 
 func newTestSummaryAPI() *mockSummaryAPI {
 	return &mockSummaryAPI{}
-}
-
-// Helper function to collect messages from batch commands
-func collectSummaryMsgsFromCmd(cmd tea.Cmd) []tea.Msg {
-	if cmd == nil {
-		return nil
-	}
-	msg := cmd()
-	if batchMsg, ok := msg.(tea.BatchMsg); ok {
-		var msgs []tea.Msg
-		for _, c := range batchMsg {
-			msgs = append(msgs, collectSummaryMsgsFromCmd(c)...)
-		}
-		return msgs
-	}
-	return []tea.Msg{msg}
 }
 
 // =============================================================================
@@ -476,7 +459,7 @@ func TestSummary_EmptyItems(t *testing.T) {
 func TestSummary_ManyItems(t *testing.T) {
 	api := newTestSummaryAPI()
 	items := make(map[string]firefly.SummaryItem)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		key := "item" + string(rune(i))
 		items[key] = firefly.SummaryItem{
 			Title:         "Item " + string(rune(i)),

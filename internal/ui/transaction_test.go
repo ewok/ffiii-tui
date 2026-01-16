@@ -931,10 +931,7 @@ func TestTransaction_SetTransaction_New(t *testing.T) {
 
 	// Empty transaction
 	trx := firefly.Transaction{}
-	err := m.SetTransaction(trx, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	m.SetTransaction(trx, true)
 
 	// Verify current date is set
 	now := time.Now()
@@ -1007,10 +1004,7 @@ func TestTransaction_SetTransaction_Edit(t *testing.T) {
 		},
 	}
 
-	err := m.SetTransaction(trx, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	m.SetTransaction(trx, false)
 
 	// Verify date parsing
 	if m.attr.year != "2026" {
@@ -1855,7 +1849,7 @@ func TestTransaction_MultipleSplits(t *testing.T) {
 	m := newTestTransactionModel()
 
 	// Add 5 splits
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		m.splits = append(m.splits, &split{
 			source:      testAssetChecking,
 			destination: testExpenseGroceries,

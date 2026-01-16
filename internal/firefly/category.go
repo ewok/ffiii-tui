@@ -92,7 +92,10 @@ func (api *Api) UpdateCategories() error {
 	}
 	api.Categories = categories
 
-	api.UpdateCategoriesInsights()
+	err = api.UpdateCategoriesInsights()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

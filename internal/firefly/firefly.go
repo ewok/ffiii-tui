@@ -64,8 +64,14 @@ func NewApi(config ApiConfig) (*Api, error) {
 	api.Accounts = make(map[string][]Account, 0)
 	api.accountBalances = make(map[string]float64)
 
-	api.UpdateAccounts("special")
-	api.UpdateCurrencies()
+	err = api.UpdateAccounts("special")
+	if err != nil {
+		return nil, fmt.Errorf("failed to update special accounts: %w", err)
+	}
+	err = api.UpdateCurrencies()
+	if err != nil {
+		return nil, fmt.Errorf("failed to update currencies: %w", err)
+	}
 
 	return api, nil
 }
