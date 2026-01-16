@@ -40,13 +40,13 @@ func (i assetItem) FilterValue() string { return i.account.Name }
 
 type modelAssets struct {
 	list   list.Model
-	api    *firefly.Api
+	api    AssetAPI
 	focus  bool
 	keymap AssetKeyMap
 	styles Styles
 }
 
-func newModelAssets(api *firefly.Api) modelAssets {
+func newModelAssets(api AssetAPI) modelAssets {
 	items := getAssetsItems(api)
 
 	m := modelAssets{
@@ -77,7 +77,7 @@ func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("asset")
 			if err != nil {
-				return notify.NotifyWarn(err.Error())
+				return notify.NotifyWarn(err.Error())()
 			}
 			return AssetsUpdateMsg{}
 		}
@@ -165,12 +165,12 @@ func (m *modelAssets) Blur() {
 	m.focus = false
 }
 
-func getAssetsItems(api *firefly.Api) []list.Item {
+func getAssetsItems(api AccountsAPI) []list.Item {
 	items := []list.Item{}
-	for _, i := range api.Accounts["asset"] {
+	for _, account := range api.AccountsByType("asset") {
 		items = append(items, assetItem{
-			account: i,
-			balance: i.GetBalance(api),
+			account: account,
+			balance: api.AccountBalance(account.ID),
 		})
 	}
 

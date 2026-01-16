@@ -41,14 +41,14 @@ func (i expenseItem) FilterValue() string { return i.account.Name }
 
 type modelExpenses struct {
 	list   list.Model
-	api    *firefly.Api
+	api    ExpenseAPI
 	focus  bool
 	sorted bool
 	keymap ExpenseKeyMap
 	styles Styles
 }
 
-func newModelExpenses(api *firefly.Api) modelExpenses {
+func newModelExpenses(api ExpenseAPI) modelExpenses {
 	// Set total expense account currency
 	totalExpenseAccount.CurrencyCode = api.PrimaryCurrency().Code
 
@@ -80,7 +80,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateExpenseInsights()
 			if err != nil {
-				return notify.NotifyWarn(err.Error())
+				return notify.NotifyWarn(err.Error())()
 			}
 			return ExpensesUpdatedMsg{}
 		}
@@ -88,7 +88,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			err := m.api.UpdateAccounts("expense")
 			if err != nil {
-				return notify.NotifyWarn(err.Error())
+				return notify.NotifyWarn(err.Error())()
 			}
 			return ExpensesUpdatedMsg{}
 		}
@@ -179,16 +179,16 @@ func (m *modelExpenses) Blur() {
 	m.focus = false
 }
 
-func getExpensesItems(api *firefly.Api, sorted bool) []list.Item {
+func getExpensesItems(api ExpenseAPI, sorted bool) []list.Item {
 	items := []list.Item{}
-	for _, i := range api.Accounts["expense"] {
-		spent := api.GetExpenseDiff(i.ID)
+	for _, account := range api.AccountsByType("expense") {
+		spent := api.GetExpenseDiff(account.ID)
 
 		if sorted && spent == 0 {
 			continue
 		}
 		items = append(items, expenseItem{
-			account: i,
+			account: account,
 			spent:   spent,
 		})
 	}

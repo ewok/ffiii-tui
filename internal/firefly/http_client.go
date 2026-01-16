@@ -99,7 +99,13 @@ func (api *Api) makeRequest(method, endpoint string, payload any, okStatus int) 
 			zap.Duration("request_duration", requestDuration))
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			zap.L().Warn("Failed to close response body",
+				zap.Error(closeErr),
+				zap.String("endpoint", endpoint))
+		}
+	}()
 
 	zap.L().Debug("HTTP response received",
 		zap.String("method", method),
@@ -292,12 +298,10 @@ func unmarshalItems[T any](items []any) ([]T, error) {
 		zap.String("target_type", fmt.Sprintf("%T", *new(T))))
 
 	result := make([]T, 0, itemCount)
-	var failedCount int
 
 	for i, item := range items {
 		itemBytes, err := json.Marshal(item)
 		if err != nil {
-			failedCount++
 			zap.L().Error("Failed to marshal item for unmarshaling",
 				zap.Error(err),
 				zap.Int("item_index", i))
@@ -306,7 +310,6 @@ func unmarshalItems[T any](items []any) ([]T, error) {
 
 		var typed T
 		if err := json.Unmarshal(itemBytes, &typed); err != nil {
-			failedCount++
 			zap.L().Error("Failed to unmarshal item to target type",
 				zap.Error(err),
 				zap.Int("item_index", i),
@@ -321,7 +324,6 @@ func unmarshalItems[T any](items []any) ([]T, error) {
 	zap.L().Debug("Item unmarshaling completed",
 		zap.Int("input_items", itemCount),
 		zap.Int("successful_items", len(result)),
-		zap.Int("failed_items", failedCount),
 		zap.String("target_type", fmt.Sprintf("%T", *new(T))))
 
 	return result, nil

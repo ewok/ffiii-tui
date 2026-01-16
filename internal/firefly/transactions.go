@@ -144,7 +144,7 @@ func (api *Api) ListTransactions(query string) ([]Transaction, error) {
 	}
 
 	transactions := []Transaction{}
-	id := 0
+	var id uint
 	for _, t := range txs {
 		var (
 			splits []Split
@@ -179,7 +179,7 @@ func (api *Api) ListTransactions(query string) ([]Transaction, error) {
 
 		slices.Reverse(splits)
 		transactions = append(transactions, Transaction{
-			ID:            uint(id),
+			ID:            id,
 			TransactionID: t.ID,
 			Type:          ttype,
 			Date:          tdate,

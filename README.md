@@ -1,5 +1,6 @@
 # ffiii-tui
 
+[![Tests](https://github.com/ewok/ffiii-tui/actions/workflows/test.yml/badge.svg)](https://github.com/ewok/ffiii-tui/actions/workflows/test.yml)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/ewok/ffiii-tui)](https://golang.org/)
 [![License](https://img.shields.io/github/license/ewok/ffiii-tui)](https://github.com/ewok/ffiii-tui/blob/main/LICENSE)
 [![Release](https://img.shields.io/github/v/release/ewok/ffiii-tui)](https://github.com/ewok/ffiii-tui/releases)

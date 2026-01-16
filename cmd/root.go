@@ -146,7 +146,7 @@ func initializeConfig(cmd *cobra.Command) error {
 	if err := viper.ReadInConfig(); err != nil {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
 		if !errors.As(err, &configFileNotFoundError) {
-			return fmt.Errorf("Config file not found, %s", err.Error())
+			return fmt.Errorf("config file not found, %s", err.Error())
 		}
 	} else {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
