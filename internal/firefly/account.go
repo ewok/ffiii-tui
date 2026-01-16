@@ -320,3 +320,7 @@ func (a *Account) GetBalance(api *Api) float64 {
 func (a *Account) IsEmpty() bool {
 	return *a == Account{}
 }
+
+func (a Account) GetName() string {
+	return a.Name
+}

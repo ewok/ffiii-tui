@@ -12,7 +12,6 @@ import (
 	"ffiii-tui/internal/ui/notify"
 	"ffiii-tui/internal/ui/prompt"
 
-	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -20,165 +19,99 @@ import (
 type (
 	RefreshAssetsMsg struct{}
 	AssetsUpdateMsg  struct{}
+	NewAssetMsg      struct {
+		Account  string
+		Currency string
+	}
 )
 
-type NewAssetMsg struct {
-	Account  string
-	Currency string
-}
-
-type assetItem struct {
-	account firefly.Account
-	balance float64
-}
-
-func (i assetItem) Title() string { return i.account.Name }
-func (i assetItem) Description() string {
-	return fmt.Sprintf("Balance: %.2f %s", i.balance, i.account.CurrencyCode)
-}
-func (i assetItem) FilterValue() string { return i.account.Name }
+type assetItem = accountListItem[firefly.Account]
 
 type modelAssets struct {
-	list   list.Model
-	api    AssetAPI
-	focus  bool
-	keymap AssetKeyMap
-	styles Styles
+	AccountListModel[firefly.Account]
 }
 
 func newModelAssets(api AssetAPI) modelAssets {
-	items := getAssetsItems(api)
-
-	m := modelAssets{
-		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
-		api:    api,
-		keymap: DefaultAssetKeyMap(),
-		styles: DefaultStyles(),
+	config := &AccountListConfig[firefly.Account]{
+		AccountType: "asset",
+		Title:       "Asset accounts",
+		GetItems: func(apiInterface any, sorted bool) []list.Item {
+			return getAssetsItems(apiInterface.(AssetAPI))
+		},
+		RefreshItems: func(apiInterface any, accountType string) error {
+			return apiInterface.(AssetAPI).UpdateAccounts(accountType)
+		},
+		RefreshMsgType: RefreshAssetsMsg{},
+		UpdateMsgType:  AssetsUpdateMsg{},
+		PromptNewFunc: func() tea.Cmd {
+			return CmdPromptNewAsset(SetView(assetsView))
+		},
+		HasSort:     false,
+		HasTotalRow: false,
+		HasSummary:  true,
+		FilterFunc: func(item list.Item) tea.Cmd {
+			i, ok := item.(assetItem)
+			if ok {
+				return Cmd(FilterMsg{Account: i.Entity})
+			}
+			return nil
+		},
+		SelectFunc: func(item list.Item) tea.Cmd {
+			var cmds []tea.Cmd
+			i, ok := item.(assetItem)
+			if ok {
+				cmds = append(cmds, Cmd(FilterMsg{Account: i.Entity}))
+			}
+			cmds = append(cmds, SetView(transactionsView))
+			return tea.Sequence(cmds...)
+		},
 	}
-	m.list.Title = "Asset accounts"
-	m.list.SetShowStatusBar(false)
-	m.list.SetFilteringEnabled(false)
-	m.list.SetShowHelp(false)
-	m.list.DisableQuitKeybindings()
-
-	return m
+	return modelAssets{
+		AccountListModel: NewAccountListModel[firefly.Account](api, config),
+	}
 }
 
 func (m modelAssets) Init() tea.Cmd {
-	return nil
+	return m.AccountListModel.Init()
 }
 
 func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	var cmds []tea.Cmd
-
-	switch msg := msg.(type) {
-	case RefreshAssetsMsg:
-		return m, func() tea.Msg {
-			err := m.api.UpdateAccounts("asset")
-			if err != nil {
-				return notify.NotifyWarn(err.Error())()
-			}
-			return AssetsUpdateMsg{}
-		}
-	case AssetsUpdateMsg:
-		return m, tea.Batch(
-			m.list.SetItems(getAssetsItems(m.api)),
-			Cmd(DataLoadCompletedMsg{DataType: "assets"}),
-		)
-	case NewAssetMsg:
-		err := m.api.CreateAssetAccount(msg.Account, msg.Currency)
+	if newMsg, ok := msg.(NewAssetMsg); ok {
+		api := m.api.(AssetAPI)
+		err := api.CreateAssetAccount(newMsg.Account, newMsg.Currency)
 		if err != nil {
 			return m, notify.NotifyWarn(err.Error())
 		}
 		return m, tea.Batch(
 			Cmd(RefreshAssetsMsg{}),
-			notify.NotifyLog(fmt.Sprintf("Asset account '%s' created", msg.Account)),
+			notify.NotifyLog(fmt.Sprintf("Asset account '%s' created", newMsg.Account)),
 		)
-	case UpdatePositions:
-		if msg.layout != nil {
-			h, v := m.styles.Base.GetFrameSize()
-			m.list.SetSize(
-				msg.layout.Width-h,
-				msg.layout.Height-v-msg.layout.TopSize-msg.layout.SummarySize,
+	}
+
+	if _, ok := msg.(RefreshAssetsMsg); ok {
+		updated, cmd := m.AccountListModel.Update(msg)
+		m.AccountListModel = updated.(AccountListModel[firefly.Account])
+		if cmd != nil {
+			return m, tea.Batch(
+				cmd,
+				Cmd(RefreshSummaryMsg{}),
 			)
 		}
 	}
-
-	if !m.focus {
-		return m, nil
-	}
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, m.keymap.Quit):
-			return m, SetView(transactionsView)
-		case key.Matches(msg, m.keymap.Filter):
-			i, ok := m.list.SelectedItem().(assetItem)
-			if ok {
-				return m, Cmd(FilterMsg{Account: i.account})
-			}
-			return m, nil
-		case key.Matches(msg, m.keymap.Select):
-			i, ok := m.list.SelectedItem().(assetItem)
-			if ok {
-				cmds = append(cmds, Cmd(FilterMsg{Account: i.account}))
-			}
-			cmds = append(cmds, SetView(transactionsView))
-			return m, tea.Sequence(cmds...)
-		case key.Matches(msg, m.keymap.New):
-			return m, CmdPromptNewAsset(SetView(assetsView))
-		case key.Matches(msg, m.keymap.Refresh):
-			return m, tea.Batch(
-				Cmd(RefreshAssetsMsg{}),
-				Cmd(RefreshSummaryMsg{}))
-		case key.Matches(msg, m.keymap.ResetFilter):
-			return m, Cmd(FilterMsg{Reset: true})
-
-		case key.Matches(msg, m.keymap.ViewTransactions):
-			return m, SetView(transactionsView)
-		case key.Matches(msg, m.keymap.ViewAssets):
-			return m, SetView(assetsView)
-		case key.Matches(msg, m.keymap.ViewCategories):
-			return m, SetView(categoriesView)
-		case key.Matches(msg, m.keymap.ViewExpenses):
-			return m, SetView(expensesView)
-		case key.Matches(msg, m.keymap.ViewRevenues):
-			return m, SetView(revenuesView)
-		case key.Matches(msg, m.keymap.ViewLiabilities):
-			return m, SetView(liabilitiesView)
-
-		}
-	}
-
-	m.list, cmd = m.list.Update(msg)
+	updated, cmd := m.AccountListModel.Update(msg)
+	m.AccountListModel = updated.(AccountListModel[firefly.Account])
 	return m, cmd
-}
-
-func (m modelAssets) View() string {
-	return m.styles.LeftPanel.Render(m.list.View())
-}
-
-func (m *modelAssets) Focus() {
-	m.list.FilterInput.Focus()
-	m.focus = true
-}
-
-func (m *modelAssets) Blur() {
-	m.list.FilterInput.Blur()
-	m.focus = false
 }
 
 func getAssetsItems(api AccountsAPI) []list.Item {
 	items := []list.Item{}
 	for _, account := range api.AccountsByType("asset") {
-		items = append(items, assetItem{
-			account: account,
-			balance: api.AccountBalance(account.ID),
-		})
+		items = append(items, newAccountListItem(
+			account,
+			"Balance",
+			api.AccountBalance(account.ID),
+		))
 	}
-
 	return items
 }
 

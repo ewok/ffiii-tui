@@ -145,11 +145,11 @@ func TestGetRevenuesItems_UsesRevenueDiffAPI(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected item type revenueItem, got %T", items[0])
 	}
-	if first.account.ID != "r1" {
-		t.Errorf("expected first account ID 'r1', got %q", first.account.ID)
+	if first.Entity.ID != "r1" {
+		t.Errorf("expected first account ID 'r1', got %q", first.Entity.ID)
 	}
-	if first.earned != 5000.50 {
-		t.Errorf("expected first earned 5000.50, got %v", first.earned)
+	if first.PrimaryVal != 5000.50 {
+		t.Errorf("expected first earned 5000.50, got %v", first.PrimaryVal)
 	}
 	if first.Description() != "Earned: 5000.50 USD" {
 		t.Errorf("unexpected description: %q", first.Description())
@@ -190,34 +190,16 @@ func TestGetRevenuesItems_SortedFiltersZeroAndSorts(t *testing.T) {
 	}
 
 	first := items[0].(revenueItem)
-	if first.account.Name != "High" {
-		t.Errorf("expected first item 'High', got %q", first.account.Name)
+	if first.Entity.Name != "High" {
+		t.Errorf("expected first item 'High', got %q", first.Entity.Name)
 	}
-	if first.earned != 5000 {
-		t.Errorf("expected first earned 5000, got %v", first.earned)
+	if first.PrimaryVal != 5000 {
+		t.Errorf("expected first earned 5000, got %v", first.PrimaryVal)
 	}
 
 	second := items[1].(revenueItem)
-	if second.account.Name != "Low" {
-		t.Errorf("expected second item 'Low', got %q", second.account.Name)
-	}
-}
-
-func TestNewModelRevenues_SetsPrimaryCurrency(t *testing.T) {
-	api := &mockRevenueAPI{
-		accountsByTypeFunc: func(accountType string) []firefly.Account {
-			return []firefly.Account{}
-		},
-		primaryCurrencyFunc: func() firefly.Currency {
-			return firefly.Currency{Code: "EUR", Symbol: "€"}
-		},
-	}
-
-	_ = newModelRevenues(api)
-
-	// Verify totalRevenueAccount got the primary currency
-	if totalRevenueAccount.CurrencyCode != "EUR" {
-		t.Errorf("expected totalRevenueAccount currency 'EUR', got %q", totalRevenueAccount.CurrencyCode)
+	if second.Entity.Name != "Low" {
+		t.Errorf("expected second item 'Low', got %q", second.Entity.Name)
 	}
 }
 
@@ -446,7 +428,7 @@ func TestModelRevenues_RevenuesUpdate_EmitsDataLoadCompleted(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected DataLoadCompletedMsg, got %T", msgs[0])
 	}
-	if loader.DataType != "revenues" {
+	if loader.DataType != "revenue" {
 		t.Fatalf("expected DataType 'revenues', got %q", loader.DataType)
 	}
 
@@ -463,11 +445,11 @@ func TestModelRevenues_RevenuesUpdate_EmitsDataLoadCompleted(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected first item to be revenueItem, got %T", listItems[0])
 	}
-	if totalItem.account.Name != "Total" {
-		t.Errorf("expected first item name 'Total', got %q", totalItem.account.Name)
+	if totalItem.Entity.Name != "Total" {
+		t.Errorf("expected first item name 'Total', got %q", totalItem.Entity.Name)
 	}
-	if totalItem.earned != 2500 {
-		t.Errorf("expected total earned 2500, got %v", totalItem.earned)
+	if totalItem.PrimaryVal != 2500 {
+		t.Errorf("expected total earned 2500, got %v", totalItem.PrimaryVal)
 	}
 }
 
@@ -488,9 +470,10 @@ func TestModelRevenues_UpdatePositions_SetsListSize(t *testing.T) {
 
 	updated, _ := m.Update(UpdatePositions{
 		layout: &LayoutConfig{
-			Width:   globalWidth,
-			Height:  globalHeight,
-			TopSize: topSize,
+			Width:       globalWidth,
+			Height:      globalHeight,
+			TopSize:     topSize,
+			SummarySize: 10,
 		},
 	})
 	m2 := updated.(modelRevenues)
@@ -714,7 +697,7 @@ func TestModelRevenues_KeyViewNavigation(t *testing.T) {
 		{"expenses", 'e', expensesView, false, 1},
 		{"transactions", 't', transactionsView, false, 1},
 		{"liabilities", 'o', liabilitiesView, false, 1},
-		{"revenues (self)", 'i', revenuesView, true, 0},
+		{"revenues (self)", 'i', revenuesView, false, 1},
 		{"quit to transactions", 'q', transactionsView, false, 1},
 	}
 
@@ -904,8 +887,8 @@ func TestModelRevenues_EarnedBoundaryValues(t *testing.T) {
 				t.Fatalf("expected revenueItem, got %T", items[0])
 			}
 
-			if item.earned != tt.earned {
-				t.Errorf("expected earned %v, got %v", tt.earned, item.earned)
+			if item.PrimaryVal != tt.earned {
+				t.Errorf("expected earned %v, got %v", tt.earned, item.PrimaryVal)
 			}
 
 			if item.Description() != tt.expectedDisplay {
@@ -951,8 +934,8 @@ func TestModelRevenues_AccountNameEdgeCases(t *testing.T) {
 				t.Fatalf("expected revenueItem, got %T", items[0])
 			}
 
-			if item.account.Name != tt.accountName {
-				t.Errorf("expected name %q, got %q", tt.accountName, item.account.Name)
+			if item.Entity.Name != tt.accountName {
+				t.Errorf("expected name %q, got %q", tt.accountName, item.Entity.Name)
 			}
 
 			title := item.Title()

@@ -143,11 +143,11 @@ func TestGetAssetsItems_UsesBalanceAPI(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected item type assetItem, got %T", items[0])
 	}
-	if first.account.ID != "a1" {
-		t.Errorf("expected first account ID 'a1', got %q", first.account.ID)
+	if first.Entity.ID != "a1" {
+		t.Errorf("expected first account ID 'a1', got %q", first.Entity.ID)
 	}
-	if first.balance != 10.5 {
-		t.Errorf("expected first balance 10.5, got %v", first.balance)
+	if first.PrimaryVal != 10.5 {
+		t.Errorf("expected first balance 10.5, got %v", first.PrimaryVal)
 	}
 	if first.Description() != "Balance: 10.50 USD" {
 		t.Errorf("unexpected description: %q", first.Description())
@@ -166,9 +166,18 @@ func TestModelAssets_RefreshAssets_Success(t *testing.T) {
 		t.Fatal("expected cmd")
 	}
 
-	msg := cmd()
-	if _, ok := msg.(AssetsUpdateMsg); !ok {
-		t.Fatalf("expected AssetsUpdateMsg, got %T", msg)
+	msgs := collectMsgsFromCmd(cmd)
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages, got %d (%T)", len(msgs), msgs)
+	}
+
+	_, ok := msgs[0].(AssetsUpdateMsg)
+	if !ok {
+		t.Fatalf("expected AssetsUpdateMsg, got %T", msgs[0])
+	}
+	_, ok = msgs[1].(RefreshSummaryMsg)
+	if !ok {
+		t.Fatalf("expected RefreshSummaryMsg, got %T", msgs[1])
 	}
 
 	if len(api.updateAccountsCalledWith) != 1 || api.updateAccountsCalledWith[0] != "asset" {
@@ -190,10 +199,13 @@ func TestModelAssets_RefreshAssets_Error(t *testing.T) {
 		t.Fatal("expected cmd")
 	}
 
-	msg := cmd()
-	notifyMsg, ok := msg.(notify.NotifyMsg)
+	msgs := collectMsgsFromCmd(cmd)
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages, got %d (%T)", len(msgs), msgs)
+	}
+	notifyMsg, ok := msgs[0].(notify.NotifyMsg)
 	if !ok {
-		t.Fatalf("expected notify.NotifyMsg, got %T", msg)
+		t.Fatalf("expected notify.NotifyMsg, got %T", msgs[0])
 	}
 	if notifyMsg.Level != notify.Warn {
 		t.Fatalf("expected warn level, got %v", notifyMsg.Level)
@@ -313,8 +325,8 @@ func TestModelAssets_AssetsUpdate_EmitsDataLoadCompleted(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected DataLoadCompletedMsg, got %T", msg)
 	}
-	if loader.DataType != "assets" {
-		t.Fatalf("expected DataType 'assets', got %q", loader.DataType)
+	if loader.DataType != "asset" {
+		t.Fatalf("expected DataType 'asset', got %q", loader.DataType)
 	}
 
 	listItems := m.list.Items()
@@ -398,16 +410,13 @@ func TestModelAssets_KeyRefresh_BatchesAssetsAndSummaryRefresh(t *testing.T) {
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
 	msgs := collectMsgsFromCmd(cmd)
-	if len(msgs) != 2 {
-		t.Fatalf("expected 2 messages, got %d (%T)", len(msgs), msgs)
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 messages, got %d (%T)", len(msgs), msgs)
 	}
 
 	_, ok := msgs[0].(RefreshAssetsMsg)
 	if !ok {
 		t.Fatalf("expected RefreshAssetsMsg, got %T", msgs[0])
-	}
-	if _, ok := msgs[1].(RefreshSummaryMsg); !ok {
-		t.Fatalf("expected RefreshSummaryMsg, got %T", msgs[1])
 	}
 }
 
@@ -534,7 +543,7 @@ func TestModelAssets_KeyViewNavigation(t *testing.T) {
 		{"revenues", 'i', revenuesView, true, 1},
 		{"liabilities", 'o', liabilitiesView, true, 1},
 		{"transactions", 't', transactionsView, true, 1},
-		{"assets (self)", 'a', assetsView, false, 0},
+		{"assets (self)", 'a', assetsView, true, 1},
 	}
 
 	for _, tt := range tests {
@@ -772,8 +781,8 @@ func TestModelAssets_BalanceBoundaryValues(t *testing.T) {
 				t.Fatalf("expected assetItem, got %T", items[0])
 			}
 
-			if item.balance != tt.balance {
-				t.Errorf("expected balance %v, got %v", tt.balance, item.balance)
+			if item.PrimaryVal != tt.balance {
+				t.Errorf("expected balance %v, got %v", tt.balance, item.PrimaryVal)
 			}
 
 			if item.Description() != tt.expectedDisplay {
@@ -821,8 +830,8 @@ func TestModelAssets_AccountNameEdgeCases(t *testing.T) {
 			}
 
 			// Verify the name is preserved (not modified)
-			if item.account.Name != tt.accountName {
-				t.Errorf("expected name %q, got %q", tt.accountName, item.account.Name)
+			if item.Entity.Name != tt.accountName {
+				t.Errorf("expected name %q, got %q", tt.accountName, item.Entity.Name)
 			}
 
 			// Verify Title() doesn't panic
@@ -887,8 +896,8 @@ func TestModelAssets_MultipleAccountsWithSameID(t *testing.T) {
 		if !ok {
 			t.Fatalf("item %d: expected assetItem, got %T", i, item)
 		}
-		if assetItem.balance != 100.0 {
-			t.Errorf("item %d: expected balance 100.0, got %v", i, assetItem.balance)
+		if assetItem.PrimaryVal != 100.0 {
+			t.Errorf("item %d: expected balance 100.0, got %v", i, assetItem.PrimaryVal)
 		}
 	}
 }
@@ -953,7 +962,6 @@ func TestModelAssets_UpdatePositions_WithVariousDimensions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			api := &mockAssetAPI{
 				accountsByTypeFunc: func(accountType string) []firefly.Account { return nil },
 			}

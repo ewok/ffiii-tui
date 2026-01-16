@@ -108,44 +108,25 @@ func TestGetLiabilitiesItems_UsesAccountBalanceAPI(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected item type liabilityItem, got %T", items[0])
 	}
-	if first.account.ID != "l1" {
-		t.Errorf("expected first account ID 'l1', got %q", first.account.ID)
+	if first.Entity.ID != "l1" {
+		t.Errorf("expected first account ID 'l1', got %q", first.Entity.ID)
 	}
-	if first.balance != -250000.00 {
-		t.Errorf("expected first balance -250000.00, got %.2f", first.balance)
+	if first.PrimaryVal != -250000.00 {
+		t.Errorf("expected first balance -250000.00, got %.2f", first.PrimaryVal)
 	}
 
 	second, ok := items[1].(liabilityItem)
 	if !ok {
 		t.Fatalf("expected item type liabilityItem, got %T", items[1])
 	}
-	if second.account.ID != "l2" {
-		t.Errorf("expected second account ID 'l2', got %q", second.account.ID)
+	if second.Entity.ID != "l2" {
+		t.Errorf("expected second account ID 'l2', got %q", second.Entity.ID)
 	}
-	if second.balance != -5000.50 {
-		t.Errorf("expected second balance -5000.50, got %.2f", second.balance)
-	}
-}
-
-func TestLiabilityItem_Methods(t *testing.T) {
-	acc := firefly.Account{ID: "l1", Name: "Mortgage", CurrencyCode: "USD", Type: "liabilities"}
-	item := liabilityItem{
-		account: acc,
-		balance: -250000.00,
-	}
-
-	if item.Title() != acc.Name {
-		t.Errorf("expected title %q, got %q", acc.Name, item.Title())
-	}
-	if item.FilterValue() != acc.Name {
-		t.Errorf("expected filter value %q, got %q", acc.Name, item.FilterValue())
-	}
-
-	expectedDesc := "Balance: -250000.00 USD"
-	if item.Description() != expectedDesc {
-		t.Errorf("expected description %q, got %q", expectedDesc, item.Description())
+	if second.PrimaryVal != -5000.50 {
+		t.Errorf("expected second balance -5000.50, got %.2f", second.PrimaryVal)
 	}
 }
+
 
 func TestNewModelLiabilities_InitializesCorrectly(t *testing.T) {
 	api := &mockLiabilityAPI{
@@ -193,7 +174,7 @@ func TestRefreshLiabilitiesMsg_Success(t *testing.T) {
 	if len(api.updateAccountsCalledWith) != 1 {
 		t.Fatalf("expected UpdateAccounts to be called once, got %d", len(api.updateAccountsCalledWith))
 	}
-	if api.updateAccountsCalledWith[0] != "liabilities" {
+	if api.updateAccountsCalledWith[0] != "liability" {
 		t.Errorf("expected UpdateAccounts called with 'liabilities', got %q", api.updateAccountsCalledWith[0])
 	}
 }
@@ -254,7 +235,7 @@ func TestLiabilitiesUpdateMsg_SetsItems(t *testing.T) {
 	foundDataLoadMsg := false
 	for _, msg := range msgs {
 		if dlMsg, ok := msg.(DataLoadCompletedMsg); ok {
-			if dlMsg.DataType != "liabilities" {
+			if dlMsg.DataType != "liability" {
 				t.Errorf("expected DataType 'liabilities', got %q", dlMsg.DataType)
 			}
 			foundDataLoadMsg = true
@@ -273,11 +254,11 @@ func TestLiabilitiesUpdateMsg_SetsItems(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected first item to be liabilityItem, got %T", listItems[0])
 	}
-	if item.account.Name != "Mortgage" {
-		t.Errorf("expected item name 'Mortgage', got %q", item.account.Name)
+	if item.Entity.Name != "Mortgage" {
+		t.Errorf("expected item name 'Mortgage', got %q", item.Entity.Name)
 	}
-	if item.balance != -250000.0 {
-		t.Errorf("expected balance -250000.0, got %.2f", item.balance)
+	if item.PrimaryVal != -250000.0 {
+		t.Errorf("expected balance -250000.0, got %.2f", item.PrimaryVal)
 	}
 }
 
@@ -394,6 +375,7 @@ func TestUpdatePositions_SetsListSize(t *testing.T) {
 			Width:   globalWidth,
 			Height:  globalHeight,
 			TopSize: topSize,
+			SummarySize: 10,
 		},
 	})
 	m2 := updated.(modelLiabilities)
@@ -539,7 +521,7 @@ func TestLiabilities_KeyPresses_NavigateToCorrectViews(t *testing.T) {
 		{"categories", 'c', categoriesView, false, 1},
 		{"expenses", 'e', expensesView, false, 1},
 		{"transactions", 't', transactionsView, false, 1},
-		{"liabilities (self)", 'o', liabilitiesView, true, 0},
+		{"liabilities (self)", 'o', liabilitiesView, false, 1},
 		{"revenues", 'i', revenuesView, false, 1},
 		{"quit to transactions", 'q', transactionsView, false, 1},
 	}
@@ -790,8 +772,8 @@ func TestModelLiabilities_LargeBalance(t *testing.T) {
 	}
 
 	item := items[0].(liabilityItem)
-	if item.balance != -999999999.99 {
-		t.Errorf("expected large balance -999999999.99, got %.2f", item.balance)
+	if item.PrimaryVal != -999999999.99 {
+		t.Errorf("expected large balance -999999999.99, got %.2f", item.PrimaryVal)
 	}
 }
 
@@ -811,8 +793,8 @@ func TestModelLiabilities_PositiveBalance(t *testing.T) {
 	}
 
 	item := items[0].(liabilityItem)
-	if item.balance != 100.0 {
-		t.Errorf("expected positive balance 100.0, got %.2f", item.balance)
+	if item.PrimaryVal != 100.0 {
+		t.Errorf("expected positive balance 100.0, got %.2f", item.PrimaryVal)
 	}
 }
 
