@@ -13,7 +13,6 @@ import (
 	"ffiii-tui/internal/ui/notify"
 	"ffiii-tui/internal/ui/prompt"
 
-	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -23,163 +22,95 @@ var promptValue string
 type (
 	RefreshLiabilitiesMsg struct{}
 	LiabilitiesUpdateMsg  struct{}
+	NewLiabilityMsg       struct {
+		Account   string
+		Currency  string
+		Type      string
+		Direction string
+	}
 )
 
-type NewLiabilityMsg struct {
-	Account   string
-	Currency  string
-	Type      string
-	Direction string
-}
-
-type liabilityItem struct {
-	account firefly.Account
-	balance float64
-}
-
-func (i liabilityItem) Title() string { return i.account.Name }
-func (i liabilityItem) Description() string {
-	return fmt.Sprintf("Balance: %.2f %s", i.balance, i.account.CurrencyCode)
-}
-func (i liabilityItem) FilterValue() string { return i.account.Name }
+type liabilityItem = accountListItem[firefly.Account]
 
 type modelLiabilities struct {
-	list   list.Model
-	api    LiabilityAPI
-	focus  bool
-	keymap LiabilityKeyMap
-	styles Styles
+	AccountListModel[firefly.Account]
 }
 
 func newModelLiabilities(api LiabilityAPI) modelLiabilities {
-	items := getLiabilitiesItems(api)
-
-	m := modelLiabilities{
-		list:   list.New(items, list.NewDefaultDelegate(), 0, 0),
-		api:    api,
-		keymap: DefaultLiabilityKeyMap(),
-		styles: DefaultStyles(),
+	config := &AccountListConfig[firefly.Account]{
+		AccountType: "liability",
+		Title:       "Liabilities",
+		GetItems: func(apiInterface any, sorted bool) []list.Item {
+			return getLiabilitiesItems(apiInterface.(LiabilityAPI))
+		},
+		RefreshItems: func(apiInterface any, accountType string) error {
+			return apiInterface.(LiabilityAPI).UpdateAccounts(accountType)
+		},
+		RefreshMsgType: RefreshLiabilitiesMsg{},
+		UpdateMsgType:  LiabilitiesUpdateMsg{},
+		PromptNewFunc: func() tea.Cmd {
+			return CmdPromptNewLiability(SetView(liabilitiesView))
+		},
+		HasSort:     false,
+		HasTotalRow: false,
+		FilterFunc: func(item list.Item) tea.Cmd {
+			i, ok := item.(liabilityItem)
+			if ok {
+				return Cmd(FilterMsg{Account: i.Entity})
+			}
+			return nil
+		},
+		SelectFunc: func(item list.Item) tea.Cmd {
+			var cmds []tea.Cmd
+			i, ok := item.(liabilityItem)
+			if ok {
+				cmds = append(cmds, Cmd(FilterMsg{Account: i.Entity}))
+			}
+			cmds = append(cmds, SetView(transactionsView))
+			return tea.Sequence(cmds...)
+		},
 	}
-	m.list.Title = "Liabilities"
-	m.list.SetShowStatusBar(false)
-	m.list.SetFilteringEnabled(false)
-	m.list.SetShowHelp(false)
-	m.list.DisableQuitKeybindings()
-
-	return m
+	return modelLiabilities{
+		AccountListModel: NewAccountListModel[firefly.Account](api, config),
+	}
 }
 
 func (m modelLiabilities) Init() tea.Cmd {
-	return nil
+	return m.AccountListModel.Init()
 }
 
 func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
-	switch msg := msg.(type) {
-	case RefreshLiabilitiesMsg:
-		return m, func() tea.Msg {
-			err := m.api.UpdateAccounts("liabilities")
-			if err != nil {
-				return notify.NotifyWarn(err.Error())()
-			}
-			return LiabilitiesUpdateMsg{}
-		}
-	case LiabilitiesUpdateMsg:
-		return m, tea.Batch(
-			m.list.SetItems(getLiabilitiesItems(m.api)),
-			Cmd(DataLoadCompletedMsg{DataType: "liabilities"}),
-		)
-	case NewLiabilityMsg:
-		err := m.api.CreateLiabilityAccount(firefly.NewLiability{
-			Name:         msg.Account,
-			CurrencyCode: msg.Currency,
-			Type:         msg.Type,
-			Direction:    msg.Direction,
-		})
+	if newMsg, ok := msg.(NewLiabilityMsg); ok {
+		api := m.api.(LiabilityAPI)
+		err := api.CreateLiabilityAccount(
+			firefly.NewLiability{
+				Name:         newMsg.Account,
+				CurrencyCode: newMsg.Currency,
+				Type:         newMsg.Type,
+				Direction:    newMsg.Direction,
+			})
 		if err != nil {
 			return m, notify.NotifyWarn(err.Error())
 		}
-		promptValue = ""
 		return m, tea.Batch(
 			Cmd(RefreshLiabilitiesMsg{}),
-			notify.NotifyLog(fmt.Sprintf("Liability account '%s' created", msg.Account)),
+			notify.NotifyLog(fmt.Sprintf("Liability account '%s' created", newMsg.Account)),
 		)
-	case UpdatePositions:
-		if msg.layout != nil {
-			h, v := m.styles.Base.GetFrameSize()
-			m.list.SetSize(
-				msg.layout.Width-h,
-				msg.layout.Height-v-msg.layout.TopSize,
-			)
-		}
 	}
-
-	if !m.focus {
-		return m, nil
-	}
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, m.keymap.Quit):
-			return m, SetView(transactionsView)
-		case key.Matches(msg, m.keymap.Filter):
-			i, ok := m.list.SelectedItem().(liabilityItem)
-			if ok {
-				return m, Cmd(FilterMsg{Account: i.account})
-			}
-			return m, nil
-		case key.Matches(msg, m.keymap.New):
-			return m, CmdPromptNewLiability(SetView(liabilitiesView))
-		case key.Matches(msg, m.keymap.Refresh):
-			return m, Cmd(RefreshLiabilitiesMsg{})
-		case key.Matches(msg, m.keymap.ResetFilter):
-			return m, Cmd(FilterMsg{Reset: true})
-
-		case key.Matches(msg, m.keymap.ViewTransactions):
-			return m, SetView(transactionsView)
-		case key.Matches(msg, m.keymap.ViewAssets):
-			return m, SetView(assetsView)
-		case key.Matches(msg, m.keymap.ViewCategories):
-			return m, SetView(categoriesView)
-		case key.Matches(msg, m.keymap.ViewExpenses):
-			return m, SetView(expensesView)
-		case key.Matches(msg, m.keymap.ViewRevenues):
-			return m, SetView(revenuesView)
-		case key.Matches(msg, m.keymap.ViewLiabilities):
-			return m, SetView(liabilitiesView)
-
-		}
-	}
-
-	m.list, cmd = m.list.Update(msg)
+	updated, cmd := m.AccountListModel.Update(msg)
+	m.AccountListModel = updated.(AccountListModel[firefly.Account])
 	return m, cmd
-}
-
-func (m modelLiabilities) View() string {
-	return m.styles.LeftPanel.Render(m.list.View())
-}
-
-func (m *modelLiabilities) Focus() {
-	m.list.FilterInput.Focus()
-	m.focus = true
-}
-
-func (m *modelLiabilities) Blur() {
-	m.list.FilterInput.Blur()
-	m.focus = false
 }
 
 func getLiabilitiesItems(api AccountsAPI) []list.Item {
 	items := []list.Item{}
 	for _, account := range api.AccountsByType("liabilities") {
-		items = append(items, liabilityItem{
-			account: account,
-			balance: api.AccountBalance(account.ID),
-		})
+		items = append(items, newAccountListItem(
+			account,
+			"Balance",
+			api.AccountBalance(account.ID),
+		))
 	}
-
 	return items
 }
 

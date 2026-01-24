@@ -145,11 +145,11 @@ func TestGetExpensesItems_UsesExpenseDiffAPI(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected item type expenseItem, got %T", items[0])
 	}
-	if first.account.ID != "e1" {
-		t.Errorf("expected first account ID 'e1', got %q", first.account.ID)
+	if first.Entity.ID != "e1" {
+		t.Errorf("expected first account ID 'e1', got %q", first.Entity.ID)
 	}
-	if first.spent != 250.75 {
-		t.Errorf("expected first spent 250.75, got %v", first.spent)
+	if first.PrimaryVal != 250.75 {
+		t.Errorf("expected first spent 250.75, got %v", first.PrimaryVal)
 	}
 	if first.Description() != "Spent: 250.75 USD" {
 		t.Errorf("unexpected description: %q", first.Description())
@@ -190,34 +190,16 @@ func TestGetExpensesItems_SortedFiltersZeroAndSorts(t *testing.T) {
 	}
 
 	first := items[0].(expenseItem)
-	if first.account.Name != "High" {
-		t.Errorf("expected first item 'High', got %q", first.account.Name)
+	if first.Entity.Name != "High" {
+		t.Errorf("expected first item 'High', got %q", first.Entity.Name)
 	}
-	if first.spent != 5000 {
-		t.Errorf("expected first spent 5000, got %v", first.spent)
+	if first.PrimaryVal != 5000 {
+		t.Errorf("expected first spent 5000, got %v", first.PrimaryVal)
 	}
 
 	second := items[1].(expenseItem)
-	if second.account.Name != "Low" {
-		t.Errorf("expected second item 'Low', got %q", second.account.Name)
-	}
-}
-
-func TestNewModelExpenses_SetsPrimaryCurrency(t *testing.T) {
-	api := &mockExpenseAPI{
-		accountsByTypeFunc: func(accountType string) []firefly.Account {
-			return []firefly.Account{}
-		},
-		primaryCurrencyFunc: func() firefly.Currency {
-			return firefly.Currency{Code: "GBP", Symbol: "£"}
-		},
-	}
-
-	_ = newModelExpenses(api)
-
-	// Verify totalExpenseAccount got the primary currency
-	if totalExpenseAccount.CurrencyCode != "GBP" {
-		t.Errorf("expected totalExpenseAccount currency 'GBP', got %q", totalExpenseAccount.CurrencyCode)
+	if second.Entity.Name != "Low" {
+		t.Errorf("expected second item 'Low', got %q", second.Entity.Name)
 	}
 }
 
@@ -446,7 +428,7 @@ func TestModelExpenses_ExpensesUpdated_EmitsDataLoadCompleted(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected DataLoadCompletedMsg, got %T", msgs[0])
 	}
-	if loader.DataType != "expenses" {
+	if loader.DataType != "expense" {
 		t.Fatalf("expected DataType 'expenses', got %q", loader.DataType)
 	}
 
@@ -461,11 +443,11 @@ func TestModelExpenses_ExpensesUpdated_EmitsDataLoadCompleted(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected first item to be expenseItem, got %T", listItems[0])
 	}
-	if totalItem.account.Name != "Total" {
-		t.Errorf("expected first item name 'Total', got %q", totalItem.account.Name)
+	if totalItem.Entity.Name != "Total" {
+		t.Errorf("expected first item name 'Total', got %q", totalItem.Entity.Name)
 	}
-	if totalItem.spent != 1500 {
-		t.Errorf("expected total spent 1500, got %v", totalItem.spent)
+	if totalItem.PrimaryVal != 1500 {
+		t.Errorf("expected total spent 1500, got %v", totalItem.PrimaryVal)
 	}
 }
 
@@ -486,9 +468,10 @@ func TestModelExpenses_UpdatePositions_SetsListSize(t *testing.T) {
 
 	updated, _ := m.Update(UpdatePositions{
 		layout: &LayoutConfig{
-			Width:   globalWidth,
-			Height:  globalHeight,
-			TopSize: topSize,
+			Width:       globalWidth,
+			Height:      globalHeight,
+			TopSize:     topSize,
+			SummarySize: 10,
 		},
 	})
 	m2 := updated.(modelExpenses)
@@ -712,7 +695,7 @@ func TestModelExpenses_KeyViewNavigation(t *testing.T) {
 		{"revenues", 'i', revenuesView, false, 1},
 		{"transactions", 't', transactionsView, false, 1},
 		{"liabilities", 'o', liabilitiesView, false, 1},
-		{"expenses (self)", 'e', expensesView, true, 0},
+		{"expenses (self)", 'e', expensesView, false, 1},
 		{"quit to transactions", 'q', transactionsView, false, 1},
 	}
 
@@ -902,8 +885,8 @@ func TestModelExpenses_SpentBoundaryValues(t *testing.T) {
 				t.Fatalf("expected expenseItem, got %T", items[0])
 			}
 
-			if item.spent != tt.spent {
-				t.Errorf("expected spent %v, got %v", tt.spent, item.spent)
+			if item.PrimaryVal != tt.spent {
+				t.Errorf("expected spent %v, got %v", tt.spent, item.PrimaryVal)
 			}
 
 			if item.Description() != tt.expectedDisplay {
@@ -949,8 +932,8 @@ func TestModelExpenses_AccountNameEdgeCases(t *testing.T) {
 				t.Fatalf("expected expenseItem, got %T", items[0])
 			}
 
-			if item.account.Name != tt.accountName {
-				t.Errorf("expected name %q, got %q", tt.accountName, item.account.Name)
+			if item.Entity.Name != tt.accountName {
+				t.Errorf("expected name %q, got %q", tt.accountName, item.Entity.Name)
 			}
 
 			title := item.Title()

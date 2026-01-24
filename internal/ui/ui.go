@@ -109,11 +109,11 @@ func NewModelUI(api UIAPI) modelUI {
 		Width:        80,
 		layout:       lc,
 		loadStatus: map[string]bool{
-			"assets":      false,
-			"expenses":    false,
-			"revenues":    false,
-			"liabilities": false,
-			"categories":  false,
+			"asset":      false,
+			"expense":    false,
+			"revenue":    false,
+			"liability":  false,
+			"categories": false,
 		},
 	}
 
@@ -281,11 +281,11 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Cmd(RefreshSummaryMsg{}))
 	case RefreshAllMsg:
 		m.loadStatus = map[string]bool{
-			"assets":      false,
-			"expenses":    false,
-			"revenues":    false,
-			"liabilities": false,
-			"categories":  false,
+			"asset":      false,
+			"expense":    false,
+			"revenue":    false,
+			"liability":  false,
+			"categories": false,
 		}
 		return m, tea.Batch(
 			SetView(transactionsView),
@@ -443,14 +443,14 @@ func (m *modelUI) HelpView() string {
 		help += m.help.View(m.transactions.keymap)
 	case assetsView:
 		help += m.help.View(m.assets.keymap)
-	case categoriesView:
-		help += m.help.View(m.categories.keymap)
 	case expensesView:
 		help += m.help.View(m.expenses.keymap)
 	case revenuesView:
 		help += m.help.View(m.revenues.keymap)
 	case liabilitiesView:
 		help += m.help.View(m.liabilities.keymap)
+	case categoriesView:
+		help += m.help.View(m.categories.keymap)
 	case newView:
 		help += m.help.View(m.new.keymap)
 	}

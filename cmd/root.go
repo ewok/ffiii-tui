@@ -38,6 +38,7 @@ Prerequisites:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		debug := viper.GetBool("logging.debug")
 		logFile := viper.GetString("logging.file")
+		timeout := viper.GetInt("timeout")
 
 		if debug {
 			fmt.Println("Debug logging is enabled")
@@ -64,7 +65,7 @@ Prerequisites:
 		ff, err := firefly.NewApi(firefly.ApiConfig{
 			ApiKey:         apiKey,
 			ApiUrl:         apiUrl,
-			TimeoutSeconds: 10,
+			TimeoutSeconds: timeout,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to connect to Firefly III: %w", err)
@@ -120,6 +121,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/ffiii-tui/config)")
 	rootCmd.PersistentFlags().StringP("firefly.api_key", "k", "your_firefly_api_key_here", "Firefly III API key")
 	rootCmd.PersistentFlags().StringP("firefly.api_url", "u", "https://your-firefly-iii-instance.com/api/v1", "Firefly III API URL")
+	rootCmd.PersistentFlags().IntP("timeout", "t", 10, "Connection timeout")
 	rootCmd.Flags().BoolP("logging.debug", "d", false, "Enable debug logging")
 	rootCmd.Flags().StringP("logging.file", "l", "messages.log", "Log file path (if empty, logs to stdout)")
 
