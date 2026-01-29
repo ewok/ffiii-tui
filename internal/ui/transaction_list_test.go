@@ -895,6 +895,27 @@ func TestFilterMsg_MatchesGroupTitle(t *testing.T) {
 	}
 }
 
+func TestFilterMsg_SetsCursorByTransactionID(t *testing.T) {
+	transactions := []firefly.Transaction{
+		newTestTransaction(0, "tx1", "withdrawal", "2024-01-15T10:00:00Z", "First"),
+		newTestTransaction(1, "tx2", "deposit", "2024-01-16T10:00:00Z", "Second"),
+	}
+
+	m := newFocusedTransactionModel(t, transactions)
+
+	updated, _ := m.Update(FilterMsg{TrxID: "tx2"})
+	m2 := updated.(modelTransactions)
+
+	row := m2.table.SelectedRow()
+	if row == nil {
+		t.Fatal("expected selected row to be set")
+	}
+
+	if row[11] != "tx2" {
+		t.Errorf("expected selected row TxID 'tx2', got %q", row[11])
+	}
+}
+
 func TestFilterMsg_ForeignCurrencyAndAmount(t *testing.T) {
 	transactions := []firefly.Transaction{
 		{

@@ -61,42 +61,42 @@ type RequestTransactionSplit struct {
 	InvoiceDate          string   `json:"invoice_date,omitempty"`
 }
 
-func (api *Api) CreateTransaction(newTransaction RequestTransaction) error {
+func (api *Api) CreateTransaction(newTransaction RequestTransaction) (id string, err error) {
 	endpoint := fmt.Sprintf("%s/transactions", api.Config.ApiUrl)
 
 	response, err := api.postRequest(endpoint, newTransaction)
 	if err != nil {
-		return err
+		return "", err
 	}
 	data, ok := response.Data.(map[string]any)
 	if !ok {
-		return fmt.Errorf("invalid response format: missing data field")
+		return "", fmt.Errorf("invalid response format: missing data field")
 	}
-	id, ok := data["id"].(string)
+	id, ok = data["id"].(string)
 	if !ok || id == "" {
-		return fmt.Errorf("invalid response format: missing transaction id")
+		return "", fmt.Errorf("invalid response format: missing transaction id")
 	}
 
-	return nil
+	return id, nil
 }
 
-func (api *Api) UpdateTransaction(transactionId string, transaction RequestTransaction) error {
+func (api *Api) UpdateTransaction(transactionId string, transaction RequestTransaction) (id string, err error) {
 	endpoint := fmt.Sprintf("%s/transactions/%s", api.Config.ApiUrl, transactionId)
 
 	response, err := api.putRequest(endpoint, transaction)
 	if err != nil {
-		return err
+		return "", err
 	}
 	data, ok := response.Data.(map[string]any)
 	if !ok {
-		return fmt.Errorf("invalid response format: missing data field")
+		return "", fmt.Errorf("invalid response format: missing data field")
 	}
-	id, ok := data["id"].(string)
+	id, ok = data["id"].(string)
 	if !ok || id == "" {
-		return fmt.Errorf("invalid response format: missing transaction id")
+		return "", fmt.Errorf("invalid response format: missing transaction id")
 	}
 
-	return nil
+	return id, nil
 }
 
 func (api *Api) DeleteTransaction(transactionId string) error {

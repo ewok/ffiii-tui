@@ -52,8 +52,8 @@ type mockUIAPI struct {
 	deleteTransactionFunc func(transactionID string) error
 
 	// TransactionWriteAPI
-	createTransactionFunc func(tx firefly.RequestTransaction) error
-	updateTransactionFunc func(transactionID string, tx firefly.RequestTransaction) error
+	createTransactionFunc func(tx firefly.RequestTransaction) (string, error)
+	updateTransactionFunc func(transactionID string, tx firefly.RequestTransaction) (string, error)
 
 	// Account creation
 	createAssetAccountFunc     func(name, currencyCode string) error
@@ -272,18 +272,18 @@ func (m *mockUIAPI) DeleteTransaction(transactionID string) error {
 }
 
 // TransactionWriteAPI methods
-func (m *mockUIAPI) CreateTransaction(tx firefly.RequestTransaction) error {
+func (m *mockUIAPI) CreateTransaction(tx firefly.RequestTransaction) (string, error) {
 	if m.createTransactionFunc != nil {
 		return m.createTransactionFunc(tx)
 	}
-	return nil
+	return "", nil
 }
 
-func (m *mockUIAPI) UpdateTransaction(transactionID string, tx firefly.RequestTransaction) error {
+func (m *mockUIAPI) UpdateTransaction(transactionID string, tx firefly.RequestTransaction) (string, error) {
 	if m.updateTransactionFunc != nil {
 		return m.updateTransactionFunc(transactionID, tx)
 	}
-	return nil
+	return "", nil
 }
 
 // Helper function to create a test modelUI

@@ -14,10 +14,11 @@ import (
 )
 
 type Account struct {
-	ID           string
-	Name         string
-	CurrencyCode string
-	Type         string
+	ID                 string
+	Name               string
+	CurrencyCode       string
+	Type               string
+	LiabilityDirection string
 }
 
 type apiAccount struct {
@@ -26,11 +27,12 @@ type apiAccount struct {
 }
 
 type apiAccountAttr struct {
-	Active         bool    `json:"active"`
-	Name           string  `json:"name"`
-	CurrencyCode   string  `json:"currency_code"`
-	CurrentBalance float64 `json:"current_balance,string"`
-	Type           string  `json:"type"`
+	Active             bool    `json:"active"`
+	Name               string  `json:"name"`
+	CurrencyCode       string  `json:"currency_code"`
+	CurrentBalance     float64 `json:"current_balance,string"`
+	Type               string  `json:"type"`
+	LiabilityDirection string  `json:"liability_direction"`
 }
 
 type NewLiability struct {
@@ -194,10 +196,11 @@ func (api *Api) UpdateAccounts(accType string) error {
 	for _, account := range accounts {
 		api.accountBalances[account.ID] = account.Attributes.CurrentBalance
 		accs[account.Attributes.Type] = append(accs[account.Attributes.Type], Account{
-			ID:           account.ID,
-			Name:         account.Attributes.Name,
-			CurrencyCode: account.Attributes.CurrencyCode,
-			Type:         account.Attributes.Type,
+			ID:                 account.ID,
+			Name:               account.Attributes.Name,
+			CurrencyCode:       account.Attributes.CurrencyCode,
+			Type:               account.Attributes.Type,
+			LiabilityDirection: account.Attributes.LiabilityDirection,
 		})
 	}
 

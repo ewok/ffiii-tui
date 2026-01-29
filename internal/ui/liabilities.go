@@ -92,6 +92,8 @@ func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if err != nil {
 			return m, notify.NotifyWarn(err.Error())
 		}
+		// Reset prompt on accaunt creation
+		promptValue = ""
 		return m, tea.Batch(
 			Cmd(RefreshLiabilitiesMsg{}),
 			notify.NotifyLog(fmt.Sprintf("Liability account '%s' created", newMsg.Account)),
@@ -105,10 +107,16 @@ func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func getLiabilitiesItems(api AccountsAPI) []list.Item {
 	items := []list.Item{}
 	for _, account := range api.AccountsByType("liabilities") {
+		label := "They owe us"
+		balance := api.AccountBalance(account.ID)
+		if account.LiabilityDirection == "debit" {
+			label = "We owe"
+			balance = (-1) * balance
+		}
 		items = append(items, newAccountListItem(
 			account,
-			"Balance",
-			api.AccountBalance(account.ID),
+			label,
+			balance,
 		))
 	}
 	return items
