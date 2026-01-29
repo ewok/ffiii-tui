@@ -113,8 +113,8 @@ type TransactionAPI interface {
 
 // TransactionWriteAPI provides create/update operations used by the transaction form.
 type TransactionWriteAPI interface {
-	CreateTransaction(tx firefly.RequestTransaction) error
-	UpdateTransaction(transactionID string, tx firefly.RequestTransaction) error
+	CreateTransaction(tx firefly.RequestTransaction) (string, error)
+	UpdateTransaction(transactionID string, tx firefly.RequestTransaction) (string, error)
 }
 
 // TransactionFormAPI is the minimal API used by the transaction form UI.

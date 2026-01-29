@@ -440,13 +440,14 @@ func (m *modelTransaction) CreateTransaction() tea.Cmd {
 		})
 	}
 
-	if err := m.api.CreateTransaction(firefly.RequestTransaction{
+	id, err := m.api.CreateTransaction(firefly.RequestTransaction{
 		ApplyRules:           true,
 		ErrorIfDuplicateHash: false,
 		FireWebhooks:         true,
 		GroupTitle:           m.GroupTitle(),
 		Transactions:         trx,
-	}); err != nil {
+	})
+	if err != nil {
 		return tea.Sequence(
 			notify.NotifyError(err.Error()),
 			SetView(transactionsView))
@@ -460,7 +461,7 @@ func (m *modelTransaction) CreateTransaction() tea.Cmd {
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
 		Cmd(RefreshSummaryMsg{}),
-		Cmd(RefreshTransactionsMsg{}),
+		Cmd(RefreshTransactionsMsg{TrxID: id}),
 		Cmd(RefreshExpenseInsightsMsg{}),
 		Cmd(RefreshRevenueInsightsMsg{}),
 		Cmd(RefreshCategoryInsightsMsg{}))
@@ -484,12 +485,13 @@ func (m *modelTransaction) UpdateTransaction() tea.Cmd {
 		})
 	}
 
-	if err := m.api.UpdateTransaction(m.attr.trxID, firefly.RequestTransaction{
+	id, err := m.api.UpdateTransaction(m.attr.trxID, firefly.RequestTransaction{
 		ApplyRules:   true,
 		FireWebhooks: true,
 		GroupTitle:   m.GroupTitle(),
 		Transactions: trx,
-	}); err != nil {
+	})
+	if err != nil {
 		return tea.Sequence(
 			notify.NotifyError(err.Error()),
 			SetView(transactionsView))
@@ -503,7 +505,7 @@ func (m *modelTransaction) UpdateTransaction() tea.Cmd {
 		Cmd(RefreshAssetsMsg{}),
 		Cmd(RefreshLiabilitiesMsg{}),
 		Cmd(RefreshSummaryMsg{}),
-		Cmd(RefreshTransactionsMsg{}),
+		Cmd(RefreshTransactionsMsg{TrxID: id}),
 		Cmd(RefreshExpenseInsightsMsg{}),
 		Cmd(RefreshRevenueInsightsMsg{}),
 		Cmd(RefreshCategoryInsightsMsg{}))

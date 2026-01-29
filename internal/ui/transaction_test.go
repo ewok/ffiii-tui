@@ -39,8 +39,8 @@ type mockTransactionFormAPI struct {
 	}
 
 	// TransactionWriteAPI methods
-	createTransactionFunc  func(tx firefly.RequestTransaction) error
-	updateTransactionFunc  func(transactionID string, tx firefly.RequestTransaction) error
+	createTransactionFunc  func(tx firefly.RequestTransaction) (string, error)
+	updateTransactionFunc  func(transactionID string, tx firefly.RequestTransaction) (string, error)
 	createTransactionCalls []firefly.RequestTransaction
 	updateTransactionCalls []struct {
 		id string
@@ -126,15 +126,15 @@ func (m *mockTransactionFormAPI) CreateCategory(name, notes string) error {
 }
 
 // TransactionWriteAPI methods
-func (m *mockTransactionFormAPI) CreateTransaction(tx firefly.RequestTransaction) error {
+func (m *mockTransactionFormAPI) CreateTransaction(tx firefly.RequestTransaction) (string, error) {
 	m.createTransactionCalls = append(m.createTransactionCalls, tx)
 	if m.createTransactionFunc != nil {
 		return m.createTransactionFunc(tx)
 	}
-	return nil
+	return "", nil
 }
 
-func (m *mockTransactionFormAPI) UpdateTransaction(transactionID string, tx firefly.RequestTransaction) error {
+func (m *mockTransactionFormAPI) UpdateTransaction(transactionID string, tx firefly.RequestTransaction) (string, error) {
 	m.updateTransactionCalls = append(m.updateTransactionCalls, struct {
 		id string
 		tx firefly.RequestTransaction
@@ -142,7 +142,7 @@ func (m *mockTransactionFormAPI) UpdateTransaction(transactionID string, tx fire
 	if m.updateTransactionFunc != nil {
 		return m.updateTransactionFunc(transactionID, tx)
 	}
-	return nil
+	return "", nil
 }
 
 // Test data
@@ -813,8 +813,8 @@ func TestTransaction_KeyBindings(t *testing.T) {
 			categoriesListFunc: func() []firefly.Category {
 				return []firefly.Category{testCategoryFood}
 			},
-			createTransactionFunc: func(tx firefly.RequestTransaction) error {
-				return nil
+			createTransactionFunc: func(tx firefly.RequestTransaction) (string, error) {
+				return "", nil
 			},
 		}
 
@@ -857,8 +857,8 @@ func TestTransaction_KeyBindings(t *testing.T) {
 			categoriesListFunc: func() []firefly.Category {
 				return []firefly.Category{testCategoryFood}
 			},
-			updateTransactionFunc: func(transactionID string, tx firefly.RequestTransaction) error {
-				return nil
+			updateTransactionFunc: func(transactionID string, tx firefly.RequestTransaction) (string, error) {
+				return "", nil
 			},
 		}
 
@@ -1079,8 +1079,8 @@ func TestTransaction_CreateTransaction(t *testing.T) {
 			categoriesListFunc: func() []firefly.Category {
 				return []firefly.Category{testCategoryFood}
 			},
-			createTransactionFunc: func(tx firefly.RequestTransaction) error {
-				return nil
+			createTransactionFunc: func(tx firefly.RequestTransaction) (string, error) {
+				return "", nil
 			},
 		}
 
@@ -1170,8 +1170,8 @@ func TestTransaction_CreateTransaction(t *testing.T) {
 			categoriesListFunc: func() []firefly.Category {
 				return []firefly.Category{testCategoryFood}
 			},
-			createTransactionFunc: func(tx firefly.RequestTransaction) error {
-				return errors.New("API error")
+			createTransactionFunc: func(tx firefly.RequestTransaction) (string, error) {
+				return "", errors.New("API error")
 			},
 		}
 
@@ -1227,8 +1227,8 @@ func TestTransaction_UpdateTransaction(t *testing.T) {
 			categoriesListFunc: func() []firefly.Category {
 				return []firefly.Category{testCategoryFood}
 			},
-			updateTransactionFunc: func(transactionID string, tx firefly.RequestTransaction) error {
-				return nil
+			updateTransactionFunc: func(transactionID string, tx firefly.RequestTransaction) (string, error) {
+				return "", nil
 			},
 		}
 
@@ -1323,8 +1323,8 @@ func TestTransaction_UpdateTransaction(t *testing.T) {
 			categoriesListFunc: func() []firefly.Category {
 				return []firefly.Category{testCategoryFood}
 			},
-			updateTransactionFunc: func(transactionID string, tx firefly.RequestTransaction) error {
-				return errors.New("Update API error")
+			updateTransactionFunc: func(transactionID string, tx firefly.RequestTransaction) (string, error) {
+				return "", errors.New("Update API error")
 			},
 		}
 

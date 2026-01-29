@@ -21,19 +21,28 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type FilterMsg struct {
-	Account  firefly.Account
-	Category firefly.Category
-	Query    string
-	Reset    bool
-}
-type SearchMsg struct {
-	Query string
-}
+var (
+	filterPromptAccount  firefly.Account
+	filterPromptCategory firefly.Category
+	filterPromptFilter   string
+)
 
 type (
-	RefreshTransactionsMsg struct{}
-	TransactionsUpdateMsg  struct {
+	FilterMsg struct {
+		TrxID    string
+		Account  firefly.Account
+		Category firefly.Category
+		Query    string
+		Reset    bool
+	}
+	SearchMsg struct {
+		Query string
+	}
+	RefreshTransactionsMsg struct {
+		TrxID string
+	}
+	TransactionsUpdateMsg struct { // TODO: Rename
+		TrxID        string
 		Transactions []firefly.Transaction
 	}
 	DeleteTransactionMsg struct {
@@ -93,16 +102,28 @@ func (m modelTransactions) Init() tea.Cmd {
 func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case SearchMsg:
-		if msg.Query == "None" {
+		if msg.Query == "None" { // Returning back from search
 			if m.currentSearch == "" {
 				return m, nil
 			}
 			m.currentSearch = ""
-			// m.currentSearch, m.currentAccount, m.currentCategory, m.currentFilter = "", "", "", ""
-		} else {
-			// if m.currentSearch == "" {
-			// 	m.currentAccount, m.currentCategory, m.currentFilter = "", "", ""
-			// }
+
+			// Restoring values
+			m.currentAccount = filterPromptAccount
+			m.currentCategory = filterPromptCategory
+			m.currentFilter = filterPromptFilter
+		} else { // Searching for something
+			if m.currentSearch == "" {
+				// Saving values in global state for future restoration
+				filterPromptAccount = m.currentAccount
+				filterPromptCategory = m.currentCategory
+				filterPromptFilter = m.currentFilter
+
+				// Resetting
+				m.currentAccount = firefly.Account{}
+				m.currentCategory = firefly.Category{}
+				m.currentFilter = ""
+			}
 			m.currentSearch = msg.Query
 		}
 		return m, Cmd(RefreshTransactionsMsg{})
@@ -207,6 +228,14 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.table.SetRows(rows)
 		m.table.SetColumns(columns)
 
+		if msg.TrxID != "" {
+			for i, trx := range m.table.Rows() {
+				if trx[11] == msg.TrxID { // That is TxID column
+					m.table.SetCursor(i)
+				}
+			}
+		}
+
 	case RefreshTransactionsMsg:
 		return m, func() tea.Msg {
 			var err error
@@ -219,6 +248,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return notify.NotifyWarn(err.Error())()
 			}
 			return TransactionsUpdateMsg{
+				TrxID:        msg.TrxID,
 				Transactions: transactions,
 			}
 		}
@@ -226,6 +256,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TransactionsUpdateMsg:
 		m.transactions = msg.Transactions
 		return m, tea.Batch(Cmd(FilterMsg{
+			TrxID:    msg.TrxID,
 			Account:  m.currentAccount,
 			Category: m.currentCategory,
 			Query:    m.currentFilter,
@@ -274,7 +305,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, Cmd(RefreshAllMsg{})
 		case key.Matches(msg, m.keymap.Filter):
 			return m, prompt.Ask(
-				"Filter query: ",
+				"Filter query (ESC to reset): ",
 				m.currentFilter,
 				func(value string) tea.Cmd {
 					var cmds []tea.Cmd
@@ -286,7 +317,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		case key.Matches(msg, m.keymap.Search):
 			return m, prompt.Ask(
-				"Search query: ",
+				"Search query (ESC to exit search mode): ",
 				m.currentSearch,
 				func(value string) tea.Cmd {
 					var cmds []tea.Cmd
