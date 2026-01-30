@@ -67,7 +67,7 @@ func newModelAssets(api AssetAPI) modelAssets {
 		},
 	}
 	return modelAssets{
-		AccountListModel: NewAccountListModel[firefly.Account](api, config),
+		AccountListModel: NewAccountListModel(api, config),
 	}
 }
 

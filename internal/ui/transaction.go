@@ -424,6 +424,8 @@ func (m *modelTransaction) DeleteSplit(index int) tea.Cmd {
 }
 
 func (m *modelTransaction) CreateTransaction() tea.Cmd {
+	startLoading("Creating transaction...")
+	defer stopLoading()
 	trx := []firefly.RequestTransactionSplit{}
 	for _, s := range m.splits {
 		trx = append(trx, firefly.RequestTransactionSplit{
@@ -468,6 +470,8 @@ func (m *modelTransaction) CreateTransaction() tea.Cmd {
 }
 
 func (m *modelTransaction) UpdateTransaction() tea.Cmd {
+	startLoading("Updating transaction...")
+	defer stopLoading()
 	trx := []firefly.RequestTransactionSplit{}
 	for _, s := range m.splits {
 		trx = append(trx, firefly.RequestTransactionSplit{

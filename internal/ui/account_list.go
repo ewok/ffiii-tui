@@ -55,6 +55,8 @@ func (m AccountListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if matchMsgType(msg, m.config.RefreshMsgType) {
 		return m, func() tea.Msg {
+			startLoading("Loading accounts...")
+			defer stopLoading()
 			err := m.config.RefreshItems(m.api, m.config.AccountType)
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()

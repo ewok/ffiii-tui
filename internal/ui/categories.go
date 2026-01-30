@@ -92,6 +92,8 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case RefreshCategoryInsightsMsg:
 		return m, func() tea.Msg {
+			startLoading("Loading category insights...")
+			defer stopLoading()
 			err := m.api.UpdateCategoriesInsights()
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()
@@ -100,6 +102,8 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case RefreshCategoriesMsg:
 		return m, func() tea.Msg {
+			startLoading("Loading categories...")
+			defer stopLoading()
 			err := m.api.UpdateCategories()
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()
@@ -118,6 +122,8 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Cmd(DataLoadCompletedMsg{DataType: "categories"}),
 		)
 	case NewCategoryMsg:
+		startLoading("Creating category...")
+		defer stopLoading()
 		err := m.api.CreateCategory(msg.Category, "")
 		if err != nil {
 			return m, notify.NotifyWarn(err.Error())
