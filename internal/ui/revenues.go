@@ -69,7 +69,7 @@ func newModelRevenues(api RevenueAPI) modelRevenues {
 		},
 	}
 	return modelRevenues{
-		AccountListModel: NewAccountListModel[firefly.Account](api, config),
+		AccountListModel: NewAccountListModel(api, config),
 	}
 }
 
@@ -93,6 +93,8 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
 	case RefreshRevenueInsightsMsg:
 		return m, func() tea.Msg {
+			startLoading("Loading revenue insights...")
+			defer stopLoading()
 			err := m.api.(RevenueAPI).UpdateRevenueInsights()
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()

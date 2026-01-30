@@ -243,6 +243,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentSearch != "" {
 				searchQuery = url.QueryEscape(m.currentSearch)
 			}
+			startLoading("Loading transactions...")
+			defer stopLoading()
 			transactions, err := m.api.ListTransactions(searchQuery)
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()
@@ -265,6 +267,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DeleteTransactionMsg:
 		id := msg.Transaction.TransactionID
 		if id != "" {
+			startLoading("Deleting transaction...")
+			defer stopLoading()
 			err := m.api.DeleteTransaction(id)
 			if err != nil {
 				return m, tea.Batch(

@@ -71,7 +71,7 @@ func newModelLiabilities(api LiabilityAPI) modelLiabilities {
 		},
 	}
 	return modelLiabilities{
-		AccountListModel: NewAccountListModel[firefly.Account](api, config),
+		AccountListModel: NewAccountListModel(api, config),
 	}
 }
 

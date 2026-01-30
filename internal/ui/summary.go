@@ -98,6 +98,8 @@ func (m modelSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case RefreshSummaryMsg:
 		return m, func() tea.Msg {
+			startLoading("Loading summary...")
+			defer stopLoading()
 			err := m.api.UpdateSummary()
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()

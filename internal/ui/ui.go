@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"ffiii-tui/internal/ui/notify"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/viper"
@@ -22,6 +24,9 @@ import (
 )
 
 type state uint
+
+var loading atomic.Int32
+var loadingMessage atomic.Value // stores string
 
 const (
 	transactionsView state = iota
@@ -67,6 +72,7 @@ type modelUI struct {
 	prompt       prompt.Model
 	notify       notify.Model
 	summary      modelSummary
+	spinner      spinner.Model
 
 	keymap UIKeyMap
 	help   help.Model
@@ -91,6 +97,9 @@ func NewModelUI(api UIAPI) modelUI {
 	lc := NewDefaultLayout()
 	lc = lc.WithFullTransactionView(viper.GetBool("ui.full_view"))
 
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+
 	m := modelUI{
 		api:          api,
 		transactions: NewModelTransactions(api),
@@ -103,6 +112,7 @@ func NewModelUI(api UIAPI) modelUI {
 		prompt:       prompt.New(),
 		notify:       notify.New(),
 		summary:      newModelSummary(api),
+		spinner:      sp,
 		keymap:       DefaultUIKeyMap(),
 		help:         help.New(),
 		styles:       DefaultStyles(),
@@ -124,7 +134,9 @@ func NewModelUI(api UIAPI) modelUI {
 }
 
 func (m modelUI) Init() tea.Cmd {
-	return Cmd(RefreshAllMsg{})
+	return tea.Batch(
+		Cmd(RefreshAllMsg{}),
+		m.spinner.Tick)
 }
 
 func updateModel[T tea.Model](current T, msg tea.Msg) (T, tea.Cmd) {
@@ -340,6 +352,9 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.new, cmd = updateModel(m.new, msg)
 	cmds = append(cmds, cmd)
 
+	m.spinner, cmd = m.spinner.Update(msg)
+	cmds = append(cmds, cmd)
+
 	return m, tea.Batch(cmds...)
 }
 
@@ -382,6 +397,16 @@ func (m modelUI) View() string {
 			}
 		}
 
+		if loading.Load() > 0 {
+			msgValue := loadingMessage.Load()
+			msg := "..."
+			if msgValue != nil {
+				if str, ok := msgValue.(string); ok && str != "" {
+					msg = str
+				}
+			}
+			header += " | " + m.spinner.View() + msg
+		}
 		s.WriteString(headerRenderer.Width(m.Width).Render(header) + "\n")
 	}
 
@@ -466,4 +491,33 @@ func (m *modelUI) SetState(s state) {
 
 func SetView(state state) tea.Cmd {
 	return Cmd(SetFocusedViewMsg{state: state})
+}
+
+func startLoading(message string) {
+	loadingMessage.Store(message)
+	for {
+		current := loading.Load()
+		if current >= 100 {
+			return
+		}
+		if loading.CompareAndSwap(current, current+1) {
+			return
+		}
+	}
+}
+
+func stopLoading() {
+	for {
+		current := loading.Load()
+		if current <= 0 {
+			return
+		}
+		if loading.CompareAndSwap(current, current-1) {
+			// Clear message when count reaches 0
+			if current-1 == 0 {
+				loadingMessage.Store("")
+			}
+			return
+		}
+	}
 }
