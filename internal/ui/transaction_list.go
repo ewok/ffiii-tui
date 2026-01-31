@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"ffiii-tui/internal/firefly"
@@ -208,14 +207,17 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					continue
 				}
 				for _, split := range tx.Splits {
-					if CaseInsensitiveContains(split.Description, value) ||
-						CaseInsensitiveContains(split.Source.Name, value) ||
-						CaseInsensitiveContains(split.Destination.Name, value) ||
-						CaseInsensitiveContains(split.Category.Name, value) ||
-						CaseInsensitiveContains(split.Currency, value) ||
-						strings.Contains(fmt.Sprintf("%.2f", split.Amount), value) ||
-						CaseInsensitiveContains(split.ForeignCurrency, value) ||
-						strings.Contains(fmt.Sprintf("%.2f", split.ForeignAmount), value) {
+					if CaseInsensitiveContains(
+						split.Description+
+							split.Source.Name+
+							split.Destination.Name+
+							split.Category.Name+
+							split.Currency+
+							split.ForeignCurrency+
+							fmt.Sprintf("%.2f", split.Amount)+
+							fmt.Sprintf("%.2f", split.ForeignAmount),
+						value,
+					) {
 						txs = append(txs, tx)
 						break
 					}
@@ -243,8 +245,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentSearch != "" {
 				searchQuery = url.QueryEscape(m.currentSearch)
 			}
-			startLoading("Loading transactions...")
-			defer stopLoading()
+			opID := startLoading("Loading transactions...")
+			defer stopLoading(opID)
 			transactions, err := m.api.ListTransactions(searchQuery)
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()
@@ -267,8 +269,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DeleteTransactionMsg:
 		id := msg.Transaction.TransactionID
 		if id != "" {
-			startLoading("Deleting transaction...")
-			defer stopLoading()
+			opID := startLoading("Deleting transaction...")
+			defer stopLoading(opID)
 			err := m.api.DeleteTransaction(id)
 			if err != nil {
 				return m, tea.Batch(

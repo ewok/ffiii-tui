@@ -55,8 +55,8 @@ func (m AccountListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if matchMsgType(msg, m.config.RefreshMsgType) {
 		return m, func() tea.Msg {
-			startLoading("Loading accounts...")
-			defer stopLoading()
+			opID := startLoading("Loading accounts...")
+			defer stopLoading(opID)
 			err := m.config.RefreshItems(m.api, m.config.AccountType)
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()
@@ -66,7 +66,10 @@ func (m AccountListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if matchMsgType(msg, m.config.UpdateMsgType) {
-		return m, m.updateItemsCmd()
+		return m, tea.Batch(
+			m.updateItemsCmd(),
+			Cmd(DataLoadCompletedMsg{DataType: m.config.AccountType}),
+		)
 	}
 
 	if msg, ok := msg.(UpdatePositions); ok {
@@ -167,6 +170,8 @@ func (m AccountListModel[T]) createTotalEntity(primary float64) list.Item {
 }
 
 func (m *AccountListModel[T]) updateItemsCmd() tea.Cmd {
+	opID := startLoading("Updating account list...")
+	defer stopLoading(opID)
 	items := m.config.GetItems(m.api, m.sorted)
 
 	if m.config.HasTotalRow && m.config.GetTotalFunc != nil {
@@ -178,15 +183,10 @@ func (m *AccountListModel[T]) updateItemsCmd() tea.Cmd {
 			m.list.InsertItem(0, totalEntity),
 		}
 
-		cmds = append(cmds, Cmd(DataLoadCompletedMsg{DataType: m.config.AccountType}))
-
 		return tea.Sequence(cmds...)
 	}
 
-	return tea.Batch(
-		m.list.SetItems(items),
-		Cmd(DataLoadCompletedMsg{DataType: m.config.AccountType}),
-	)
+	return m.list.SetItems(items)
 }
 
 func matchMsgType(msg, ty tea.Msg) bool {
