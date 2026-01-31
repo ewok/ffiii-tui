@@ -93,8 +93,8 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
 	case RefreshExpenseInsightsMsg:
 		return m, func() tea.Msg {
-			startLoading("Loading expense insights...")
-			defer stopLoading()
+			opID := startLoading("Loading expense insights...")
+			defer stopLoading(opID)
 			err := m.api.(ExpenseAPI).UpdateExpenseInsights()
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()

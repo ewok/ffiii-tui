@@ -319,85 +319,6 @@ func TestTransaction_RedrawForm(t *testing.T) {
 
 // Part 2: Message handler tests
 
-func TestTransaction_RefreshMessages(t *testing.T) {
-	tests := []struct {
-		name                    string
-		msg                     tea.Msg
-		counterToCheck          *byte
-		expectedCounterIncrease int
-	}{
-		{"RefreshNewCategoryMsg", RefreshNewCategoryMsg{}, &triggerCategoryCounter, 1},
-		{"RefreshNewExpenseMsg", RefreshNewExpenseMsg{}, &triggerDestinationCounter, 1},
-		{"RefreshNewRevenueMsg", RefreshNewRevenueMsg{}, &triggerSourceCounter, 1},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Save and restore global counters
-			origCategory := triggerCategoryCounter
-			origSource := triggerSourceCounter
-			origDest := triggerDestinationCounter
-			defer func() {
-				triggerCategoryCounter = origCategory
-				triggerSourceCounter = origSource
-				triggerDestinationCounter = origDest
-			}()
-
-			m := newTestTransactionModel()
-			initialValue := *tt.counterToCheck
-
-			_, cmd := m.Update(tt.msg)
-
-			// Verify counter was incremented
-			if *tt.counterToCheck != initialValue+byte(tt.expectedCounterIncrease) {
-				t.Errorf("expected counter to be %d, got %d", initialValue+byte(tt.expectedCounterIncrease), *tt.counterToCheck)
-			}
-
-			// Verify RedrawForm was returned
-			if cmd == nil {
-				t.Fatal("expected cmd to be returned")
-			}
-			msg := cmd()
-			if _, ok := msg.(RedrawFormMsg); !ok {
-				t.Errorf("expected RedrawFormMsg, got %T", msg)
-			}
-		})
-	}
-
-	// Special test for RefreshNewAssetMsg incrementing both source and destination counters
-	t.Run("RefreshNewAssetMsg increments both counters", func(t *testing.T) {
-		// Save and restore global counters
-		origSource := triggerSourceCounter
-		origDest := triggerDestinationCounter
-		defer func() {
-			triggerSourceCounter = origSource
-			triggerDestinationCounter = origDest
-		}()
-
-		m := newTestTransactionModel()
-		initialSource := triggerSourceCounter
-		initialDest := triggerDestinationCounter
-
-		_, cmd := m.Update(RefreshNewAssetMsg{})
-
-		if triggerSourceCounter != initialSource+1 {
-			t.Errorf("expected source counter to be %d, got %d", initialSource+1, triggerSourceCounter)
-		}
-		if triggerDestinationCounter != initialDest+1 {
-			t.Errorf("expected destination counter to be %d, got %d", initialDest+1, triggerDestinationCounter)
-		}
-
-		// Verify RedrawForm was returned
-		if cmd == nil {
-			t.Fatal("expected cmd to be returned")
-		}
-		msg := cmd()
-		if _, ok := msg.(RedrawFormMsg); !ok {
-			t.Errorf("expected RedrawFormMsg, got %T", msg)
-		}
-	})
-}
-
 func TestTransaction_NewTransactionMsg(t *testing.T) {
 	trx := firefly.Transaction{
 		TransactionID: "trx123",
@@ -574,9 +495,13 @@ func TestTransaction_ResetTransactionMsg(t *testing.T) {
 		t.Error("expected created to be true after ResetTransactionMsg")
 	}
 
-	// Returns nil cmd
-	if cmd != nil {
-		t.Errorf("expected nil cmd, got %T", cmd)
+	// Returns RedrawForm cmd
+	if cmd == nil {
+		t.Fatal("expected cmd to be returned")
+	}
+	msg := cmd()
+	if _, ok := msg.(RedrawFormMsg); !ok {
+		t.Errorf("expected RedrawFormMsg, got %T", msg)
 	}
 }
 

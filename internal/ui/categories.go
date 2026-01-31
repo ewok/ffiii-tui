@@ -76,7 +76,8 @@ func newModelCategories(api CategoryAPI) modelCategories {
 	}
 	m.list.Title = "Categories"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
-	m.list.SetFilteringEnabled(false)
+	m.list.SetFilteringEnabled(true)
+	m.list.FilterInput.Blur()
 	m.list.SetShowStatusBar(false)
 	m.list.SetShowHelp(false)
 	m.list.DisableQuitKeybindings()
@@ -89,11 +90,13 @@ func (m modelCategories) Init() tea.Cmd {
 }
 
 func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case RefreshCategoryInsightsMsg:
 		return m, func() tea.Msg {
-			startLoading("Loading category insights...")
-			defer stopLoading()
+			opID := startLoading("Loading category insights...")
+			defer stopLoading(opID)
 			err := m.api.UpdateCategoriesInsights()
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()
@@ -102,8 +105,8 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case RefreshCategoriesMsg:
 		return m, func() tea.Msg {
-			startLoading("Loading categories...")
-			defer stopLoading()
+			opID := startLoading("Loading categories...")
+			defer stopLoading(opID)
 			err := m.api.UpdateCategories()
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()
@@ -111,19 +114,13 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return CategoriesUpdateMsg{}
 		}
 	case CategoriesUpdateMsg:
-		tSpent, tEarned := m.api.GetTotalSpentEarnedCategories()
 		return m, tea.Batch(
-			m.list.SetItems(getCategoriesItems(m.api, m.sorted)),
-			m.list.InsertItem(0, categoryItem{
-				category: totalCategory,
-				spent:    tSpent,
-				earned:   tEarned,
-			}),
+			m.updateItemsCmd(),
 			Cmd(DataLoadCompletedMsg{DataType: "categories"}),
 		)
 	case NewCategoryMsg:
-		startLoading("Creating category...")
-		defer stopLoading()
+		opID := startLoading("Creating category...")
+		defer stopLoading(opID)
 		err := m.api.CreateCategory(msg.Category, "")
 		if err != nil {
 			return m, notify.NotifyWarn(err.Error())
@@ -140,22 +137,38 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				msg.layout.Height-v-msg.layout.TopSize,
 			)
 		}
+		m.list.FilterInput.Width = 20
 	}
 
 	if !m.focus {
 		return m, nil
 	}
 
-	var cmd tea.Cmd
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.keymap.Filter):
+			m.list.FilterInput.Focus()
+		case key.Matches(msg, m.keymap.Quit):
+			if m.list.FilterInput.Focused() {
+				m.list.FilterInput.Blur()
+			} else {
+				return m, SetView(transactionsView)
+			}
+		}
+	}
+
+	if m.list.FilterInput.Focused() {
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
+	}
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keymap.Quit):
-			return m, SetView(transactionsView)
 		case key.Matches(msg, m.keymap.New):
 			return m, CmdPromptNewCategory(SetView(categoriesView))
-		case key.Matches(msg, m.keymap.Filter):
+		case key.Matches(msg, m.keymap.FilterBy):
 			i, ok := m.list.SelectedItem().(categoryItem)
 			if ok {
 				if i.category == totalCategory {
@@ -205,12 +218,10 @@ func (m modelCategories) View() string {
 }
 
 func (m *modelCategories) Focus() {
-	m.list.FilterInput.Focus()
 	m.focus = true
 }
 
 func (m *modelCategories) Blur() {
-	m.list.FilterInput.Blur()
 	m.focus = false
 }
 
@@ -256,5 +267,20 @@ func CmdPromptNewCategory(backCmd tea.Cmd) tea.Cmd {
 			cmds = append(cmds, backCmd)
 			return tea.Sequence(cmds...)
 		},
+	)
+}
+
+func (m *modelCategories) updateItemsCmd() tea.Cmd {
+	opID := startLoading("Updating caterogy list...")
+	defer stopLoading(opID)
+	items := getCategoriesItems(m.api, m.sorted)
+	tSpent, tEarned := m.api.GetTotalSpentEarnedCategories()
+	return tea.Sequence(
+		m.list.SetItems(items),
+		m.list.InsertItem(0, categoryItem{
+			category: totalCategory,
+			spent:    tSpent,
+			earned:   tEarned,
+		}),
 	)
 }

@@ -7,8 +7,6 @@ package ui
 import (
 	"fmt"
 	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
 	"ffiii-tui/internal/firefly"
@@ -208,14 +206,17 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					continue
 				}
 				for _, split := range tx.Splits {
-					if CaseInsensitiveContains(split.Description, value) ||
-						CaseInsensitiveContains(split.Source.Name, value) ||
-						CaseInsensitiveContains(split.Destination.Name, value) ||
-						CaseInsensitiveContains(split.Category.Name, value) ||
-						CaseInsensitiveContains(split.Currency, value) ||
-						strings.Contains(fmt.Sprintf("%.2f", split.Amount), value) ||
-						CaseInsensitiveContains(split.ForeignCurrency, value) ||
-						strings.Contains(fmt.Sprintf("%.2f", split.ForeignAmount), value) {
+					if CaseInsensitiveContains(
+						split.Description+
+							split.Source.Name+
+							split.Destination.Name+
+							split.Category.Name+
+							split.Currency+
+							split.ForeignCurrency+
+							fmt.Sprintf("%.2f", split.Amount)+
+							fmt.Sprintf("%.2f", split.ForeignAmount),
+						value,
+					) {
 						txs = append(txs, tx)
 						break
 					}
@@ -243,8 +244,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentSearch != "" {
 				searchQuery = url.QueryEscape(m.currentSearch)
 			}
-			startLoading("Loading transactions...")
-			defer stopLoading()
+			opID := startLoading("Loading transactions...")
+			defer stopLoading(opID)
 			transactions, err := m.api.ListTransactions(searchQuery)
 			if err != nil {
 				return notify.NotifyWarn(err.Error())()
@@ -267,8 +268,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DeleteTransactionMsg:
 		id := msg.Transaction.TransactionID
 		if id != "" {
-			startLoading("Deleting transaction...")
-			defer stopLoading()
+			opID := startLoading("Deleting transaction...")
+			defer stopLoading(opID)
 			err := m.api.DeleteTransaction(id)
 			if err != nil {
 				return m, tea.Batch(
@@ -366,11 +367,12 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if row == nil {
 				return m, notify.NotifyWarn("Transaction not selected.")
 			}
-			id, err := strconv.Atoi(row[0])
+
+			trx, err := m.findTransactionByID(row[11])
 			if err != nil {
-				return m, nil
+				return m, notify.NotifyError("Transaction not found.")
 			}
-			trx := m.transactions[id]
+
 			return m, prompt.Ask(
 				fmt.Sprintf("Are you sure you want to delete the transaction? Type 'yes!' to confirm. Transaction: %s - %s: ", trx.TransactionID, trx.Description()),
 				"no",
@@ -530,14 +532,27 @@ func (m *modelTransactions) GetCurrentTransaction() (firefly.Transaction, error)
 	if row == nil {
 		return firefly.Transaction{}, fmt.Errorf("transaction not selected")
 	}
-	id, err := strconv.Atoi(row[0])
-	if err != nil {
-		return firefly.Transaction{}, fmt.Errorf("wrong transaction id: %s", row[0])
+
+	txID := row[11]
+	if txID == "" {
+		return firefly.Transaction{}, fmt.Errorf("invalid transaction ID")
 	}
 
-	if id >= len(m.transactions) {
-		return firefly.Transaction{}, fmt.Errorf("index out of range: %d", id)
+	for _, tx := range m.transactions {
+		if tx.TransactionID == txID {
+			return tx, nil
+		}
 	}
 
-	return m.transactions[id], nil
+	return firefly.Transaction{}, fmt.Errorf("transaction not found")
+}
+
+func (m *modelTransactions) findTransactionByID(txID string) (firefly.Transaction, error) {
+	for _, tx := range m.transactions {
+		if tx.TransactionID == txID {
+			return tx, nil
+		}
+	}
+
+	return firefly.Transaction{}, fmt.Errorf("transaction not found")
 }

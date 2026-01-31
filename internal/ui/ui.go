@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,8 +26,11 @@ import (
 
 type state uint
 
-var loading atomic.Int32
-var loadingMessage atomic.Value // stores string
+var (
+	loading        atomic.Int32
+	loadingOps     sync.Map
+	operationIDSeq atomic.Uint64 // for generating unique operation IDs
+)
 
 const (
 	transactionsView state = iota
@@ -274,6 +278,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ViewFullTransactionViewMsg:
 		viper.Set("ui.full_view", m.layout.ToggleFullTransactionView())
+		return m, Cmd(UpdatePositions{layout: m.layout})
 	case DataLoadCompletedMsg:
 		m.loadStatus[msg.DataType] = true
 	case LazyLoadMsg:
@@ -307,7 +312,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Cmd(RefreshExpensesMsg{}),
 			Cmd(RefreshRevenuesMsg{}),
 			Cmd(RefreshCategoriesMsg{}),
-			tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
+			tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
 				return LazyLoadMsg{
 					t: t,
 					c: m.api.TimeoutSeconds(),
@@ -398,13 +403,7 @@ func (m modelUI) View() string {
 		}
 
 		if loading.Load() > 0 {
-			msgValue := loadingMessage.Load()
-			msg := "..."
-			if msgValue != nil {
-				if str, ok := msgValue.(string); ok && str != "" {
-					msg = str
-				}
-			}
+			msg := buildLoadingMessage()
 			header += " | " + m.spinner.View() + msg
 		}
 		s.WriteString(headerRenderer.Width(m.Width).Render(header) + "\n")
@@ -493,31 +492,76 @@ func SetView(state state) tea.Cmd {
 	return Cmd(SetFocusedViewMsg{state: state})
 }
 
-func startLoading(message string) {
-	loadingMessage.Store(message)
+func startLoading(message string) string {
 	for {
 		current := loading.Load()
 		if current >= 100 {
-			return
+			return "" // Max operations reached
 		}
 		if loading.CompareAndSwap(current, current+1) {
-			return
+			break
 		}
 	}
+
+	// Generate unique operation ID
+	opID := fmt.Sprintf("op_%d", operationIDSeq.Add(1))
+
+	loadingOps.Store(opID, message)
+
+	return opID
 }
 
-func stopLoading() {
+func stopLoading(opID string) {
+	if opID == "" {
+		return // Invalid operation ID
+	}
+
+	loadingOps.Delete(opID)
+
 	for {
 		current := loading.Load()
 		if current <= 0 {
 			return
 		}
 		if loading.CompareAndSwap(current, current-1) {
-			// Clear message when count reaches 0
-			if current-1 == 0 {
-				loadingMessage.Store("")
-			}
 			return
 		}
 	}
+}
+
+func buildLoadingMessage() string {
+	var messages []string
+
+	loadingOps.Range(func(key, value interface{}) bool {
+		if msg, ok := value.(string); ok {
+            abbrev := msg
+
+			if len(abbrev) > 25 {
+				abbrev = abbrev[:22] + "..."
+			}
+
+			messages = append(messages, abbrev)
+		}
+		return true
+	})
+
+	if len(messages) == 0 {
+		return "..."
+	}
+
+	const maxDisplay = 5
+	count := len(messages)
+
+	if count == 1 {
+		return messages[0]
+	}
+
+	if count <= maxDisplay {
+		return fmt.Sprintf("(%d) %s", count, strings.Join(messages, " "))
+	}
+
+	// Show first messages + remaining count
+	shown := messages[:maxDisplay]
+	remaining := count - maxDisplay
+	return fmt.Sprintf("(%d) %s | +%d more", count, strings.Join(shown, " "), remaining)
 }

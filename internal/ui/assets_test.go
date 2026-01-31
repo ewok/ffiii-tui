@@ -461,11 +461,11 @@ func TestModelAssets_View_UsesLeftPanelStyle(t *testing.T) {
 func TestModelAssets_KeyQuit_SetsTransactionsView(t *testing.T) {
 	m := newFocusedAssetsModelWithAccount(t, firefly.Account{ID: "a1", Name: "Checking", CurrencyCode: "USD", Type: "asset"})
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	msgs := collectMsgsFromCmd(cmd)
 
 	if len(msgs) != 1 {
-		t.Fatalf("expected 2 messages, got %d (%T)", len(msgs), msgs)
+		t.Fatalf("expected 1 message, got %d (%T)", len(msgs), msgs)
 	}
 
 	focused, ok := msgs[0].(SetFocusedViewMsg)
@@ -475,9 +475,6 @@ func TestModelAssets_KeyQuit_SetsTransactionsView(t *testing.T) {
 	if focused.state != transactionsView {
 		t.Fatalf("expected transactionsView, got %v", focused.state)
 	}
-	// if _, ok := msgs[1].(UpdatePositions); !ok {
-	// 	t.Fatalf("expected UpdatePositions, got %T", msgs[1])
-	// }
 }
 
 func TestModelAssets_KeySelect_SequencesFilterAndView(t *testing.T) {

@@ -6,6 +6,7 @@ package ui
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1114,47 +1115,62 @@ func TestUI_HelpView_ShowAll(t *testing.T) {
 func TestLoading_BasicOperations(t *testing.T) {
 	// Reset
 	loading.Store(0)
-	loadingMessage.Store("")
+	loadingOps = sync.Map{}
 
 	// Test start increments counter and stores message
-	startLoading("Loading test...")
+	opID := startLoading("Loading test...")
+	if opID == "" {
+		t.Fatal("Expected non-empty operation ID")
+	}
 	if loading.Load() != 1 {
 		t.Errorf("Expected counter to be 1, got %d", loading.Load())
 	}
 
-	msg := loadingMessage.Load()
-	if msg == nil || msg.(string) != "Loading test..." {
-		t.Errorf("Expected 'Loading test...', got %v", msg)
+	// Verify message is stored
+	msg := buildLoadingMessage()
+	if !strings.Contains(msg, "test...") {
+		t.Errorf("Expected message to contain 'test...', got '%s'", msg)
 	}
 
-	// Test stop decrements counter and clears message
-	stopLoading()
+	// Test stop decrements counter and removes operation
+	stopLoading(opID)
 	if loading.Load() != 0 {
 		t.Errorf("Expected counter to be 0, got %d", loading.Load())
 	}
 
-	msg = loadingMessage.Load()
-	if msg != nil && msg.(string) != "" {
-		t.Errorf("Expected message to be cleared, got '%s'", msg.(string))
+	// Verify message is cleared
+	msg = buildLoadingMessage()
+	if msg != "..." {
+		t.Errorf("Expected fallback '...', got '%s'", msg)
 	}
 }
 
 func TestLoading_OverflowUnderflowProtection(t *testing.T) {
 	// Test overflow protection
 	loading.Store(99)
-	startLoading("Test")
+	loadingOps = sync.Map{}
+
+	op1 := startLoading("Test")
 	if loading.Load() != 100 {
 		t.Errorf("Expected counter to be 100, got %d", loading.Load())
 	}
 
-	startLoading("Test")
+	op2 := startLoading("Test")
+	if op2 != "" {
+		t.Error("Expected empty operation ID when max reached")
+	}
 	if loading.Load() != 100 {
 		t.Errorf("Expected counter to stay at 100, got %d", loading.Load())
 	}
 
+	// Cleanup
+	stopLoading(op1)
+
 	// Test underflow protection
 	loading.Store(0)
-	stopLoading()
+	loadingOps = sync.Map{}
+	stopLoading("")
+	stopLoading("invalid_id")
 	if loading.Load() != 0 {
 		t.Errorf("Expected counter to stay at 0, got %d", loading.Load())
 	}
@@ -1163,52 +1179,52 @@ func TestLoading_OverflowUnderflowProtection(t *testing.T) {
 func TestLoading_NestedOperations(t *testing.T) {
 	// Reset
 	loading.Store(0)
-	loadingMessage.Store("")
+	loadingOps = sync.Map{}
 
 	// Start multiple operations
-	startLoading("Operation 1")
-	startLoading("Operation 2")
-	startLoading("Operation 3")
+	op1 := startLoading("Operation 1")
+	op2 := startLoading("Operation 2")
+	op3 := startLoading("Operation 3")
 
 	if loading.Load() != 3 {
 		t.Errorf("Expected counter to be 3, got %d", loading.Load())
 	}
 
-	// Message should be from last operation (last-write-wins)
-	msg := loadingMessage.Load()
-	if msg == nil || msg.(string) != "Operation 3" {
-		t.Errorf("Expected 'Operation 3', got %v", msg)
+	// Message should show all operations
+	msg := buildLoadingMessage()
+	if !strings.Contains(msg, "(3)") {
+		t.Errorf("Expected message to show count (3), got '%s'", msg)
 	}
 
-	// Stop one operation - message should remain
-	stopLoading()
+	// Stop one operation - should show 2 operations
+	stopLoading(op2)
 	if loading.Load() != 2 {
 		t.Errorf("Expected counter to be 2, got %d", loading.Load())
 	}
 
-	msg = loadingMessage.Load()
-	if msg == nil || msg.(string) == "" {
-		t.Error("Expected message to remain when counter > 0")
+	msg = buildLoadingMessage()
+	if !strings.Contains(msg, "(2)") {
+		t.Errorf("Expected message to show count (2), got '%s'", msg)
 	}
 
 	// Stop remaining operations
-	stopLoading()
-	stopLoading()
+	stopLoading(op1)
+	stopLoading(op3)
 
 	if loading.Load() != 0 {
 		t.Errorf("Expected counter to be 0, got %d", loading.Load())
 	}
 
-	msg = loadingMessage.Load()
-	if msg != nil && msg.(string) != "" {
-		t.Error("Expected message to be cleared when counter reaches 0")
+	msg = buildLoadingMessage()
+	if msg != "..." {
+		t.Errorf("Expected fallback '...', got '%s'", msg)
 	}
 }
 
 func TestLoading_ViewIntegration(t *testing.T) {
 	// Reset
 	loading.Store(0)
-	loadingMessage.Store("")
+	loadingOps = sync.Map{}
 
 	m := newTestModelUI()
 	m.Width = 100
@@ -1220,36 +1236,76 @@ func TestLoading_ViewIntegration(t *testing.T) {
 	}
 
 	// Start loading
-	startLoading("Loading transactions...")
+	opID := startLoading("Loading transactions...")
 	view = m.View()
-	if !strings.Contains(view, "Loading transactions...") {
+	if !strings.Contains(view, "transactions...") {
 		t.Error("Expected to see loading message in view")
 	}
 
 	// Stop loading
-	stopLoading()
+	stopLoading(opID)
 	view = m.View()
-	if strings.Contains(view, "Loading transactions...") {
+	if strings.Contains(view, "transactions...") {
 		t.Error("Expected loading indicator to be gone when counter is 0")
 	}
 }
 
 func TestLoading_FallbackMessage(t *testing.T) {
-	// Test with empty message
-	loading.Store(1)
-	loadingMessage.Store("")
+	// Test with no operations
+	loading.Store(0)
+	loadingOps = sync.Map{}
 
-	m := newTestModelUI()
-	m.Width = 100
-
-	view := m.View()
-	if !strings.Contains(view, "...") {
-		t.Error("Expected fallback '...' message when message is empty but counter > 0")
+	msg := buildLoadingMessage()
+	if msg != "..." {
+		t.Errorf("Expected fallback '...', got '%s'", msg)
 	}
 
 	// Cleanup
 	loading.Store(0)
-	loadingMessage.Store("")
+	loadingOps = sync.Map{}
+}
+
+func TestLoading_MultipleOperationsDisplay(t *testing.T) {
+	// Reset
+	loading.Store(0)
+	loadingOps = sync.Map{}
+
+	// Start multiple operations
+	op1 := startLoading("Loading transactions...")
+	op2 := startLoading("Loading categories...")
+	op3 := startLoading("Creating category...")
+
+	// Verify all tracked
+	if loading.Load() != 3 {
+		t.Errorf("Expected 3 operations, got %d", loading.Load())
+	}
+
+	// Check display message contains count
+	msg := buildLoadingMessage()
+	if !strings.Contains(msg, "(3)") {
+		t.Errorf("Expected message to contain '(3)', got '%s'", msg)
+	}
+
+	// Should show abbreviated messages
+	if !strings.Contains(msg, " ") {
+		t.Error("Expected separator ' ' between messages")
+	}
+
+	// Stop one operation
+	stopLoading(op2)
+	if loading.Load() != 2 {
+		t.Errorf("Expected 2 operations, got %d", loading.Load())
+	}
+
+	// Check message updated
+	msg = buildLoadingMessage()
+	if !strings.Contains(msg, "(2)") {
+		t.Errorf("Expected message to contain '(2)', got '%s'", msg)
+	}
+
+	// Cleanup
+	stopLoading(op1)
+	stopLoading(op3)
 }
 
 // =============================================================================
