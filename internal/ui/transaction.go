@@ -30,10 +30,6 @@ var (
 )
 
 type (
-	RefreshNewCategoryMsg struct{}
-	RefreshNewAssetMsg    struct{}
-	RefreshNewExpenseMsg  struct{}
-	RefreshNewRevenueMsg  struct{}
 	RedrawFormMsg         struct{}
 	DeleteSplitMsg        struct{ Index int }
 	NewTransactionMsg     struct{ Transaction firefly.Transaction }
@@ -98,19 +94,6 @@ func (m modelTransaction) Init() tea.Cmd {
 
 func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case RefreshNewAssetMsg:
-		triggerSourceCounter++
-		triggerDestinationCounter++
-		return m, RedrawForm()
-	case RefreshNewExpenseMsg:
-		triggerDestinationCounter++
-		return m, RedrawForm()
-	case RefreshNewRevenueMsg:
-		triggerSourceCounter++
-		return m, RedrawForm()
-	case RefreshNewCategoryMsg:
-		triggerCategoryCounter++
-		return m, RedrawForm()
 	case NewTransactionMsg:
 		if !m.created {
 			m.SetTransaction(msg.Transaction, true)
@@ -138,7 +121,7 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		trx := firefly.Transaction{}
 		m.SetTransaction(trx, true)
 		m.created = true
-		return m, nil
+		return m, RedrawForm()
 	case RedrawFormMsg:
 		m.UpdateForm()
 		return m, tea.WindowSize()
@@ -155,51 +138,6 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keymap.NewElement):
-			field := m.form.GetFocusedField()
-			switch field.(type) {
-			case *huh.Select[firefly.Category]:
-				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Category])
-				if ok && !f.GetFiltering() {
-					return m, CmdPromptNewCategory(
-						tea.Sequence(
-							SetView(newView),
-							Cmd(RefreshNewCategoryMsg{})))
-				}
-
-			case *huh.Select[firefly.Account]:
-				f, ok := m.form.GetFocusedField().(*huh.Select[firefly.Account])
-				if ok && !f.GetFiltering() {
-
-					a, ok := f.GetValue().(firefly.Account)
-					if ok {
-						switch a.Type {
-						case "asset":
-							return m, CmdPromptNewAsset(
-								tea.Sequence(
-									SetView(newView),
-									Cmd(RefreshNewAssetMsg{})))
-						case "expense":
-							return m, CmdPromptNewExpense(
-								tea.Sequence(
-									SetView(newView),
-									Cmd(RefreshNewExpenseMsg{})))
-						case "revenue":
-							return m, CmdPromptNewRevenue(
-								tea.Sequence(
-									SetView(newView),
-									Cmd(RefreshNewRevenueMsg{})))
-						case "liability":
-							return m, CmdPromptNewLiability(
-								tea.Sequence(
-									SetView(newView),
-									Cmd(RefreshNewAssetMsg{})))
-						}
-						return m, nil
-					}
-				}
-			}
-
 		case key.Matches(msg, m.keymap.Cancel):
 			return m, SetView(transactionsView)
 		case key.Matches(msg, m.keymap.Reset):

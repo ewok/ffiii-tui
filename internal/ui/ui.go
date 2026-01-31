@@ -278,6 +278,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ViewFullTransactionViewMsg:
 		viper.Set("ui.full_view", m.layout.ToggleFullTransactionView())
+		return m, Cmd(UpdatePositions{layout: m.layout})
 	case DataLoadCompletedMsg:
 		m.loadStatus[msg.DataType] = true
 	case LazyLoadMsg:

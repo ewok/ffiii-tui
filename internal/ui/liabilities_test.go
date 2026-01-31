@@ -127,7 +127,6 @@ func TestGetLiabilitiesItems_UsesAccountBalanceAPI(t *testing.T) {
 	}
 }
 
-
 func TestNewModelLiabilities_InitializesCorrectly(t *testing.T) {
 	api := &mockLiabilityAPI{
 		accountsByTypeFunc: func(accountType string) []firefly.Account {
@@ -372,9 +371,9 @@ func TestUpdatePositions_SetsListSize(t *testing.T) {
 
 	updated, _ := m.Update(UpdatePositions{
 		layout: &LayoutConfig{
-			Width:   globalWidth,
-			Height:  globalHeight,
-			TopSize: topSize,
+			Width:       globalWidth,
+			Height:      globalHeight,
+			TopSize:     topSize,
 			SummarySize: 10,
 		},
 	})
@@ -523,7 +522,6 @@ func TestLiabilities_KeyPresses_NavigateToCorrectViews(t *testing.T) {
 		{"transactions", 't', transactionsView, false, 1},
 		{"liabilities (self)", 'o', liabilitiesView, false, 1},
 		{"revenues", 'i', revenuesView, false, 1},
-		{"quit to transactions", 'q', transactionsView, false, 1},
 	}
 
 	for _, tt := range tests {
@@ -562,6 +560,29 @@ func TestLiabilities_KeyPresses_NavigateToCorrectViews(t *testing.T) {
 			}
 		})
 	}
+
+	// Test ESC key separately
+	t.Run("quit to transactions", func(t *testing.T) {
+		m := newFocusedLiabilitiesModelWithAccount(t, acc)
+		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+		if cmd == nil {
+			t.Fatal("expected cmd for esc key")
+		}
+
+		msgs := collectMsgsFromCmd(cmd)
+		if len(msgs) != 1 {
+			t.Fatalf("esc key: expected 1 message, got %d (%T)", len(msgs), msgs)
+		}
+
+		focused, ok := msgs[0].(SetFocusedViewMsg)
+		if !ok {
+			t.Fatalf("esc key: expected SetFocusedViewMsg, got %T", msgs[0])
+		}
+		if focused.state != transactionsView {
+			t.Fatalf("esc key: expected view %v, got %v", transactionsView, focused.state)
+		}
+	})
 }
 
 // Prompt callback tests

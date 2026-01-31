@@ -39,7 +39,9 @@ func NewAccountListModel[T ListEntity](api any, config *AccountListConfig[T]) Ac
 	}
 	m.list.Title = config.Title
 	m.list.SetShowStatusBar(false)
-	m.list.SetFilteringEnabled(false)
+	m.list.SetFilteringEnabled(true)
+	m.list.FilterInput.Blur()
+	m.list.FilterInput.Width = 20
 	m.list.SetShowHelp(false)
 	m.list.DisableQuitKeybindings()
 
@@ -83,6 +85,7 @@ func (m AccountListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.list.SetSize(msg.layout.Width-h, height)
 		}
+		m.list.FilterInput.Width = 20
 		return m, nil
 	}
 
@@ -90,12 +93,29 @@ func (m AccountListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.keymap.Filter):
+			if !m.list.FilterInput.Focused() {
+				m.list.FilterInput.Focus()
+			}
+		case key.Matches(msg, m.keymap.Quit):
+			if !m.list.FilterInput.Focused() {
+				return m, SetView(transactionsView)
+			}
+			m.list.FilterInput.Blur()
+		}
+	}
+	if m.list.FilterInput.Focused() {
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
+	}
+
 	// Common keys
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keymap.Quit):
-			return m, SetView(transactionsView)
 		case key.Matches(msg, m.keymap.ViewTransactions):
 			return m, SetView(transactionsView)
 		case key.Matches(msg, m.keymap.ViewAssets):
@@ -119,7 +139,7 @@ func (m AccountListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case key.Matches(msg, m.keymap.New):
 			return m, m.config.PromptNewFunc()
-		case key.Matches(msg, m.keymap.Filter):
+		case key.Matches(msg, m.keymap.FilterBy):
 			i, ok := m.list.SelectedItem().(accountListItem[T])
 			if ok {
 				if m.config.HasTotalRow && i.Entity.GetName() == "Total" {
@@ -149,12 +169,10 @@ func (m AccountListModel[T]) View() string {
 }
 
 func (m *AccountListModel[T]) Focus() {
-	m.list.FilterInput.Focus()
 	m.focus = true
 }
 
 func (m *AccountListModel[T]) Blur() {
-	m.list.FilterInput.Blur()
 	m.focus = false
 }
 

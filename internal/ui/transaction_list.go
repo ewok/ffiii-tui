@@ -7,7 +7,6 @@ package ui
 import (
 	"fmt"
 	"net/url"
-	"strconv"
 	"time"
 
 	"ffiii-tui/internal/firefly"
@@ -368,11 +367,12 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if row == nil {
 				return m, notify.NotifyWarn("Transaction not selected.")
 			}
-			id, err := strconv.Atoi(row[0])
+
+			trx, err := m.findTransactionByID(row[11])
 			if err != nil {
-				return m, nil
+				return m, notify.NotifyError("Transaction not found.")
 			}
-			trx := m.transactions[id]
+
 			return m, prompt.Ask(
 				fmt.Sprintf("Are you sure you want to delete the transaction? Type 'yes!' to confirm. Transaction: %s - %s: ", trx.TransactionID, trx.Description()),
 				"no",
@@ -532,14 +532,27 @@ func (m *modelTransactions) GetCurrentTransaction() (firefly.Transaction, error)
 	if row == nil {
 		return firefly.Transaction{}, fmt.Errorf("transaction not selected")
 	}
-	id, err := strconv.Atoi(row[0])
-	if err != nil {
-		return firefly.Transaction{}, fmt.Errorf("wrong transaction id: %s", row[0])
+
+	txID := row[11]
+	if txID == "" {
+		return firefly.Transaction{}, fmt.Errorf("invalid transaction ID")
 	}
 
-	if id >= len(m.transactions) {
-		return firefly.Transaction{}, fmt.Errorf("index out of range: %d", id)
+	for _, tx := range m.transactions {
+		if tx.TransactionID == txID {
+			return tx, nil
+		}
 	}
 
-	return m.transactions[id], nil
+	return firefly.Transaction{}, fmt.Errorf("transaction not found")
+}
+
+func (m *modelTransactions) findTransactionByID(txID string) (firefly.Transaction, error) {
+	for _, tx := range m.transactions {
+		if tx.TransactionID == txID {
+			return tx, nil
+		}
+	}
+
+	return firefly.Transaction{}, fmt.Errorf("transaction not found")
 }

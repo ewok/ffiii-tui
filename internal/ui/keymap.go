@@ -27,6 +27,7 @@ type AccountKeyMap struct {
 	ViewRevenues     key.Binding
 	ViewLiabilities  key.Binding
 	Filter           key.Binding
+	FilterBy         key.Binding
 	ResetFilter      key.Binding
 	Sort             key.Binding
 	New              key.Binding
@@ -37,6 +38,7 @@ type CategoryKeyMap struct {
 	ShowFullHelp key.Binding
 	Quit         key.Binding
 	Filter       key.Binding
+	FilterBy     key.Binding
 	ResetFilter  key.Binding
 	New          key.Binding
 	Refresh      key.Binding
@@ -54,7 +56,6 @@ type TransactionFormKeyMap struct {
 	Reset        key.Binding
 	Cancel       key.Binding
 	Submit       key.Binding
-	NewElement   key.Binding
 	Refresh      key.Binding
 	AddSplit     key.Binding
 	DeleteSplit  key.Binding
@@ -109,8 +110,8 @@ func DefaultAccountKeyMap() AccountKeyMap {
 			key.WithHelp("?", "toggle help"),
 		),
 		Quit: key.NewBinding(
-			key.WithKeys("q", "esc"),
-			key.WithHelp("q/esc", "go back"),
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "go back"),
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
@@ -153,6 +154,10 @@ func DefaultAccountKeyMap() AccountKeyMap {
 			key.WithHelp("n", "create new account"),
 		),
 		Filter: key.NewBinding(
+			key.WithKeys("/"),
+			key.WithHelp("/", "filter accounts"),
+		),
+		FilterBy: key.NewBinding(
 			key.WithKeys("f"),
 			key.WithHelp("f", "filter by account (press twice for exclusive)"),
 		),
@@ -170,10 +175,14 @@ func DefaultCategoryKeyMap() CategoryKeyMap {
 			key.WithHelp("?", "toggle help"),
 		),
 		Quit: key.NewBinding(
-			key.WithKeys("q", "esc"),
-			key.WithHelp("q/esc", "go back"),
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "go back"),
 		),
 		Filter: key.NewBinding(
+			key.WithKeys("/"),
+			key.WithHelp("/", "filter category"),
+		),
+		FilterBy: key.NewBinding(
 			key.WithKeys("f"),
 			key.WithHelp("f", "filter by category (press twice for exclusive)"),
 		),
@@ -239,10 +248,6 @@ func DefaultTransactionFormKeyMap() TransactionFormKeyMap {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "submit"),
 		),
-		NewElement: key.NewBinding(
-			key.WithKeys("n"),
-			key.WithHelp("n", "new element"),
-		),
 		AddSplit: key.NewBinding(
 			key.WithKeys("ctrl+a"),
 			key.WithHelp("ctrl+a", "add split"),
@@ -273,8 +278,8 @@ func DefaultTransactionsKeyMap() TransactionsKeyMap {
 			key.WithHelp("r", "refresh data"),
 		),
 		Filter: key.NewBinding(
-			key.WithKeys("f"),
-			key.WithHelp("f", "filter transactions (press twice for exclusive)"),
+			key.WithKeys("/"),
+			key.WithHelp("/", "filter transactions (press twice for exclusive)"),
 		),
 		ResetFilter: key.NewBinding(
 			key.WithKeys("ctrl+a"),
@@ -341,6 +346,7 @@ func (k AccountKeyMap) ShortHelp() []key.Binding {
 		k.ShowFullHelp,
 		k.Quit,
 		k.Filter,
+		k.FilterBy,
 		k.ResetFilter,
 		k.Select,
 		k.New,
@@ -353,6 +359,7 @@ func (k CategoryKeyMap) ShortHelp() []key.Binding {
 		k.ShowFullHelp,
 		k.Quit,
 		k.Filter,
+		k.FilterBy,
 		k.ResetFilter,
 		k.New,
 		k.Refresh,
@@ -378,7 +385,6 @@ func (k TransactionsKeyMap) ShortHelp() []key.Binding {
 
 func (k TransactionFormKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
-		k.NewElement,
 		k.AddSplit,
 		k.DeleteSplit,
 		k.Submit,

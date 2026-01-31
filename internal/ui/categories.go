@@ -76,7 +76,8 @@ func newModelCategories(api CategoryAPI) modelCategories {
 	}
 	m.list.Title = "Categories"
 	m.list.Styles.HelpStyle = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
-	m.list.SetFilteringEnabled(false)
+	m.list.SetFilteringEnabled(true)
+	m.list.FilterInput.Blur()
 	m.list.SetShowStatusBar(false)
 	m.list.SetShowHelp(false)
 	m.list.DisableQuitKeybindings()
@@ -89,6 +90,8 @@ func (m modelCategories) Init() tea.Cmd {
 }
 
 func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case RefreshCategoryInsightsMsg:
 		return m, func() tea.Msg {
@@ -134,22 +137,38 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				msg.layout.Height-v-msg.layout.TopSize,
 			)
 		}
+		m.list.FilterInput.Width = 20
 	}
 
 	if !m.focus {
 		return m, nil
 	}
 
-	var cmd tea.Cmd
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.keymap.Filter):
+			m.list.FilterInput.Focus()
+		case key.Matches(msg, m.keymap.Quit):
+			if m.list.FilterInput.Focused() {
+				m.list.FilterInput.Blur()
+			} else {
+				return m, SetView(transactionsView)
+			}
+		}
+	}
+
+	if m.list.FilterInput.Focused() {
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
+	}
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keymap.Quit):
-			return m, SetView(transactionsView)
 		case key.Matches(msg, m.keymap.New):
 			return m, CmdPromptNewCategory(SetView(categoriesView))
-		case key.Matches(msg, m.keymap.Filter):
+		case key.Matches(msg, m.keymap.FilterBy):
 			i, ok := m.list.SelectedItem().(categoryItem)
 			if ok {
 				if i.category == totalCategory {
@@ -199,12 +218,10 @@ func (m modelCategories) View() string {
 }
 
 func (m *modelCategories) Focus() {
-	m.list.FilterInput.Focus()
 	m.focus = true
 }
 
 func (m *modelCategories) Blur() {
-	m.list.FilterInput.Blur()
 	m.focus = false
 }
 
