@@ -44,6 +44,40 @@ A terminal user interface (TUI) for [Firefly III](https://www.firefly-iii.org/) 
 
 ### Installation
 
+#### Option 1: Using parm (Recommended)
+
+[parm](https://github.com/alxrw/parm) is a cross-platform binary package manager for GitHub releases. This is the easiest way to get started:
+
+1. **Install parm** (if not already installed):
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/alxrw/parm/master/scripts/install.sh | sh
+   ```
+
+2. **Install ffiii-tui:**
+
+   ```bash
+   parm install ewok/ffiii-tui
+   ```
+
+3. **Initialize configuration:**
+
+   ```bash
+   ffiii-tui init-config -k YOUR_API_KEY -u https://your-firefly-instance.com/api/v1
+   ```
+
+4. **Run the application:**
+   ```bash
+   ffiii-tui
+   ```
+
+To update ffiii-tui later, simply run:
+```bash
+parm update ewok/ffiii-tui
+```
+
+#### Option 2: Clone and build from source
+
 1. **Clone and build:**
 
    ```bash
