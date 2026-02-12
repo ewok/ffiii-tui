@@ -762,7 +762,7 @@ func TestTransaction_KeyBindings(t *testing.T) {
 		m.UpdateForm()
 		m.form.State = huh.StateCompleted
 
-		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
 
 		if cmd == nil {
 			t.Fatal("expected cmd to be returned")
@@ -808,7 +808,7 @@ func TestTransaction_KeyBindings(t *testing.T) {
 		m.UpdateForm()
 		m.form.State = huh.StateCompleted
 
-		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
 
 		if cmd == nil {
 			t.Fatal("expected cmd to be returned")
@@ -835,10 +835,11 @@ func TestTransaction_KeyBindings_NotFocused(t *testing.T) {
 		{"Cancel", tea.KeyMsg{Type: tea.KeyEsc}},
 		{"Reset", tea.KeyMsg{Type: tea.KeyCtrlN}},
 		{"Refresh", tea.KeyMsg{Type: tea.KeyCtrlR}},
+		{"EditFormAgain", tea.KeyMsg{Type: tea.KeyCtrlE}},
 		{"AddSplit", tea.KeyMsg{Type: tea.KeyCtrlA}},
 		{"DeleteSplit", tea.KeyMsg{Type: tea.KeyCtrlD}},
 		{"ChangeLayout", tea.KeyMsg{Type: tea.KeyCtrlF}},
-		{"Submit", tea.KeyMsg{Type: tea.KeyEnter}},
+		{"Submit", tea.KeyMsg{Type: tea.KeyCtrlS}},
 	}
 
 	for _, tt := range tests {
@@ -1653,7 +1654,7 @@ func TestTransaction_View(t *testing.T) {
 
 		result := m.View()
 		// The actual form view is complex, just verify it's not the instruction text
-		if result == "Press Enter to submit, Ctrl+N to reset current form, Ctrl+R to edit current form again, or Esc to go back." {
+		if result == "Press Ctrl+S to submit, Ctrl+N to reset current form, Ctrl+E to edit current form again, or Esc to go back." {
 			t.Error("expected form view, got instruction text")
 		}
 	})
@@ -1663,7 +1664,7 @@ func TestTransaction_View(t *testing.T) {
 		m.form.State = huh.StateCompleted
 
 		result := m.View()
-		expected := "Press Enter to submit, Ctrl+N to reset current form, Ctrl+R to edit current form again, or Esc to go back."
+		expected := "Press Ctrl+S to submit, Ctrl+N to reset current form, Ctrl+E to edit current form again, or Esc to go back."
 		if result != expected {
 			t.Errorf("expected instruction text, got '%s'", result)
 		}

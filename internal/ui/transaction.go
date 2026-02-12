@@ -30,12 +30,14 @@ var (
 )
 
 type (
-	RedrawFormMsg         struct{}
-	DeleteSplitMsg        struct{ Index int }
-	NewTransactionMsg     struct{ Transaction firefly.Transaction }
-	NewTransactionFromMsg struct{ Transaction firefly.Transaction }
-	EditTransactionMsg    struct{ Transaction firefly.Transaction }
-	ResetTransactionMsg   struct{}
+	RedrawFormMsg                  struct{}
+	DeleteSplitMsg                 struct{ Index int }
+	NewTransactionMsg              struct{ Transaction firefly.Transaction }
+	NewTransactionFromMsg          struct{ Transaction firefly.Transaction }
+	NewTransactionFromConfirmedMsg struct{ Transaction firefly.Transaction }
+	EditTransactionMsg             struct{ Transaction firefly.Transaction }
+	EditTransactionConfirmedMsg    struct{ Transaction firefly.Transaction }
+	ResetTransactionMsg            struct{}
 )
 
 type modelTransaction struct {
@@ -104,6 +106,26 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			SetView(newView),
 		)
 	case NewTransactionFromMsg:
+		if m.created {
+			trx := msg.Transaction
+			return m, prompt.Ask(
+				"Unsaved form data will be lost. Discard? (y - yes/ any key - no): ",
+				"",
+				func(value string) tea.Cmd {
+					if value == "y" {
+						return Cmd(NewTransactionFromConfirmedMsg{Transaction: trx})
+					}
+					return SetView(transactionsView)
+				},
+			)
+		}
+		m.SetTransaction(msg.Transaction, true)
+		m.created = true
+		return m, tea.Batch(
+			RedrawForm(),
+			SetView(newView),
+		)
+	case NewTransactionFromConfirmedMsg:
 		m.SetTransaction(msg.Transaction, true)
 		m.created = true
 		return m, tea.Batch(
@@ -111,6 +133,26 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			SetView(newView),
 		)
 	case EditTransactionMsg:
+		if m.created {
+			trx := msg.Transaction
+			return m, prompt.Ask(
+				"Unsaved form data will be lost. Discard? (y - yes/ any key - no): ",
+				"",
+				func(value string) tea.Cmd {
+					if value == "y" {
+						return Cmd(EditTransactionConfirmedMsg{Transaction: trx})
+					}
+					return SetView(transactionsView)
+				},
+			)
+		}
+		m.SetTransaction(msg.Transaction, false)
+		m.created = true
+		return m, tea.Batch(
+			RedrawForm(),
+			SetView(newView),
+		)
+	case EditTransactionConfirmedMsg:
 		m.SetTransaction(msg.Transaction, false)
 		m.created = true
 		return m, tea.Batch(
@@ -139,6 +181,12 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keymap.Cancel):
+			if m.created {
+				return m, tea.Batch(
+					SetView(transactionsView),
+					notify.NotifyLog("Form saved. Press n to continue editing."),
+				)
+			}
 			return m, SetView(transactionsView)
 		case key.Matches(msg, m.keymap.Reset):
 			return m, tea.Batch(
@@ -150,12 +198,34 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			triggerSourceCounter++
 			triggerDestinationCounter++
 			return m, RedrawForm()
+		case key.Matches(msg, m.keymap.EditFormAgain):
+			return m, RedrawForm()
 		case key.Matches(msg, m.keymap.AddSplit):
+			if len(m.splits) >= 5 {
+				return m, notify.NotifyWarn("Maximum of 5 splits allowed")
+			}
 			m.splits = append(m.splits, &split{})
 			return m, RedrawForm()
 		case key.Matches(msg, m.keymap.DeleteSplit):
+			if len(m.splits) <= 1 {
+				return m, notify.NotifyWarn("Cannot delete the only split")
+			}
+			if len(m.splits) == 2 {
+				// Only one deletable split (index 1), delete it directly
+				return m, Cmd(DeleteSplitMsg{Index: 1})
+			}
+			// Build a descriptive prompt listing deletable splits
+			options := ""
+			for i := 1; i < len(m.splits); i++ {
+				s := m.splits[i]
+				desc := s.Description()
+				if s.amount != "" {
+					desc += " (" + s.amount + ")"
+				}
+				options += fmt.Sprintf(" %d: %s,", i, desc)
+			}
 			return m, prompt.Ask(
-				"Delete split number: ",
+				fmt.Sprintf("Delete split [%s ]: ", options),
 				"",
 				func(value string) tea.Cmd {
 					if value != "None" {
@@ -190,7 +260,7 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m modelTransaction) View() string {
 	if m.form.State == huh.StateCompleted {
-		return "Press Enter to submit, Ctrl+N to reset current form, Ctrl+R to edit current form again, or Esc to go back."
+		return "Press Ctrl+S to submit, Ctrl+N to reset current form, Ctrl+E to edit current form again, or Esc to go back."
 	}
 	return m.form.View()
 }
@@ -201,6 +271,10 @@ func (m *modelTransaction) Focus() {
 
 func (m *modelTransaction) Blur() {
 	m.focus = false
+}
+
+func (m *modelTransaction) Focused() bool {
+	return m.focus
 }
 
 func (m *modelTransaction) UpdateForm() {

@@ -10,6 +10,7 @@ type LayoutConfig struct {
 	FullTransactionView bool
 
 	SummarySize int
+	TabBarSize  int
 
 	Width  int
 	Height int
@@ -108,6 +109,13 @@ func (lc *LayoutConfig) GetSummarySize() int {
 		lc = NewDefaultLayout()
 	}
 	return lc.SummarySize
+}
+
+func (lc *LayoutConfig) GetTabBarSize() int {
+	if lc == nil {
+		lc = NewDefaultLayout()
+	}
+	return lc.TabBarSize
 }
 
 func (lc *LayoutConfig) ToggleFullTransactionView() bool {

@@ -79,9 +79,9 @@ func (m AccountListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			h, v := m.styles.Base.GetFrameSize()
 			var height int
 			if m.config.HasSummary {
-				height = msg.layout.Height - v - msg.layout.TopSize - msg.layout.SummarySize
+				height = msg.layout.Height - v - msg.layout.TopSize - msg.layout.SummarySize - msg.layout.TabBarSize
 			} else {
-				height = msg.layout.Height - v - msg.layout.TopSize
+				height = msg.layout.Height - v - msg.layout.TopSize - msg.layout.TabBarSize
 			}
 			m.list.SetSize(msg.layout.Width-h, height)
 		}

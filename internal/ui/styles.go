@@ -30,6 +30,9 @@ type Styles struct {
 	Withdrawal lipgloss.Style
 	Deposit    lipgloss.Style
 	Normal     lipgloss.Style
+
+	TabActive   lipgloss.Style
+	TabInactive lipgloss.Style
 }
 
 func DefaultStyles() Styles {
@@ -75,5 +78,9 @@ func DefaultStyles() Styles {
 		Withdrawal: lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")),
 		Deposit:    lipgloss.NewStyle().Foreground(lipgloss.Color("#00AF00")),
 		Normal:     lipgloss.NewStyle().Foreground(lipgloss.Color("#DDDADA")),
+
+		// Tab bar styles
+		TabActive:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#5F5FD7")),
+		TabInactive: lipgloss.NewStyle().Foreground(lipgloss.Color("#585858")),
 	}
 }
