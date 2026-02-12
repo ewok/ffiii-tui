@@ -52,13 +52,14 @@ type CategoryKeyMap struct {
 }
 
 type TransactionFormKeyMap struct {
-	Reset        key.Binding
-	Cancel       key.Binding
-	Submit       key.Binding
-	Refresh      key.Binding
-	AddSplit     key.Binding
-	DeleteSplit  key.Binding
-	ChangeLayout key.Binding
+	Reset         key.Binding
+	Cancel        key.Binding
+	Submit        key.Binding
+	Refresh       key.Binding
+	EditFormAgain key.Binding
+	AddSplit      key.Binding
+	DeleteSplit   key.Binding
+	ChangeLayout  key.Binding
 }
 
 type TransactionsKeyMap struct {
@@ -235,13 +236,17 @@ func DefaultTransactionFormKeyMap() TransactionFormKeyMap {
 			key.WithKeys("ctrl+r"),
 			key.WithHelp("ctrl+r", "refresh data"),
 		),
+		EditFormAgain: key.NewBinding(
+			key.WithKeys("ctrl+e"),
+			key.WithHelp("ctrl+e", "edit form again"),
+		),
 		Cancel: key.NewBinding(
 			key.WithKeys("esc"),
 			key.WithHelp("esc", "cancel"),
 		),
 		Submit: key.NewBinding(
-			key.WithKeys("enter"),
-			key.WithHelp("enter", "submit"),
+			key.WithKeys("ctrl+s"),
+			key.WithHelp("ctrl+s", "save/submit"),
 		),
 		AddSplit: key.NewBinding(
 			key.WithKeys("ctrl+a"),
@@ -286,7 +291,7 @@ func DefaultTransactionsKeyMap() TransactionsKeyMap {
 		),
 		NewView: key.NewBinding(
 			key.WithKeys("n"),
-			key.WithHelp("n", "new/edit transaction"),
+			key.WithHelp("n", "new transaction"),
 		),
 		NewTransactionFrom: key.NewBinding(
 			key.WithKeys("N"),
@@ -385,6 +390,7 @@ func (k TransactionFormKeyMap) ShortHelp() []key.Binding {
 		k.Submit,
 		k.Cancel,
 		k.Reset,
+		k.EditFormAgain,
 		k.Refresh,
 		k.ChangeLayout,
 	}
@@ -401,41 +407,18 @@ func (k UIKeyMap) FullHelp() [][]key.Binding {
 func (k AccountKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		k.ShortHelp(),
-		{
-			k.ViewTransactions,
-			k.ViewAssets,
-			k.ViewCategories,
-			k.ViewExpenses,
-			k.ViewRevenues,
-			k.ViewLiabilities,
-		},
 	}
 }
 
 func (k CategoryKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		k.ShortHelp(),
-		{
-			k.ViewTransactions,
-			k.ViewAssets,
-			k.ViewCategories,
-			k.ViewExpenses,
-			k.ViewRevenues,
-			k.ViewLiabilities,
-		},
 	}
 }
 
 func (k TransactionsKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		k.ShortHelp(),
-		{
-			k.ViewAssets,
-			k.ViewCategories,
-			k.ViewExpenses,
-			k.ViewRevenues,
-			k.ViewLiabilities,
-		},
 	}
 }
 

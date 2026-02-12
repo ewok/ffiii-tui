@@ -164,21 +164,25 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keymap.ShowShortHelp):
-			m.help.ShowAll = !m.help.ShowAll
-			m.assets.list.Help.ShowAll = m.help.ShowAll
-			m.categories.list.Help.ShowAll = m.help.ShowAll
-			m.expenses.list.Help.ShowAll = m.help.ShowAll
-			m.revenues.list.Help.ShowAll = m.help.ShowAll
-			m.assets.list.SetShowHelp(m.help.ShowAll)
-			m.categories.list.SetShowHelp(m.help.ShowAll)
-			m.expenses.list.SetShowHelp(m.help.ShowAll)
-			m.revenues.list.SetShowHelp(m.help.ShowAll)
-			return m, tea.WindowSize()
+			if !m.prompt.Focused() && !m.new.Focused() {
+				m.help.ShowAll = !m.help.ShowAll
+				m.assets.list.Help.ShowAll = m.help.ShowAll
+				m.categories.list.Help.ShowAll = m.help.ShowAll
+				m.expenses.list.Help.ShowAll = m.help.ShowAll
+				m.revenues.list.Help.ShowAll = m.help.ShowAll
+				m.assets.list.SetShowHelp(m.help.ShowAll)
+				m.categories.list.SetShowHelp(m.help.ShowAll)
+				m.expenses.list.SetShowHelp(m.help.ShowAll)
+				m.revenues.list.SetShowHelp(m.help.ShowAll)
+				return m, tea.WindowSize()
+			}
 		case key.Matches(msg, m.keymap.PeriodPicker):
-			return m, period.Open(
-				m.api.PeriodStart().Year(),
-				m.api.PeriodStart().Month(),
-			)
+			if !m.prompt.Focused() && !m.new.Focused() {
+				return m, period.Open(
+					m.api.PeriodStart().Year(),
+					m.api.PeriodStart().Month(),
+				)
+			}
 		}
 	case period.SelectedMsg:
 		m.transactions.currentSearch = ""
@@ -209,26 +213,32 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		leftSize := 0
+		tabBarSize := 2
+		tabBarWidth := lipgloss.Width(m.tabBar())
 		switch m.state {
 		case transactionsView, assetsView:
 			if !fullView {
 				leftSize = max(
 					lipgloss.Width(m.assets.View()),
 					lipgloss.Width(m.summary.View()),
+					tabBarWidth,
 				) + h
+			} else {
+				tabBarSize = 0
 			}
 		case categoriesView:
-			leftSize = lipgloss.Width(m.categories.View()) + h
+			leftSize = max(lipgloss.Width(m.categories.View()), tabBarWidth) + h
 		case expensesView:
-			leftSize = lipgloss.Width(m.expenses.View()) + h
+			leftSize = max(lipgloss.Width(m.expenses.View()), tabBarWidth) + h
 		case revenuesView:
-			leftSize = lipgloss.Width(m.revenues.View()) + h
+			leftSize = max(lipgloss.Width(m.revenues.View()), tabBarWidth) + h
 		case liabilitiesView:
-			leftSize = lipgloss.Width(m.liabilities.View()) + h
+			leftSize = max(lipgloss.Width(m.liabilities.View()), tabBarWidth) + h
 		}
 		m.layout = m.layout.
 			WithTopSize(topSize).
 			WithLeftSize(leftSize)
+		m.layout.TabBarSize = tabBarSize
 
 	case tea.WindowSizeMsg:
 		return m, Cmd(UpdatePositions{
@@ -395,9 +405,9 @@ func (m modelUI) View() string {
 			if m.transactions.currentSearch != "" {
 				header = header + " | Search: " + m.transactions.currentSearch
 			} else {
-				header = header + fmt.Sprintf(" | Period: %s - %s",
-					m.api.PeriodStart().Format(time.DateOnly),
-					m.api.PeriodEnd().Format(time.DateOnly))
+				header = header + fmt.Sprintf(" | p %s %d",
+					m.api.PeriodStart().Month(),
+					m.api.PeriodStart().Year())
 			}
 			if !m.transactions.currentAccount.IsEmpty() {
 				header = header + " | Account: " + m.transactions.currentAccount.Name
@@ -424,34 +434,38 @@ func (m modelUI) View() string {
 		} else {
 			s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
 				m.styles.Base.Render(
-					lipgloss.JoinVertical(lipgloss.Left, m.summary.View(), m.assets.View())),
+					lipgloss.JoinVertical(lipgloss.Left, m.tabBar(), m.summary.View(), m.assets.View())),
 				m.styles.BaseFocused.Render(m.transactions.View())))
 		}
 	case assetsView:
 		s.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			m.styles.BaseFocused.Render(
-				lipgloss.JoinVertical(lipgloss.Left, m.summary.View(), m.assets.View())),
+				lipgloss.JoinVertical(lipgloss.Left, m.tabBar(), m.summary.View(), m.assets.View())),
 			m.styles.Base.Render(m.transactions.View())))
 	case categoriesView:
 		s.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			m.styles.BaseFocused.Render(m.categories.View()),
+			m.styles.BaseFocused.Render(
+				lipgloss.JoinVertical(lipgloss.Left, m.tabBar(), m.categories.View())),
 			m.styles.Base.Render(m.transactions.View())))
 	case expensesView:
 		s.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			m.styles.BaseFocused.Render(m.expenses.View()),
+			m.styles.BaseFocused.Render(
+				lipgloss.JoinVertical(lipgloss.Left, m.tabBar(), m.expenses.View())),
 			m.styles.Base.Render(m.transactions.View())))
 	case revenuesView:
 		s.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			m.styles.BaseFocused.Render(m.revenues.View()),
+			m.styles.BaseFocused.Render(
+				lipgloss.JoinVertical(lipgloss.Left, m.tabBar(), m.revenues.View())),
 			m.styles.Base.Render(m.transactions.View())))
 	case liabilitiesView:
 		s.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			m.styles.BaseFocused.Render(m.liabilities.View()),
+			m.styles.BaseFocused.Render(
+				lipgloss.JoinVertical(lipgloss.Left, m.tabBar(), m.liabilities.View())),
 			m.styles.Base.Render(m.transactions.View())))
 	case newView:
 		s.WriteString(lipgloss.JoinHorizontal(
@@ -490,6 +504,36 @@ func (m *modelUI) HelpView() string {
 		help = lipgloss.JoinHorizontal(lipgloss.Left, help, m.help.View(m.keymap))
 	}
 	return help
+}
+
+func (m *modelUI) tabBar() string {
+	type tab struct {
+		key   string
+		label string
+		state state
+	}
+
+	tabs := []tab{
+		{"a", "Assets", assetsView},
+		{"c", "Categ.", categoriesView},
+		{"e", "Expns.", expensesView},
+		{"i", "Revnu.", revenuesView},
+		{"o", "Liab.", liabilitiesView},
+	}
+
+	var parts []string
+	for _, t := range tabs {
+		active := m.state == t.state ||
+			(m.state == transactionsView && t.state == assetsView)
+		label := t.key + " " + t.label
+		if active {
+			parts = append(parts, m.styles.TabActive.Render(label))
+		} else {
+			parts = append(parts, m.styles.TabInactive.Render(label))
+		}
+	}
+
+	return strings.Join(parts, m.styles.TabInactive.Render(" ")) + "\n"
 }
 
 func (m *modelUI) SetState(s state) {
