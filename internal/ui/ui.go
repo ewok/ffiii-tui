@@ -164,7 +164,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keymap.ShowShortHelp):
-			if !m.prompt.Focused() && !m.new.Focused() {
+			if !m.isAnyInputFocused() {
 				m.help.ShowAll = !m.help.ShowAll
 				m.assets.list.Help.ShowAll = m.help.ShowAll
 				m.categories.list.Help.ShowAll = m.help.ShowAll
@@ -177,7 +177,7 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.WindowSize()
 			}
 		case key.Matches(msg, m.keymap.PeriodPicker):
-			if !m.prompt.Focused() && !m.new.Focused() {
+			if !m.isAnyInputFocused() {
 				return m, period.Open(
 					m.api.PeriodStart().Year(),
 					m.api.PeriodStart().Month(),
@@ -538,6 +538,16 @@ func (m *modelUI) tabBar() string {
 
 func (m *modelUI) SetState(s state) {
 	m.state = s
+}
+
+func (m *modelUI) isAnyInputFocused() bool {
+	return m.prompt.Focused() ||
+		m.new.Focused() ||
+		m.assets.list.FilterInput.Focused() ||
+		m.expenses.list.FilterInput.Focused() ||
+		m.revenues.list.FilterInput.Focused() ||
+		m.categories.list.FilterInput.Focused() ||
+		m.liabilities.list.FilterInput.Focused()
 }
 
 func SetView(state state) tea.Cmd {
