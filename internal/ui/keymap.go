@@ -12,8 +12,7 @@ type UIKeyMap struct {
 	Quit          key.Binding
 	ShowShortHelp key.Binding
 
-	PreviousPeriod key.Binding
-	NextPeriod     key.Binding
+	PeriodPicker key.Binding
 }
 
 type AccountKeyMap struct {
@@ -92,13 +91,9 @@ func DefaultUIKeyMap() UIKeyMap {
 			key.WithKeys("?"),
 			key.WithHelp("?", "toggle help"),
 		),
-		PreviousPeriod: key.NewBinding(
-			key.WithKeys("["),
-			key.WithHelp("[", "previous period"),
-		),
-		NextPeriod: key.NewBinding(
-			key.WithKeys("]"),
-			key.WithHelp("]", "next period"),
+		PeriodPicker: key.NewBinding(
+			key.WithKeys("p"),
+			key.WithHelp("p", "period picker"),
 		),
 	}
 }
@@ -336,8 +331,7 @@ func (k UIKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		k.ShowShortHelp,
 		k.Quit,
-		k.PreviousPeriod,
-		k.NextPeriod,
+		k.PeriodPicker,
 	}
 }
 
@@ -399,8 +393,7 @@ func (k TransactionFormKeyMap) ShortHelp() []key.Binding {
 func (k UIKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{
-			k.PreviousPeriod,
-			k.NextPeriod,
+			k.PeriodPicker,
 		},
 	}
 }

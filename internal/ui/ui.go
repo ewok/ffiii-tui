@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"ffiii-tui/internal/ui/notify"
+	"ffiii-tui/internal/ui/period"
 	"ffiii-tui/internal/ui/prompt"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -74,6 +75,7 @@ type modelUI struct {
 	revenues     modelRevenues
 	liabilities  modelLiabilities
 	prompt       prompt.Model
+	periodPicker period.Model
 	notify       notify.Model
 	summary      modelSummary
 	spinner      spinner.Model
@@ -114,6 +116,7 @@ func NewModelUI(api UIAPI) modelUI {
 		revenues:     newModelRevenues(api),
 		liabilities:  newModelLiabilities(api),
 		prompt:       prompt.New(),
+		periodPicker: period.New(),
 		notify:       notify.New(),
 		summary:      newModelSummary(api),
 		spinner:      sp,
@@ -171,27 +174,23 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.expenses.list.SetShowHelp(m.help.ShowAll)
 			m.revenues.list.SetShowHelp(m.help.ShowAll)
 			return m, tea.WindowSize()
-		case key.Matches(msg, m.keymap.PreviousPeriod):
-			m.transactions.currentSearch = ""
-			m.api.PreviousPeriod()
-			return m, tea.Batch(
-				Cmd(RefreshTransactionsMsg{}),
-				Cmd(RefreshSummaryMsg{}),
-				Cmd(RefreshCategoryInsightsMsg{}),
-				Cmd(RefreshRevenueInsightsMsg{}),
-				Cmd(RefreshExpenseInsightsMsg{}),
-			)
-		case key.Matches(msg, m.keymap.NextPeriod):
-			m.transactions.currentSearch = ""
-			m.api.NextPeriod()
-			return m, tea.Batch(
-				Cmd(RefreshTransactionsMsg{}),
-				Cmd(RefreshSummaryMsg{}),
-				Cmd(RefreshCategoryInsightsMsg{}),
-				Cmd(RefreshRevenueInsightsMsg{}),
-				Cmd(RefreshExpenseInsightsMsg{}),
+		case key.Matches(msg, m.keymap.PeriodPicker):
+			return m, period.Open(
+				m.api.PeriodStart().Year(),
+				m.api.PeriodStart().Month(),
 			)
 		}
+	case period.SelectedMsg:
+		m.transactions.currentSearch = ""
+		m.api.SetPeriod(msg.Year, msg.Month)
+		return m, tea.Batch(
+			Cmd(RefreshTransactionsMsg{}),
+			Cmd(RefreshSummaryMsg{}),
+			Cmd(RefreshCategoryInsightsMsg{}),
+			Cmd(RefreshRevenueInsightsMsg{}),
+			Cmd(RefreshExpenseInsightsMsg{}),
+		)
+	case period.CloseMsg:
 	case UpdatePositions:
 		// TODO: Refactor, bad design
 		// Use current layout
@@ -330,6 +329,13 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	}
 
+	periodPickerWasFocused := m.periodPicker.Focused()
+	m.periodPicker, cmd = updateModel(m.periodPicker, msg)
+	cmds = append(cmds, cmd)
+	if periodPickerWasFocused {
+		return m, tea.Batch(cmds...)
+	}
+
 	m.notify, cmd = updateModel(m.notify, msg)
 	cmds = append(cmds, cmd)
 
@@ -370,6 +376,8 @@ func (m modelUI) View() string {
 	// TODO: Move to model
 	if m.prompt.Focused() {
 		s.WriteString(m.prompt.WithWidth(m.layout.GetWidth()).View() + "\n")
+	} else if m.periodPicker.Focused() {
+		s.WriteString(m.periodPicker.WithWidth(m.layout.GetWidth()).View() + "\n")
 	} else {
 		header := " ffiii-tui"
 

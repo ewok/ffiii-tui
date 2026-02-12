@@ -17,6 +17,7 @@ import (
 type PeriodAPI interface {
 	PreviousPeriod()
 	NextPeriod()
+	SetPeriod(year int, month time.Month)
 }
 
 // CurrencyAPI provides access to currency configuration used in UI.
