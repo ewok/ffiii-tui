@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/period"
 	"ffiii-tui/internal/ui/prompt"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,6 +22,9 @@ type mockUIAPI struct {
 	// PeriodAPI
 	previousPeriodCalled int
 	nextPeriodCalled     int
+	setPeriodCalled      int
+	setPeriodYear        int
+	setPeriodMonth       time.Month
 
 	// SummaryAPI
 	updateSummaryCalled int
@@ -94,6 +98,14 @@ func (m *mockUIAPI) NextPeriod() {
 	m.nextPeriodCalled++
 	m.periodStart = m.periodStart.AddDate(0, 1, 0)
 	m.periodEnd = m.periodEnd.AddDate(0, 1, 0)
+}
+
+func (m *mockUIAPI) SetPeriod(year int, month time.Month) {
+	m.setPeriodCalled++
+	m.setPeriodYear = year
+	m.setPeriodMonth = month
+	m.periodStart = time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
+	m.periodEnd = m.periodStart.AddDate(0, 1, 0).Add(-time.Nanosecond)
 }
 
 func (m *mockUIAPI) PeriodStart() time.Time { return m.periodStart }
@@ -398,7 +410,42 @@ func TestUI_KeyToggleHelp(t *testing.T) {
 	}
 }
 
-func TestUI_KeyPreviousPeriod(t *testing.T) {
+func TestUI_KeyPeriodPicker(t *testing.T) {
+	api := newTestUIAPI()
+	m := modelUI{
+		api:          api,
+		transactions: NewModelTransactions(api),
+		new:          newModelTransaction(api),
+		assets:       newModelAssets(api),
+		categories:   newModelCategories(api),
+		expenses:     newModelExpenses(api),
+		revenues:     newModelRevenues(api),
+		liabilities:  newModelLiabilities(api),
+		summary:      newModelSummary(api),
+		keymap:       DefaultUIKeyMap(),
+		styles:       DefaultStyles(),
+	}
+
+	// Pressing 'p' should emit a period.Open command
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	if cmd == nil {
+		t.Fatal("Expected command from period picker key")
+	}
+
+	// The command should produce a period.OpenMsg
+	msgs := collectMsgsFromCmd(cmd)
+	foundOpen := false
+	for _, msg := range msgs {
+		if _, ok := msg.(period.OpenMsg); ok {
+			foundOpen = true
+		}
+	}
+	if !foundOpen {
+		t.Error("Expected period.OpenMsg from 'p' key")
+	}
+}
+
+func TestUI_PeriodSelectedMsg(t *testing.T) {
 	api := newTestUIAPI()
 	m := modelUI{
 		api:          api,
@@ -415,28 +462,31 @@ func TestUI_KeyPreviousPeriod(t *testing.T) {
 	}
 	m.transactions.currentSearch = "test"
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'['}})
-
-	if cmd == nil {
-		t.Fatal("Expected command from previous period")
-	}
-
-	if api.previousPeriodCalled != 1 {
-		t.Errorf("Expected PreviousPeriod to be called once, got %d", api.previousPeriodCalled)
-	}
-
-	// Should clear search
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'['}})
+	// Sending a period.SelectedMsg should call SetPeriod and clear search
+	updated, cmd := m.Update(period.SelectedMsg{Year: 2025, Month: time.March})
 	m2 := updated.(modelUI)
+
+	if api.setPeriodCalled != 1 {
+		t.Errorf("Expected SetPeriod to be called once, got %d", api.setPeriodCalled)
+	}
+	if api.setPeriodYear != 2025 {
+		t.Errorf("Expected year 2025, got %d", api.setPeriodYear)
+	}
+	if api.setPeriodMonth != time.March {
+		t.Errorf("Expected month March, got %v", api.setPeriodMonth)
+	}
 	if m2.transactions.currentSearch != "" {
 		t.Error("Expected search to be cleared")
+	}
+
+	if cmd == nil {
+		t.Fatal("Expected refresh commands")
 	}
 
 	// Check that refresh commands are sent
 	msgs := collectMsgsFromCmd(cmd)
 	foundRefreshTransactions := false
 	foundRefreshSummary := false
-
 	for _, msg := range msgs {
 		switch msg.(type) {
 		case RefreshTransactionsMsg:
@@ -445,39 +495,11 @@ func TestUI_KeyPreviousPeriod(t *testing.T) {
 			foundRefreshSummary = true
 		}
 	}
-
 	if !foundRefreshTransactions {
 		t.Error("Expected RefreshTransactionsMsg in batch")
 	}
 	if !foundRefreshSummary {
 		t.Error("Expected RefreshSummaryMsg in batch")
-	}
-}
-
-func TestUI_KeyNextPeriod(t *testing.T) {
-	api := newTestUIAPI()
-	m := modelUI{
-		api:          api,
-		transactions: NewModelTransactions(api),
-		new:          newModelTransaction(api),
-		assets:       newModelAssets(api),
-		categories:   newModelCategories(api),
-		expenses:     newModelExpenses(api),
-		revenues:     newModelRevenues(api),
-		liabilities:  newModelLiabilities(api),
-		summary:      newModelSummary(api),
-		keymap:       DefaultUIKeyMap(),
-		styles:       DefaultStyles(),
-	}
-
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}})
-
-	if cmd == nil {
-		t.Fatal("Expected command from next period")
-	}
-
-	if api.nextPeriodCalled != 1 {
-		t.Errorf("Expected NextPeriod to be called once, got %d", api.nextPeriodCalled)
 	}
 }
 
