@@ -147,7 +147,7 @@ func DefaultAccountKeyMap() AccountKeyMap {
 		),
 		Sort: key.NewBinding(
 			key.WithKeys("s"),
-			key.WithHelp("s", "sort expenses"),
+			key.WithHelp("s", "sort account"),
 		),
 		New: key.NewBinding(
 			key.WithKeys("n"),
@@ -347,6 +347,7 @@ func (k AccountKeyMap) ShortHelp() []key.Binding {
 		k.Quit,
 		k.Filter,
 		k.FilterBy,
+		k.Sort,
 		k.ResetFilter,
 		k.Select,
 		k.New,

@@ -36,3 +36,5 @@ config.yaml
 messages.log
 ffiii-tui
 .local/
+.opencode/
+AGENTS.md

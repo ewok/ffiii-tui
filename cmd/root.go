@@ -44,7 +44,16 @@ Prerequisites:
 			fmt.Println("Debug logging is enabled")
 		}
 
-		logger, cleanup, err := logging.New(debug, logFile)
+		var (
+			logger  *zap.Logger
+			cleanup func()
+			err     error
+		)
+		if logFile == "" {
+			logger, cleanup, err = logging.New(debug)
+		} else {
+			logger, cleanup, err = logging.New(debug, logFile)
+		}
 		if err != nil {
 			return fmt.Errorf("failed to init logger: %w", err)
 		}
@@ -123,7 +132,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("firefly.api_url", "u", "https://your-firefly-iii-instance.com/api/v1", "Firefly III API URL")
 	rootCmd.PersistentFlags().IntP("timeout", "t", 10, "Connection timeout")
 	rootCmd.Flags().BoolP("logging.debug", "d", false, "Enable debug logging")
-	rootCmd.Flags().StringP("logging.file", "l", "messages.log", "Log file path (if empty, logs to stdout)")
+	rootCmd.Flags().StringP("logging.file", "l", "", "Log file path (if empty, logs to stdout)")
 
 	rootCmd.AddCommand(initConfigCmd)
 }

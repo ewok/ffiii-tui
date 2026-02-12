@@ -532,9 +532,9 @@ func stopLoading(opID string) {
 func buildLoadingMessage() string {
 	var messages []string
 
-	loadingOps.Range(func(key, value interface{}) bool {
+	loadingOps.Range(func(key, value any) bool {
 		if msg, ok := value.(string); ok {
-            abbrev := msg
+			abbrev := msg
 
 			if len(abbrev) > 25 {
 				abbrev = abbrev[:22] + "..."
