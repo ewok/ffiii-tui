@@ -68,7 +68,7 @@ type notifyQueue struct {
 }
 
 type Model struct {
-	queue        notifyQueue
+	queue        *notifyQueue
 	styles       Styles
 	Width        int
 	isDisplaying bool
@@ -115,8 +115,9 @@ func NotifyError(message string) tea.Cmd {
 }
 
 func New() Model {
+	queue := newNotifyQueue()
 	return Model{
-		queue:        newNotifyQueue(),
+		queue:        &queue,
 		styles:       DefaultStyles(),
 		isDisplaying: false,
 	}
