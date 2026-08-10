@@ -251,17 +251,7 @@ func TestModelExpenses_RefreshExpenses_Error(t *testing.T) {
 		t.Fatal("expected cmd")
 	}
 
-	msg := cmd()
-	notifyMsg, ok := msg.(notify.NotifyMsg)
-	if !ok {
-		t.Fatalf("expected notify.NotifyMsg, got %T", msg)
-	}
-	if notifyMsg.Level != notify.Warn {
-		t.Fatalf("expected warn level, got %v", notifyMsg.Level)
-	}
-	if notifyMsg.Message != expectedErr.Error() {
-		t.Fatalf("expected message %q, got %q", expectedErr.Error(), notifyMsg.Message)
-	}
+	assertRefreshErrorMsgs(t, collectMsgsFromCmd(cmd), expectedErr, "expense")
 }
 
 func TestModelExpenses_RefreshExpenseInsights_Success(t *testing.T) {
