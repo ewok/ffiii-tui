@@ -111,6 +111,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor++
 			}
 		case "enter":
+			if m.cursor < 0 || m.cursor >= len(m.items) {
+				m.Blur()
+				return m, func() tea.Msg {
+					return CloseMsg{}
+				}
+			}
 			selected := m.items[m.cursor]
 			m.Blur()
 			return m, func() tea.Msg {

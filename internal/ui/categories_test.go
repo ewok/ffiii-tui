@@ -494,10 +494,15 @@ func TestNewCategoryMsg_Success(t *testing.T) {
 	}
 
 	m := newModelCategories(api)
-	_, cmd := m.Update(NewCategoryMsg{Category: "NewCat"})
+	updated, cmd := m.Update(NewCategoryMsg{Category: "NewCat"})
 
 	if cmd == nil {
 		t.Fatal("expected a command, got nil")
+	}
+
+	createdMsg := cmd()
+	if _, ok := createdMsg.(CategoryCreatedMsg); !ok {
+		t.Fatalf("expected CategoryCreatedMsg, got %T", createdMsg)
 	}
 
 	if len(api.createCategoryCalledWith) != 1 {
@@ -508,6 +513,11 @@ func TestNewCategoryMsg_Success(t *testing.T) {
 	}
 	if api.createCategoryCalledWith[0].notes != "" {
 		t.Errorf("expected empty notes, got %q", api.createCategoryCalledWith[0].notes)
+	}
+
+	_, cmd = updated.(modelCategories).Update(createdMsg)
+	if cmd == nil {
+		t.Fatal("expected a command after CategoryCreatedMsg, got nil")
 	}
 
 	msgs := collectMsgsFromCmd(cmd)

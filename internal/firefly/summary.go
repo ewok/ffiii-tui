@@ -31,10 +31,11 @@ type SummaryItem struct {
 }
 
 func (api *Api) GetSummary() (map[string]SummaryItem, error) {
+	startDate, endDate := api.periodRange()
 	endpoint := fmt.Sprintf("%s/summary/basic?start=%s&end=%s",
 		api.Config.ApiUrl,
-		api.StartDate.Format("2006-01-02"),
-		api.EndDate.Format("2006-01-02"))
+		startDate.Format("2006-01-02"),
+		endDate.Format("2006-01-02"))
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
@@ -55,7 +56,7 @@ func (api *Api) GetSummary() (map[string]SummaryItem, error) {
 		zap.L().Error("Failed to send HTTP request",
 			zap.Error(err),
 			zap.Duration("request_duration", requestDuration))
-		return nil, fmt.Errorf("failed to send request: %v", err)
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -73,7 +74,7 @@ func (api *Api) GetSummary() (map[string]SummaryItem, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		zap.L().Error("Failed to read response body", zap.Error(err))
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	zap.S().Debugf("Summary API response body size: %d bytes", len(body))
@@ -87,7 +88,7 @@ func (api *Api) GetSummary() (map[string]SummaryItem, error) {
 		err = json.Unmarshal(body, &response)
 		if err != nil {
 			zap.L().Error("Failed to unmarshal error response", zap.Error(err))
-			return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
+			return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
 		}
 
 		message, ok := response["message"].(string)
@@ -104,7 +105,7 @@ func (api *Api) GetSummary() (map[string]SummaryItem, error) {
 		zap.L().Error("Failed to unmarshal summary items",
 			zap.Error(err),
 			zap.ByteString("response_body", body))
-		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
 	}
 
 	for key, item := range items {
@@ -126,25 +127,36 @@ func (api *Api) GetSummary() (map[string]SummaryItem, error) {
 func (api *Api) UpdateSummary() error {
 	summary, err := api.GetSummary()
 	if err != nil {
-		return fmt.Errorf("failed to get summary: %v", err)
+		return fmt.Errorf("failed to get summary: %w", err)
 	}
+	api.mu.Lock()
 	api.Summary = summary
+	api.mu.Unlock()
 	return nil
 }
 
 // SummaryItems returns a shallow copy of cached summary items.
 func (api *Api) SummaryItems() map[string]SummaryItem {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	return maps.Clone(api.Summary)
 }
 
 func (api *Api) GetMaxWidth() int {
-	if len(api.Summary) < 1 {
+	api.mu.RLock()
+	empty := len(api.Summary) < 1
+	api.mu.RUnlock()
+
+	if empty {
 		err := api.UpdateSummary()
 		if err != nil {
 			zap.L().Error("Failed to update summary for max width calculation", zap.Error(err))
 			return 0
 		}
 	}
+
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	maxLength := 0
 	for _, s := range api.Summary {
 		l := utf8.RuneCountInString(s.Title) + utf8.RuneCountInString(s.ValueParsed)

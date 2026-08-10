@@ -6,6 +6,7 @@ package firefly
 
 import (
 	"fmt"
+	"net/url"
 	"slices"
 )
 
@@ -124,23 +125,24 @@ func (api *Api) ListTransactions(query string) ([]Transaction, error) {
 	var allData []any
 	var err error
 	if query != "" {
-		allData, err = api.fetchPaginated("%s/search/transactions?&query=%s&page=%d",
+		allData, err = api.fetchPaginated("%s/search/transactions?query=%s&page=%d",
 			api.Config.ApiUrl,
-			query)
+			url.QueryEscape(query))
 	} else {
+		startDate, endDate := api.periodRange()
 		allData, err = api.fetchPaginated("%s/transactions?start=%s&end=%s&page=%d",
 			api.Config.ApiUrl,
-			api.StartDate.Format("2006-01-02"),
-			api.EndDate.Format("2006-01-02"))
+			startDate.Format("2006-01-02"),
+			endDate.Format("2006-01-02"))
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch paginated transactions: %v", err)
+		return nil, fmt.Errorf("failed to fetch paginated transactions: %w", err)
 	}
 
 	txs, err := unmarshalItems[ResponseTransaction](allData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal transactions: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal transactions: %w", err)
 	}
 
 	transactions := []Transaction{}
@@ -258,10 +260,16 @@ func (t *Transaction) Category() Category {
 }
 
 func (t *Transaction) Currency() string {
-	return t.Splits[0].Currency
+	if len(t.Splits) > 0 {
+		return t.Splits[0].Currency
+	}
+	return ""
 }
 
 func (t *Transaction) ForeignCurrency() string {
+	if len(t.Splits) == 0 {
+		return ""
+	}
 	if t.Type == "transfer" {
 		return t.Splits[0].ForeignCurrency
 	}

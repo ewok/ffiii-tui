@@ -6,13 +6,20 @@ package firefly
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
+
+const defaultTimeoutSeconds = 10
 
 // ApiConfig holds configuration for the Firefly III API.
 type Api struct {
 	// Config contains the API configuration details.
 	Config ApiConfig
+
+	// mu guards all mutable cached state below. API refresh methods are
+	// invoked concurrently from Bubble Tea command goroutines.
+	mu sync.RWMutex
 
 	Accounts        map[string][]Account
 	accountBalances map[string]float64
@@ -47,10 +54,15 @@ type Api struct {
 // Returns:
 //   - A pointer to an Api struct initialized with the provided configuration.
 func NewApi(config ApiConfig) (*Api, error) {
+	if config.TimeoutSeconds <= 0 {
+		config.TimeoutSeconds = defaultTimeoutSeconds
+	}
+
 	api := &Api{Config: config}
 
-	api.StartDate = time.Now().AddDate(0, 0, -time.Now().Day()+1)
-	api.EndDate = time.Now().AddDate(0, 1, -time.Now().Day())
+	now := time.Now()
+	api.StartDate = now.AddDate(0, 0, -now.Day()+1)
+	api.EndDate = now.AddDate(0, 1, -now.Day())
 
 	// Test connection and get current user
 	userEmail, err := api.GetCurrentUser()
@@ -77,16 +89,22 @@ func NewApi(config ApiConfig) (*Api, error) {
 }
 
 func (api *Api) PreviousPeriod() {
+	api.mu.Lock()
+	defer api.mu.Unlock()
 	api.StartDate = time.Date(api.StartDate.Year(), api.StartDate.Month()-1, 1, 0, 0, 0, 0, api.StartDate.Location())
 	api.EndDate = api.StartDate.AddDate(0, 1, 0).Add(-time.Nanosecond)
 }
 
 func (api *Api) NextPeriod() {
+	api.mu.Lock()
+	defer api.mu.Unlock()
 	api.StartDate = time.Date(api.StartDate.Year(), api.StartDate.Month()+1, 1, 0, 0, 0, 0, api.StartDate.Location())
 	api.EndDate = api.StartDate.AddDate(0, 1, 0).Add(-time.Nanosecond)
 }
 
 func (api *Api) SetPeriod(year int, month time.Month) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
 	api.StartDate = time.Date(year, month, 1, 0, 0, 0, 0, api.StartDate.Location())
 	api.EndDate = api.StartDate.AddDate(0, 1, 0).Add(-time.Nanosecond)
 }
@@ -96,9 +114,20 @@ func (api *Api) TimeoutSeconds() int {
 }
 
 func (api *Api) PeriodStart() time.Time {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	return api.StartDate
 }
 
 func (api *Api) PeriodEnd() time.Time {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	return api.EndDate
+}
+
+// periodRange returns a consistent snapshot of the current period bounds.
+func (api *Api) periodRange() (time.Time, time.Time) {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
+	return api.StartDate, api.EndDate
 }

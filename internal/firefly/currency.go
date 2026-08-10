@@ -47,19 +47,21 @@ func (api *Api) UpdateCurrencies() error {
 	if err != nil {
 		return err
 	}
+	api.mu.Lock()
 	api.Currencies = currencies
+	api.mu.Unlock()
 	return nil
 }
 
 func (api *Api) ListCurrencies() ([]Currency, error) {
 	allData, err := api.fetchPaginated("%s/currencies?page=%d", api.Config.ApiUrl)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch paginated currencies: %v", err)
+		return nil, fmt.Errorf("failed to fetch paginated currencies: %w", err)
 	}
 
 	currs, err := unmarshalItems[apiCurrency](allData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal currencies: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal currencies: %w", err)
 	}
 
 	currencies := []Currency{}
@@ -81,6 +83,8 @@ func (api *Api) ListCurrencies() ([]Currency, error) {
 }
 
 func (api *Api) GetCurrencyByCode(code string) Currency {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	for _, cur := range api.Currencies {
 		if strings.EqualFold(cur.Code, code) {
 			return cur
@@ -90,6 +94,8 @@ func (api *Api) GetCurrencyByCode(code string) Currency {
 }
 
 func (api *Api) PrimaryCurrency() Currency {
+	api.mu.Lock()
+	defer api.mu.Unlock()
 	if api.Primary != (Currency{}) {
 		return api.Primary
 	}

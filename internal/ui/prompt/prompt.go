@@ -74,20 +74,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				tea.Cmd(func() tea.Msg {
 					return PromptBlur{}
 				}),
-				m.callback(value),
+				m.runCallback(value),
 			)
 		case "esc":
 			return m, tea.Sequence(
 				tea.Cmd(func() tea.Msg {
 					return PromptBlur{}
 				}),
-				m.callback("None"),
+				m.runCallback("None"),
 			)
 		default:
 			m.input, cmd = m.input.Update(msg)
 		}
 	}
 	return m, cmd
+}
+
+func (m Model) runCallback(value string) tea.Cmd {
+	if m.callback == nil {
+		return nil
+	}
+	return m.callback(value)
 }
 
 func (m Model) View() string {

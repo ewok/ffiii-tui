@@ -768,6 +768,12 @@ func TestTransaction_KeyBindings(t *testing.T) {
 			t.Fatal("expected cmd to be returned")
 		}
 
+		// The command performs the API call asynchronously
+		resultMsg := cmd()
+		if _, ok := resultMsg.(TransactionSaveResultMsg); !ok {
+			t.Fatalf("expected TransactionSaveResultMsg, got %T", resultMsg)
+		}
+
 		// Verify CreateTransaction was called
 		if len(api.createTransactionCalls) != 1 {
 			t.Errorf("expected CreateTransaction to be called once, got %d calls", len(api.createTransactionCalls))
@@ -814,9 +820,15 @@ func TestTransaction_KeyBindings(t *testing.T) {
 			t.Fatal("expected cmd to be returned")
 		}
 
+		// The command performs the API call asynchronously
+		resultMsg := cmd()
+		if _, ok := resultMsg.(TransactionSaveResultMsg); !ok {
+			t.Fatalf("expected TransactionSaveResultMsg, got %T", resultMsg)
+		}
+
 		// Verify UpdateTransaction was called
 		if len(api.updateTransactionCalls) != 1 {
-			t.Errorf("expected UpdateTransaction to be called once, got %d calls", len(api.updateTransactionCalls))
+			t.Fatalf("expected UpdateTransaction to be called once, got %d calls", len(api.updateTransactionCalls))
 		}
 		if api.updateTransactionCalls[0].id != "trx123" {
 			t.Errorf("expected transaction ID 'trx123', got %s", api.updateTransactionCalls[0].id)
@@ -1025,16 +1037,29 @@ func TestTransaction_CreateTransaction(t *testing.T) {
 		m.attr.year = "2026"
 		m.attr.month = "01"
 		m.attr.day = "15"
-		m.attr.transactionType = "withdrawal"
 
 		cmd := m.CreateTransaction()
 		if cmd == nil {
 			t.Fatal("expected cmd to be returned")
 		}
 
+		// The command performs the API call asynchronously
+		resultMsg := cmd()
+		saveResult, ok := resultMsg.(TransactionSaveResultMsg)
+		if !ok {
+			t.Fatalf("expected TransactionSaveResultMsg, got %T", resultMsg)
+		}
+		if saveResult.Err != nil {
+			t.Fatalf("expected no error, got %v", saveResult.Err)
+		}
+
+		// Feed the result back into Update to complete the flow
+		model, cmd := m.Update(resultMsg)
+		m = model.(modelTransaction)
+
 		// Verify created flag is reset
 		if m.created {
-			t.Error("expected created to be false after CreateTransaction")
+			t.Error("expected created to be false after successful save")
 		}
 
 		// Verify CreateTransaction was called
@@ -1116,11 +1141,24 @@ func TestTransaction_CreateTransaction(t *testing.T) {
 		m.attr.year = "2026"
 		m.attr.month = "01"
 		m.attr.day = "15"
-		m.attr.transactionType = "withdrawal"
 
 		cmd := m.CreateTransaction()
 		if cmd == nil {
 			t.Fatal("expected cmd to be returned")
+		}
+
+		resultMsg := cmd()
+		saveResult, ok := resultMsg.(TransactionSaveResultMsg)
+		if !ok {
+			t.Fatalf("expected TransactionSaveResultMsg, got %T", resultMsg)
+		}
+		if saveResult.Err == nil {
+			t.Fatal("expected error in TransactionSaveResultMsg")
+		}
+
+		_, cmd = m.Update(resultMsg)
+		if cmd == nil {
+			t.Fatal("expected cmd after TransactionSaveResultMsg")
 		}
 
 		// Verify sequence contains error notification and SetView
@@ -1175,16 +1213,32 @@ func TestTransaction_UpdateTransaction(t *testing.T) {
 		m.attr.year = "2026"
 		m.attr.month = "01"
 		m.attr.day = "16"
-		m.attr.transactionType = "withdrawal"
 
 		cmd := m.UpdateTransaction()
 		if cmd == nil {
 			t.Fatal("expected cmd to be returned")
 		}
 
+		// The command performs the API call asynchronously
+		resultMsg := cmd()
+		saveResult, ok := resultMsg.(TransactionSaveResultMsg)
+		if !ok {
+			t.Fatalf("expected TransactionSaveResultMsg, got %T", resultMsg)
+		}
+		if saveResult.Err != nil {
+			t.Fatalf("expected no error, got %v", saveResult.Err)
+		}
+		if !saveResult.Updated {
+			t.Error("expected Updated to be true")
+		}
+
+		// Feed the result back into Update to complete the flow
+		model, cmd := m.Update(resultMsg)
+		m = model.(modelTransaction)
+
 		// Verify created flag is reset
 		if m.created {
-			t.Error("expected created to be false after UpdateTransaction")
+			t.Error("expected created to be false after successful save")
 		}
 
 		// Verify UpdateTransaction was called with correct ID
@@ -1271,11 +1325,24 @@ func TestTransaction_UpdateTransaction(t *testing.T) {
 		m.attr.year = "2026"
 		m.attr.month = "01"
 		m.attr.day = "16"
-		m.attr.transactionType = "withdrawal"
 
 		cmd := m.UpdateTransaction()
 		if cmd == nil {
 			t.Fatal("expected cmd to be returned")
+		}
+
+		resultMsg := cmd()
+		saveResult, ok := resultMsg.(TransactionSaveResultMsg)
+		if !ok {
+			t.Fatalf("expected TransactionSaveResultMsg, got %T", resultMsg)
+		}
+		if saveResult.Err == nil {
+			t.Fatal("expected error in TransactionSaveResultMsg")
+		}
+
+		_, cmd = m.Update(resultMsg)
+		if cmd == nil {
+			t.Fatal("expected cmd after TransactionSaveResultMsg")
 		}
 
 		// Verify sequence contains error notification and SetView
@@ -1500,11 +1567,9 @@ func TestTransaction_GroupTitle(t *testing.T) {
 	t.Run("multiple splits withdrawal without custom title", func(t *testing.T) {
 		m := newTestTransactionModel()
 		m.splits = []*split{
-			{description: "Split 1"},
+			{description: "Split 1", source: testAssetChecking, destination: testExpenseGroceries},
 			{description: "Split 2"},
 		}
-		m.attr.transactionType = "withdrawal"
-		m.attr.source = testAssetChecking
 		m.attr.groupTitle = ""
 
 		result := m.GroupTitle()
@@ -1517,11 +1582,9 @@ func TestTransaction_GroupTitle(t *testing.T) {
 	t.Run("multiple splits deposit without custom title", func(t *testing.T) {
 		m := newTestTransactionModel()
 		m.splits = []*split{
-			{description: "Split 1"},
+			{description: "Split 1", source: testRevenueSalary, destination: testAssetSavings},
 			{description: "Split 2"},
 		}
-		m.attr.transactionType = "deposit"
-		m.attr.destination = testAssetSavings
 		m.attr.groupTitle = ""
 
 		result := m.GroupTitle()
@@ -1534,12 +1597,9 @@ func TestTransaction_GroupTitle(t *testing.T) {
 	t.Run("multiple splits transfer without custom title", func(t *testing.T) {
 		m := newTestTransactionModel()
 		m.splits = []*split{
-			{description: "Split 1"},
+			{description: "Split 1", source: testAssetChecking, destination: testAssetSavings},
 			{description: "Split 2"},
 		}
-		m.attr.transactionType = "transfer"
-		m.attr.source = testAssetChecking
-		m.attr.destination = testAssetSavings
 		m.attr.groupTitle = ""
 
 		result := m.GroupTitle()
@@ -1636,12 +1696,18 @@ func TestTransaction_TransactionTypeDetection(t *testing.T) {
 			}
 			m.splits = []*split{s}
 
-			// Call trxTitle to trigger type detection
-			titleFunc, _ := m.trxTitle(0, s)
-			titleFunc()
+			if got := deriveTransactionType(s.source, s.destination); got != tt.expectedType {
+				t.Errorf("expected transaction type '%s', got '%s'", tt.expectedType, got)
+			}
 
-			if m.attr.transactionType != tt.expectedType {
-				t.Errorf("expected transaction type '%s', got '%s'", tt.expectedType, m.attr.transactionType)
+			if got := m.transactionType(); got != tt.expectedType {
+				t.Errorf("expected model transaction type '%s', got '%s'", tt.expectedType, got)
+			}
+
+			titleFunc, _ := m.trxTitle(0, s)
+			expectedTitle := fmt.Sprintf("Current Type: %s", tt.expectedType)
+			if got := titleFunc(); got != expectedTitle {
+				t.Errorf("expected title '%s', got '%s'", expectedTitle, got)
 			}
 		})
 	}

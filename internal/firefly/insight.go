@@ -33,12 +33,13 @@ type categoryInsight struct {
 }
 
 func (api *Api) GetInsights(ep string) ([]insightItem, error) {
+	startDate, endDate := api.periodRange()
 	endpoint := fmt.Sprintf(
 		"%s/insight/%s?start=%s&end=%s",
 		api.Config.ApiUrl,
 		ep,
-		api.StartDate.Format("2006-01-02"),
-		api.EndDate.Format("2006-01-02"))
+		startDate.Format("2006-01-02"),
+		endDate.Format("2006-01-02"))
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
@@ -52,7 +53,7 @@ func (api *Api) GetInsights(ep string) ([]insightItem, error) {
 	client := &http.Client{Timeout: time.Duration(api.Config.TimeoutSeconds) * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -64,14 +65,14 @@ func (api *Api) GetInsights(ep string) ([]insightItem, error) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		var response map[string]any
 		err = json.Unmarshal(body, &response)
 		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
+			return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
 		}
 
 		message, ok := response["message"].(string)
@@ -84,7 +85,7 @@ func (api *Api) GetInsights(ep string) ([]insightItem, error) {
 	var items []insightItem
 	err = json.Unmarshal(body, &items)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
 	}
 
 	return items, nil

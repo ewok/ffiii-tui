@@ -6,7 +6,6 @@ package ui
 
 import (
 	"fmt"
-	"net/url"
 	"time"
 
 	"ffiii-tui/internal/firefly"
@@ -45,6 +44,9 @@ type (
 	}
 	DeleteTransactionMsg struct {
 		Transaction firefly.Transaction
+	}
+	TransactionDeleteResultMsg struct {
+		Err error
 	}
 )
 
@@ -231,19 +233,15 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if msg.TrxID != "" {
 			for i, trx := range m.table.Rows() {
-				if trx[11] == msg.TrxID { // That is TxID column
+				if rowTxID(trx) == msg.TrxID {
 					m.table.SetCursor(i)
 				}
 			}
 		}
 
 	case RefreshTransactionsMsg:
+		searchQuery := m.currentSearch
 		return m, func() tea.Msg {
-			var err error
-			searchQuery := ""
-			if m.currentSearch != "" {
-				searchQuery = url.QueryEscape(m.currentSearch)
-			}
 			opID := startLoading("Loading transactions...")
 			defer stopLoading(opID)
 			transactions, err := m.api.ListTransactions(searchQuery)
@@ -268,25 +266,29 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DeleteTransactionMsg:
 		id := msg.Transaction.TransactionID
 		if id != "" {
-			opID := startLoading("Deleting transaction...")
-			defer stopLoading(opID)
-			err := m.api.DeleteTransaction(id)
-			if err != nil {
-				return m, tea.Batch(
-					notify.NotifyError(fmt.Sprint("Error deleting transaction, ", err.Error())),
-					SetView(transactionsView))
+			return m, func() tea.Msg {
+				opID := startLoading("Deleting transaction...")
+				defer stopLoading(opID)
+				return TransactionDeleteResultMsg{Err: m.api.DeleteTransaction(id)}
 			}
-			return m, tea.Batch(
-				notify.NotifyLog("Transaction deleted successfully."),
-				SetView(transactionsView),
-				Cmd(RefreshAssetsMsg{}),
-				Cmd(RefreshLiabilitiesMsg{}),
-				Cmd(RefreshSummaryMsg{}),
-				Cmd(RefreshTransactionsMsg{}),
-				Cmd(RefreshExpenseInsightsMsg{}),
-				Cmd(RefreshRevenueInsightsMsg{}))
 		}
 		return m, SetView(transactionsView)
+
+	case TransactionDeleteResultMsg:
+		if msg.Err != nil {
+			return m, tea.Batch(
+				notify.NotifyError(fmt.Sprint("Error deleting transaction, ", msg.Err.Error())),
+				SetView(transactionsView))
+		}
+		return m, tea.Batch(
+			notify.NotifyLog("Transaction deleted successfully."),
+			SetView(transactionsView),
+			Cmd(RefreshAssetsMsg{}),
+			Cmd(RefreshLiabilitiesMsg{}),
+			Cmd(RefreshSummaryMsg{}),
+			Cmd(RefreshTransactionsMsg{}),
+			Cmd(RefreshExpenseInsightsMsg{}),
+			Cmd(RefreshRevenueInsightsMsg{}))
 	case UpdatePositions:
 		if msg.layout != nil {
 			h, v := m.styles.Base.GetFrameSize()
@@ -368,7 +370,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, notify.NotifyWarn("Transaction not selected.")
 			}
 
-			trx, err := m.findTransactionByID(row[11])
+			trx, err := m.findTransactionByID(rowTxID(row))
 			if err != nil {
 				return m, notify.NotifyError("Transaction not found.")
 			}
@@ -433,7 +435,12 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 	rows := []table.Row{}
 
 	for _, tx := range transactions {
-		date, _ := time.Parse(time.RFC3339, tx.Date)
+		dateStr := tx.Date
+		if parsed, err := time.Parse(time.RFC3339, tx.Date); err == nil {
+			dateStr = parsed.Format("2006-01-02")
+		} else if len(dateStr) > 10 {
+			dateStr = dateStr[:10]
+		}
 
 		Type := ""
 		switch tx.Type {
@@ -456,7 +463,7 @@ func getRows(transactions []firefly.Transaction) ([]table.Row, []table.Column) {
 			row := table.Row{
 				fmt.Sprintf("%d", tx.ID),
 				icon,
-				date.Format("2006-01-02"),
+				dateStr,
 				split.Source.Name,
 				split.Destination.Name,
 				split.Category.Name,
@@ -533,7 +540,7 @@ func (m *modelTransactions) GetCurrentTransaction() (firefly.Transaction, error)
 		return firefly.Transaction{}, fmt.Errorf("transaction not selected")
 	}
 
-	txID := row[11]
+	txID := rowTxID(row)
 	if txID == "" {
 		return firefly.Transaction{}, fmt.Errorf("invalid transaction ID")
 	}
@@ -545,6 +552,14 @@ func (m *modelTransactions) GetCurrentTransaction() (firefly.Transaction, error)
 	}
 
 	return firefly.Transaction{}, fmt.Errorf("transaction not found")
+}
+
+// rowTxID returns the TxID column of a table row, or "" if the row is malformed.
+func rowTxID(row table.Row) string {
+	if len(row) < 12 {
+		return ""
+	}
+	return row[11]
 }
 
 func (m *modelTransactions) findTransactionByID(txID string) (firefly.Transaction, error) {

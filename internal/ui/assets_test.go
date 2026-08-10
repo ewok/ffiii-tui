@@ -257,9 +257,19 @@ func TestModelAssets_NewAsset_Success(t *testing.T) {
 	api := &mockAssetAPI{}
 	m := newModelAssets(api)
 
-	_, cmd := m.Update(NewAssetMsg{Account: "My Asset", Currency: "usd"})
+	updated, cmd := m.Update(NewAssetMsg{Account: "My Asset", Currency: "usd"})
 	if cmd == nil {
 		t.Fatal("expected cmd")
+	}
+
+	createdMsg := cmd()
+	if _, ok := createdMsg.(AssetCreatedMsg); !ok {
+		t.Fatalf("expected AssetCreatedMsg, got %T", createdMsg)
+	}
+
+	_, cmd = updated.(modelAssets).Update(createdMsg)
+	if cmd == nil {
+		t.Fatal("expected cmd after AssetCreatedMsg")
 	}
 
 	msgs := collectMsgsFromCmd(cmd)

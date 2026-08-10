@@ -23,6 +23,9 @@ type (
 		Account  string
 		Currency string
 	}
+	AssetCreatedMsg struct {
+		Account string
+	}
 )
 
 type assetItem = accountListItem[firefly.Account]
@@ -78,13 +81,20 @@ func (m modelAssets) Init() tea.Cmd {
 func (m modelAssets) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if newMsg, ok := msg.(NewAssetMsg); ok {
 		api := m.api.(AssetAPI)
-		err := api.CreateAssetAccount(newMsg.Account, newMsg.Currency)
-		if err != nil {
-			return m, notify.NotifyWarn(err.Error())
+		return m, func() tea.Msg {
+			opID := startLoading("Creating asset account...")
+			defer stopLoading(opID)
+			if err := api.CreateAssetAccount(newMsg.Account, newMsg.Currency); err != nil {
+				return notify.NotifyWarn(err.Error())()
+			}
+			return AssetCreatedMsg{Account: newMsg.Account}
 		}
+	}
+
+	if createdMsg, ok := msg.(AssetCreatedMsg); ok {
 		return m, tea.Batch(
 			Cmd(RefreshAssetsMsg{}),
-			notify.NotifyLog(fmt.Sprintf("Asset account '%s' created", newMsg.Account)),
+			notify.NotifyLog(fmt.Sprintf("Asset account '%s' created", createdMsg.Account)),
 		)
 	}
 

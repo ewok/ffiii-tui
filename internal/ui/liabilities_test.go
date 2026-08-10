@@ -270,7 +270,7 @@ func TestNewLiabilityMsg_Success(t *testing.T) {
 	}
 
 	m := newModelLiabilities(api)
-	_, cmd := m.Update(NewLiabilityMsg{
+	updated, cmd := m.Update(NewLiabilityMsg{
 		Account:   "Car Loan",
 		Currency:  "USD",
 		Type:      "loan",
@@ -279,6 +279,11 @@ func TestNewLiabilityMsg_Success(t *testing.T) {
 
 	if cmd == nil {
 		t.Fatal("expected a command, got nil")
+	}
+
+	createdMsg := cmd()
+	if _, ok := createdMsg.(LiabilityCreatedMsg); !ok {
+		t.Fatalf("expected LiabilityCreatedMsg, got %T", createdMsg)
 	}
 
 	if len(api.createLiabilityCalledWith) != 1 {
@@ -297,6 +302,11 @@ func TestNewLiabilityMsg_Success(t *testing.T) {
 	}
 	if nl.Direction != "debit" {
 		t.Errorf("expected direction 'debit', got %q", nl.Direction)
+	}
+
+	_, cmd = updated.(modelLiabilities).Update(createdMsg)
+	if cmd == nil {
+		t.Fatal("expected a command after LiabilityCreatedMsg, got nil")
 	}
 
 	msgs := collectMsgsFromCmd(cmd)
