@@ -379,7 +379,7 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, prompt.Ask(
 				fmt.Sprintf("Are you sure you want to delete the transaction? Type 'yes!' to confirm. Transaction: %s - %s: ", trx.TransactionID, trx.Description()),
-				"no",
+				"",
 				func(value string) tea.Cmd {
 					var cmd tea.Cmd
 					if value == "yes!" {
