@@ -930,6 +930,55 @@ func TestUI_MessageRoutingToSubModels(t *testing.T) {
 	_ = m2
 }
 
+func TestUI_ResetTransactionMsg_PrefillsFilter(t *testing.T) {
+	m := newTestModelUI()
+	m.transactions.currentAccount = firefly.Account{
+		ID:   "acc1",
+		Name: "Filtered Account",
+		Type: "asset",
+	}
+	m.transactions.currentCategory = firefly.Category{
+		ID:   "cat1",
+		Name: "Filtered Category",
+	}
+
+	updated, cmd := m.Update(ResetTransactionMsg{})
+	m2 := updated.(modelUI)
+
+	if cmd == nil {
+		t.Fatal("Expected cmd to be returned")
+	}
+	if len(m2.new.splits) != 1 {
+		t.Fatalf("Expected 1 split, got %d", len(m2.new.splits))
+	}
+	if m2.new.splits[0].source.ID != "acc1" {
+		t.Errorf("Expected source 'acc1' from filter, got %q", m2.new.splits[0].source.ID)
+	}
+	if m2.new.splits[0].category.ID != "cat1" {
+		t.Errorf("Expected category 'cat1' from filter, got %q", m2.new.splits[0].category.ID)
+	}
+	if m2.new.splits[0].destination.ID != "" {
+		t.Errorf("Expected empty destination, got %q", m2.new.splits[0].destination.ID)
+	}
+}
+
+func TestUI_ResetTransactionMsg_NoFilter(t *testing.T) {
+	m := newTestModelUI()
+
+	updated, _ := m.Update(ResetTransactionMsg{})
+	m2 := updated.(modelUI)
+
+	if len(m2.new.splits) != 1 {
+		t.Fatalf("Expected 1 split, got %d", len(m2.new.splits))
+	}
+	if m2.new.splits[0].source.ID != "" {
+		t.Errorf("Expected empty source, got %q", m2.new.splits[0].source.ID)
+	}
+	if m2.new.splits[0].category.ID != "" {
+		t.Errorf("Expected empty category, got %q", m2.new.splits[0].category.ID)
+	}
+}
+
 func TestUI_PromptFocusedBlocksOtherUpdates(t *testing.T) {
 	m := newTestModelUI()
 	m.prompt = prompt.New() // Properly initialize prompt

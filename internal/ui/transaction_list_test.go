@@ -725,6 +725,19 @@ func TestTransactionList_UnfocusedIgnoresKeys(t *testing.T) {
 	}
 }
 
+func TestTransactionList_ContinueEditingKey(t *testing.T) {
+	m := newFocusedTransactionModel(t, []firefly.Transaction{})
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	if cmd == nil {
+		t.Fatal("expected cmd after esc key")
+	}
+	if _, ok := cmd().(ContinueTransactionMsg); !ok {
+		t.Errorf("expected ContinueTransactionMsg, got %T", cmd())
+	}
+}
+
 func TestGetCurrentTransaction_Success(t *testing.T) {
 	tx := newTestTransaction(0, "tx1", "withdrawal", "2024-01-15T10:00:00Z", "Test")
 	m := newFocusedTransactionModel(t, []firefly.Transaction{tx})

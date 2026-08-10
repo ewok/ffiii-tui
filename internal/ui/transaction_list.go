@@ -347,6 +347,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					},
 				},
 			})
+		case key.Matches(msg, m.keymap.ContinueEditing):
+			return m, Cmd(ContinueTransactionMsg{})
 		case key.Matches(msg, m.keymap.NewTransactionFrom):
 			trx, err := m.GetCurrentTransaction()
 			if err != nil {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/prompt"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
@@ -373,7 +374,7 @@ func TestTransaction_NewTransactionMsg(t *testing.T) {
 		}
 	})
 
-	t.Run("second time doesn't call SetTransaction again", func(t *testing.T) {
+	t.Run("with unsaved form prompts to discard", func(t *testing.T) {
 		m := newTestTransactionModel()
 
 		// First call
@@ -389,14 +390,96 @@ func TestTransaction_NewTransactionMsg(t *testing.T) {
 		updated, cmd := m.Update(NewTransactionMsg{Transaction: trx2})
 		m2 := updated.(modelTransaction)
 
-		// Verify the model wasn't updated (groupTitle should still be "Modified")
+		// Form must not be touched before confirmation
 		if m2.attr.groupTitle != "Modified" {
-			t.Error("expected SetTransaction not to be called second time")
+			t.Error("expected SetTransaction not to be called before confirmation")
 		}
 
-		// Still returns batch
+		// Returns a prompt asking to discard
 		if cmd == nil {
 			t.Fatal("expected cmd to be returned")
+		}
+		msg := cmd()
+		promptMsg, ok := msg.(prompt.PromptMsg)
+		if !ok {
+			t.Fatalf("expected prompt.PromptMsg, got %T", msg)
+		}
+
+		// Confirming with "y" emits NewTransactionFromConfirmedMsg with the new transaction
+		confirmCmd := promptMsg.Callback("y")
+		if confirmCmd == nil {
+			t.Fatal("expected cmd from confirm callback")
+		}
+		confirmMsg, ok := confirmCmd().(NewTransactionFromConfirmedMsg)
+		if !ok {
+			t.Fatalf("expected NewTransactionFromConfirmedMsg, got %T", confirmCmd())
+		}
+		if confirmMsg.Transaction.TransactionID != "trx456" {
+			t.Errorf("expected transaction 'trx456', got %s", confirmMsg.Transaction.TransactionID)
+		}
+
+		// Declining returns to transactions view
+		declineCmd := promptMsg.Callback("x")
+		if declineCmd == nil {
+			t.Fatal("expected cmd from decline callback")
+		}
+		declineMsg, ok := declineCmd().(SetFocusedViewMsg)
+		if !ok {
+			t.Fatalf("expected SetFocusedViewMsg, got %T", declineCmd())
+		}
+		if declineMsg.state != transactionsView {
+			t.Errorf("expected transactionsView, got %v", declineMsg.state)
+		}
+	})
+}
+
+func TestTransaction_ContinueTransactionMsg(t *testing.T) {
+	t.Run("with unsaved form re-opens it untouched", func(t *testing.T) {
+		m := newTestTransactionModel()
+		m.SetTransaction(firefly.Transaction{}, true)
+		m.created = true
+		m.attr.groupTitle = "In progress"
+
+		updated, cmd := m.Update(ContinueTransactionMsg{})
+		m2 := updated.(modelTransaction)
+
+		if m2.attr.groupTitle != "In progress" {
+			t.Error("expected form data to be untouched")
+		}
+		if !m2.created {
+			t.Error("expected created to stay true")
+		}
+
+		if cmd == nil {
+			t.Fatal("expected cmd to be returned")
+		}
+		msgs := collectMsgsFromCmd(cmd)
+		if len(msgs) < 2 {
+			t.Fatalf("expected at least 2 messages, got %d", len(msgs))
+		}
+		if _, ok := msgs[0].(RedrawFormMsg); !ok {
+			t.Errorf("expected RedrawFormMsg as first message, got %T", msgs[0])
+		}
+		viewMsg, ok := msgs[1].(SetFocusedViewMsg)
+		if !ok {
+			t.Fatalf("expected SetFocusedViewMsg as second message, got %T", msgs[1])
+		}
+		if viewMsg.state != newView {
+			t.Errorf("expected newView, got %v", viewMsg.state)
+		}
+	})
+
+	t.Run("without unsaved form is a no-op", func(t *testing.T) {
+		m := newTestTransactionModel()
+
+		updated, cmd := m.Update(ContinueTransactionMsg{})
+		m2 := updated.(modelTransaction)
+
+		if m2.created {
+			t.Error("expected created to stay false")
+		}
+		if cmd != nil {
+			t.Errorf("expected nil cmd, got %v", cmd())
 		}
 	})
 }
@@ -488,29 +571,73 @@ func TestTransaction_EditTransactionMsg(t *testing.T) {
 }
 
 func TestTransaction_ResetTransactionMsg(t *testing.T) {
-	m := newTestTransactionModel()
+	t.Run("empty payload resets to blank form", func(t *testing.T) {
+		m := newTestTransactionModel()
 
-	// Set up some state
-	m.attr.groupTitle = "Test"
-	m.created = false
-	m.new = false
+		// Set up some state
+		m.attr.groupTitle = "Test"
+		m.created = false
+		m.new = false
 
-	updated, cmd := m.Update(ResetTransactionMsg{})
-	m2 := updated.(modelTransaction)
+		updated, cmd := m.Update(ResetTransactionMsg{})
+		m2 := updated.(modelTransaction)
 
-	// Marks created=true
-	if !m2.created {
-		t.Error("expected created to be true after ResetTransactionMsg")
-	}
+		// Marks created=true
+		if !m2.created {
+			t.Error("expected created to be true after ResetTransactionMsg")
+		}
 
-	// Returns RedrawForm cmd
-	if cmd == nil {
-		t.Fatal("expected cmd to be returned")
-	}
-	msg := cmd()
-	if _, ok := msg.(RedrawFormMsg); !ok {
-		t.Errorf("expected RedrawFormMsg, got %T", msg)
-	}
+		if len(m2.splits) != 1 {
+			t.Fatalf("expected 1 split, got %d", len(m2.splits))
+		}
+		if m2.splits[0].source.ID != "" {
+			t.Errorf("expected empty source, got %s", m2.splits[0].source.ID)
+		}
+		if m2.splits[0].category.ID != "" {
+			t.Errorf("expected empty category, got %s", m2.splits[0].category.ID)
+		}
+
+		// Returns RedrawForm cmd
+		if cmd == nil {
+			t.Fatal("expected cmd to be returned")
+		}
+		msg := cmd()
+		if _, ok := msg.(RedrawFormMsg); !ok {
+			t.Errorf("expected RedrawFormMsg, got %T", msg)
+		}
+	})
+
+	t.Run("payload prefills source and category", func(t *testing.T) {
+		m := newTestTransactionModel()
+
+		updated, _ := m.Update(ResetTransactionMsg{
+			Transaction: firefly.Transaction{
+				Splits: []firefly.Split{
+					{
+						Source:   testAssetChecking,
+						Category: testCategoryFood,
+					},
+				},
+			},
+		})
+		m2 := updated.(modelTransaction)
+
+		if len(m2.splits) != 1 {
+			t.Fatalf("expected 1 split, got %d", len(m2.splits))
+		}
+		if m2.splits[0].source.ID != testAssetChecking.ID {
+			t.Errorf("expected source %s, got %s", testAssetChecking.ID, m2.splits[0].source.ID)
+		}
+		if m2.splits[0].category.ID != testCategoryFood.ID {
+			t.Errorf("expected category %s, got %s", testCategoryFood.ID, m2.splits[0].category.ID)
+		}
+		if m2.splits[0].destination.ID != "" {
+			t.Errorf("expected empty destination, got %s", m2.splits[0].destination.ID)
+		}
+		if !m2.new {
+			t.Error("expected new to be true after reset")
+		}
+	})
 }
 
 func TestTransaction_DeleteSplitMsg(t *testing.T) {
@@ -918,6 +1045,103 @@ func TestTransaction_SetTransaction_New(t *testing.T) {
 	if !m.new {
 		t.Error("expected new to be true")
 	}
+}
+
+func TestTransaction_LastDate(t *testing.T) {
+	t.Run("new form uses last date when set", func(t *testing.T) {
+		m := newTestTransactionModel()
+		m.lastDate = "2025-03-07"
+
+		m.SetTransaction(firefly.Transaction{}, true)
+
+		if m.attr.year != "2025" || m.attr.month != "03" || m.attr.day != "07" {
+			t.Errorf("expected date 2025-03-07, got %s-%s-%s", m.attr.year, m.attr.month, m.attr.day)
+		}
+	})
+
+	t.Run("new form falls back to today on invalid last date", func(t *testing.T) {
+		m := newTestTransactionModel()
+		m.lastDate = "not-a-date"
+
+		m.SetTransaction(firefly.Transaction{}, true)
+
+		now := time.Now()
+		if m.attr.year != fmt.Sprintf("%d", now.Year()) ||
+			m.attr.month != fmt.Sprintf("%02d", now.Month()) ||
+			m.attr.day != fmt.Sprintf("%02d", now.Day()) {
+			t.Errorf("expected today's date, got %s-%s-%s", m.attr.year, m.attr.month, m.attr.day)
+		}
+	})
+
+	t.Run("edit keeps transaction date despite last date", func(t *testing.T) {
+		m := newTestTransactionModel()
+		m.lastDate = "2025-03-07"
+
+		trx := firefly.Transaction{
+			TransactionID: "trx123",
+			Type:          "withdrawal",
+			Date:          "2026-01-15",
+		}
+		m.SetTransaction(trx, false)
+
+		if m.attr.year != "2026" || m.attr.month != "01" || m.attr.day != "15" {
+			t.Errorf("expected date 2026-01-15, got %s-%s-%s", m.attr.year, m.attr.month, m.attr.day)
+		}
+	})
+
+	t.Run("successful create stores last date", func(t *testing.T) {
+		m := newTestTransactionModel()
+		m.attr.year, m.attr.month, m.attr.day = "2025", "03", "07"
+
+		updated, _ := m.Update(TransactionSaveResultMsg{ID: "1"})
+		m2 := updated.(modelTransaction)
+
+		if m2.lastDate != "2025-03-07" {
+			t.Errorf("expected lastDate '2025-03-07', got %q", m2.lastDate)
+		}
+	})
+
+	t.Run("failed save does not store last date", func(t *testing.T) {
+		m := newTestTransactionModel()
+		m.attr.year, m.attr.month, m.attr.day = "2025", "03", "07"
+
+		updated, _ := m.Update(TransactionSaveResultMsg{Err: errors.New("boom")})
+		m2 := updated.(modelTransaction)
+
+		if m2.lastDate != "" {
+			t.Errorf("expected empty lastDate, got %q", m2.lastDate)
+		}
+	})
+
+	t.Run("successful update does not store last date", func(t *testing.T) {
+		m := newTestTransactionModel()
+		m.attr.year, m.attr.month, m.attr.day = "2025", "03", "07"
+
+		updated, _ := m.Update(TransactionSaveResultMsg{ID: "1", Updated: true})
+		m2 := updated.(modelTransaction)
+
+		if m2.lastDate != "" {
+			t.Errorf("expected empty lastDate, got %q", m2.lastDate)
+		}
+	})
+
+	t.Run("reset sets today and keeps last date", func(t *testing.T) {
+		m := newTestTransactionModel()
+		m.lastDate = "2025-03-07"
+
+		updated, _ := m.Update(ResetTransactionMsg{})
+		m2 := updated.(modelTransaction)
+
+		now := time.Now()
+		if m2.attr.year != fmt.Sprintf("%d", now.Year()) ||
+			m2.attr.month != fmt.Sprintf("%02d", now.Month()) ||
+			m2.attr.day != fmt.Sprintf("%02d", now.Day()) {
+			t.Errorf("expected today's date, got %s-%s-%s", m2.attr.year, m2.attr.month, m2.attr.day)
+		}
+		if m2.lastDate != "2025-03-07" {
+			t.Errorf("expected lastDate to be preserved, got %q", m2.lastDate)
+		}
+	})
 }
 
 func TestTransaction_SetTransaction_Edit(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"ffiii-tui/internal/firefly"
 	"ffiii-tui/internal/ui/notify"
 	"ffiii-tui/internal/ui/period"
 	"ffiii-tui/internal/ui/prompt"
@@ -285,6 +286,19 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.SetState(msg.state)
 		return m, Cmd(UpdatePositions{layout: m.layout})
 
+	case ResetTransactionMsg:
+		var cmd tea.Cmd
+		m.new, cmd = updateModel(m.new, ResetTransactionMsg{
+			Transaction: firefly.Transaction{
+				Splits: []firefly.Split{
+					{
+						Source:   m.transactions.currentAccount,
+						Category: m.transactions.currentCategory,
+					},
+				},
+			},
+		})
+		return m, cmd
 	case ViewFullTransactionViewMsg:
 		viper.Set("ui.full_view", m.layout.ToggleFullTransactionView())
 		return m, Cmd(UpdatePositions{layout: m.layout})

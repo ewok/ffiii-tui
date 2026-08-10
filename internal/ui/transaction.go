@@ -4,8 +4,6 @@ SPDX-License-Identifier: Apache-2.0
 */
 package ui
 
-// TODO: Use last date as input, and key for resetting to today.
-
 import (
 	"errors"
 	"fmt"
@@ -31,13 +29,14 @@ var (
 
 type (
 	RedrawFormMsg                  struct{}
+	ContinueTransactionMsg         struct{}
 	DeleteSplitMsg                 struct{ Index int }
 	NewTransactionMsg              struct{ Transaction firefly.Transaction }
 	NewTransactionFromMsg          struct{ Transaction firefly.Transaction }
 	NewTransactionFromConfirmedMsg struct{ Transaction firefly.Transaction }
 	EditTransactionMsg             struct{ Transaction firefly.Transaction }
 	EditTransactionConfirmedMsg    struct{ Transaction firefly.Transaction }
-	ResetTransactionMsg            struct{}
+	ResetTransactionMsg            struct{ Transaction firefly.Transaction }
 	TransactionSaveResultMsg       struct {
 		ID      string
 		Err     error
@@ -51,8 +50,9 @@ type modelTransaction struct {
 	keymap TransactionFormKeyMap
 	focus  bool
 
-	new     bool
-	created bool
+	new      bool
+	created  bool
+	lastDate string
 
 	splits []*split
 	attr   *transactionAttr
@@ -100,14 +100,33 @@ func (m modelTransaction) Init() tea.Cmd {
 func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case NewTransactionMsg:
-		if !m.created {
-			m.SetTransaction(msg.Transaction, true)
-			m.created = true
+		if m.created {
+			trx := msg.Transaction
+			return m, prompt.Ask(
+				"Unsaved form data will be lost. Discard? (y - yes/ any key - no): ",
+				"",
+				func(value string) tea.Cmd {
+					if value == "y" {
+						return Cmd(NewTransactionFromConfirmedMsg{Transaction: trx})
+					}
+					return SetView(transactionsView)
+				},
+			)
 		}
+		m.SetTransaction(msg.Transaction, true)
+		m.created = true
 		return m, tea.Batch(
 			RedrawForm(),
 			SetView(newView),
 		)
+	case ContinueTransactionMsg:
+		if m.created {
+			return m, tea.Batch(
+				RedrawForm(),
+				SetView(newView),
+			)
+		}
+		return m, nil
 	case NewTransactionFromMsg:
 		if m.created {
 			trx := msg.Transaction
@@ -163,8 +182,11 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			SetView(newView),
 		)
 	case ResetTransactionMsg:
-		trx := firefly.Transaction{}
-		m.SetTransaction(trx, true)
+		m.SetTransaction(msg.Transaction, true)
+		now := time.Now()
+		m.attr.year = fmt.Sprintf("%d", now.Year())
+		m.attr.month = fmt.Sprintf("%02d", now.Month())
+		m.attr.day = fmt.Sprintf("%02d", now.Day())
 		m.created = true
 		return m, RedrawForm()
 	case RedrawFormMsg:
@@ -184,6 +206,8 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		action := "created"
 		if msg.Updated {
 			action = "updated"
+		} else {
+			m.lastDate = fmt.Sprintf("%s-%s-%s", m.attr.year, m.attr.month, m.attr.day)
 		}
 		return m, tea.Batch(
 			SetView(transactionsView),
@@ -210,7 +234,7 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.created {
 				return m, tea.Batch(
 					SetView(transactionsView),
-					notify.NotifyLog("Form saved. Press n to continue editing."),
+					notify.NotifyLog("Form saved. Press esc to continue editing."),
 				)
 			}
 			return m, SetView(transactionsView)
@@ -567,9 +591,13 @@ func (m *modelTransaction) SetTransaction(trx firefly.Transaction, newT bool) {
 		}
 	} else {
 		m.attr.transactionType = "withdrawal"
-		m.attr.year = fmt.Sprintf("%d", now.Year())
-		m.attr.month = fmt.Sprintf("%02d", now.Month())
-		m.attr.day = fmt.Sprintf("%02d", now.Day())
+		if m.lastDate != "" {
+			m.attr.year, m.attr.month, m.attr.day = splitTransactionDate(m.lastDate, now)
+		} else {
+			m.attr.year = fmt.Sprintf("%d", now.Year())
+			m.attr.month = fmt.Sprintf("%02d", now.Month())
+			m.attr.day = fmt.Sprintf("%02d", now.Day())
+		}
 		m.attr.groupTitle = ""
 		source := firefly.Account{}
 		destination := firefly.Account{}

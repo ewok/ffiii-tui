@@ -70,6 +70,7 @@ type TransactionsKeyMap struct {
 	ResetFilter        key.Binding
 	Search             key.Binding
 	NewView            key.Binding
+	ContinueEditing    key.Binding
 	Select             key.Binding
 	NewTransactionFrom key.Binding
 	Delete             key.Binding
@@ -297,6 +298,10 @@ func DefaultTransactionsKeyMap() TransactionsKeyMap {
 			key.WithKeys("N"),
 			key.WithHelp("N", "new transaction from..."),
 		),
+		ContinueEditing: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "continue editing form"),
+		),
 		Select: key.NewBinding(
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "edit current transaction"),
@@ -377,6 +382,7 @@ func (k TransactionsKeyMap) ShortHelp() []key.Binding {
 		k.ResetFilter,
 		k.NewView,
 		k.NewTransactionFrom,
+		k.ContinueEditing,
 		k.Select,
 		k.Delete,
 		k.Refresh,
