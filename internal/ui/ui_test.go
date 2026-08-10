@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ffiii-tui/internal/firefly"
+	"ffiii-tui/internal/ui/notify"
 	"ffiii-tui/internal/ui/period"
 	"ffiii-tui/internal/ui/prompt"
 
@@ -758,7 +759,7 @@ func TestUI_LazyLoadMsg_ResourcesStillLoading_Retry(t *testing.T) {
 	_ = updated
 }
 
-func TestUI_LazyLoadMsg_Timeout_ShowsWarning(t *testing.T) {
+func TestUI_LazyLoadMsg_Timeout_ShowsWarningAndStillRefreshes(t *testing.T) {
 	m := newTestModelUI()
 	m.loadStatus = map[string]bool{
 		"assets":      true,
@@ -774,9 +775,32 @@ func TestUI_LazyLoadMsg_Timeout_ShowsWarning(t *testing.T) {
 		t.Fatal("Expected warning command from LazyLoadMsg")
 	}
 
-	// The command should be a notify.NotifyWarn
-	// We can't easily inspect the notification content in unit tests,
-	// but we verify that a command was returned (the warning)
+	msgs := collectMsgsFromCmd(cmd)
+	foundWarn := false
+	foundRefreshTransactions := false
+	foundRefreshSummary := false
+	for _, msg := range msgs {
+		switch msg := msg.(type) {
+		case notify.NotifyMsg:
+			if msg.Level == notify.Warn {
+				foundWarn = true
+			}
+		case RefreshTransactionsMsg:
+			foundRefreshTransactions = true
+		case RefreshSummaryMsg:
+			foundRefreshSummary = true
+		}
+	}
+
+	if !foundWarn {
+		t.Error("Expected warn notification on lazy load timeout")
+	}
+	if !foundRefreshTransactions {
+		t.Error("Expected RefreshTransactionsMsg on lazy load timeout")
+	}
+	if !foundRefreshSummary {
+		t.Error("Expected RefreshSummaryMsg on lazy load timeout")
+	}
 
 	_ = updated
 }
@@ -925,6 +949,65 @@ func TestUI_PromptFocusedBlocksOtherUpdates(t *testing.T) {
 	m2 := updated.(modelUI)
 	if !m2.prompt.Focused() {
 		t.Error("Expected prompt to remain focused")
+	}
+}
+
+func TestUI_PromptFocusedDoesNotBlockDataMsgs(t *testing.T) {
+	m := newTestModelUI()
+	m.prompt = prompt.New()
+	m.prompt.Focus()
+
+	transactions := []firefly.Transaction{
+		{TransactionID: "t1", GroupTitle: "Groceries"},
+	}
+	updated, _ := m.Update(TransactionsUpdateMsg{Transactions: transactions})
+
+	m2 := updated.(modelUI)
+	if len(m2.transactions.transactions) != 1 {
+		t.Errorf("expected transactions model to receive 1 transaction, got %d",
+			len(m2.transactions.transactions))
+	}
+}
+
+func TestUI_PeriodPickerFocusedDoesNotBlockDataMsgs(t *testing.T) {
+	m := newTestModelUI()
+	m.periodPicker.Focus()
+
+	transactions := []firefly.Transaction{
+		{TransactionID: "t1", GroupTitle: "Groceries"},
+	}
+	updated, _ := m.Update(TransactionsUpdateMsg{Transactions: transactions})
+
+	m2 := updated.(modelUI)
+	if len(m2.transactions.transactions) != 1 {
+		t.Errorf("expected transactions model to receive 1 transaction, got %d",
+			len(m2.transactions.transactions))
+	}
+}
+
+func TestIsDataMsg(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  tea.Msg
+		want bool
+	}{
+		{"transactions update", TransactionsUpdateMsg{}, true},
+		{"assets update", AssetsUpdateMsg{}, true},
+		{"summary update", SummaryUpdateMsg{}, true},
+		{"categories update", CategoriesUpdateMsg{}, true},
+		{"refresh transactions", RefreshTransactionsMsg{}, true},
+		{"data load completed", DataLoadCompletedMsg{DataType: "asset"}, true},
+		{"filter", FilterMsg{}, true},
+		{"key msg", tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}, false},
+		{"window size", tea.WindowSizeMsg{}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isDataMsg(tt.msg); got != tt.want {
+				t.Errorf("isDataMsg(%T) = %v, want %v", tt.msg, got, tt.want)
+			}
+		})
 	}
 }
 

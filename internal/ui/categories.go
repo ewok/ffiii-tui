@@ -112,7 +112,10 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			defer stopLoading(opID)
 			err := m.api.UpdateCategories()
 			if err != nil {
-				return notify.NotifyWarn(err.Error())()
+				return tea.Batch(
+					notify.NotifyWarn(err.Error()),
+					Cmd(DataLoadCompletedMsg{DataType: "categories"}),
+				)()
 			}
 			return CategoriesUpdateMsg{}
 		}

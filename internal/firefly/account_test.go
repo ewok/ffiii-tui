@@ -118,3 +118,92 @@ func TestUpdateAccounts_CashAccountCacheConsistency(t *testing.T) {
 		t.Errorf("expected currency code 'EUR' on cash account from GetAccountByID, got %q", byID.CurrencyCode)
 	}
 }
+
+func TestUpdateAccounts_RemovesStaleAccounts(t *testing.T) {
+	responses := map[string]string{
+		"asset": `{"data":[
+			{"id":"1","attributes":{"active":true,"name":"Checking","currency_code":"EUR","current_balance":"100","type":"asset"}},
+			{"id":"2","attributes":{"active":true,"name":"Savings","currency_code":"EUR","current_balance":"200","type":"asset"}}
+		],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":2}}}`,
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		body, ok := responses[r.URL.Query().Get("type")]
+		if !ok {
+			body = `{"data":[],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":0}}}`
+		}
+		if _, err := fmt.Fprint(w, body); err != nil {
+			t.Errorf("failed to write response body: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	api := newTestApi(t, server.URL)
+
+	if err := api.UpdateAccounts("asset"); err != nil {
+		t.Fatalf("UpdateAccounts(asset) failed: %v", err)
+	}
+	if len(api.AccountsByType("asset")) != 2 {
+		t.Fatalf("expected 2 asset accounts, got %d", len(api.AccountsByType("asset")))
+	}
+
+	responses["asset"] = `{"data":[
+		{"id":"1","attributes":{"active":true,"name":"Checking","currency_code":"EUR","current_balance":"100","type":"asset"}}
+	],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":1}}}`
+
+	if err := api.UpdateAccounts("asset"); err != nil {
+		t.Fatalf("UpdateAccounts(asset) refresh failed: %v", err)
+	}
+
+	assets := api.AccountsByType("asset")
+	if len(assets) != 1 {
+		t.Fatalf("expected 1 asset account after refresh, got %d", len(assets))
+	}
+	if assets[0].ID != "1" {
+		t.Errorf("expected remaining account ID '1', got %q", assets[0].ID)
+	}
+	if balance := api.AccountBalance("2"); balance != 0 {
+		t.Errorf("expected stale account balance to be removed, got %f", balance)
+	}
+}
+
+func TestUpdateAccounts_RemovesEmptiedAccountType(t *testing.T) {
+	responses := map[string]string{
+		"asset": `{"data":[
+			{"id":"1","attributes":{"active":true,"name":"Checking","currency_code":"EUR","current_balance":"100","type":"asset"}}
+		],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":1}}}`,
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		body, ok := responses[r.URL.Query().Get("type")]
+		if !ok {
+			body = `{"data":[],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":0}}}`
+		}
+		if _, err := fmt.Fprint(w, body); err != nil {
+			t.Errorf("failed to write response body: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	api := newTestApi(t, server.URL)
+
+	if err := api.UpdateAccounts("asset"); err != nil {
+		t.Fatalf("UpdateAccounts(asset) failed: %v", err)
+	}
+	if len(api.AccountsByType("asset")) != 1 {
+		t.Fatalf("expected 1 asset account, got %d", len(api.AccountsByType("asset")))
+	}
+
+	responses["asset"] = `{"data":[],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":0}}}`
+
+	if err := api.UpdateAccounts("asset"); err != nil {
+		t.Fatalf("UpdateAccounts(asset) refresh failed: %v", err)
+	}
+
+	if got := len(api.AccountsByType("asset")); got != 0 {
+		t.Errorf("expected 0 asset accounts after all were deleted server-side, got %d", got)
+	}
+	if balance := api.AccountBalance("1"); balance != 0 {
+		t.Errorf("expected removed account balance to be cleared, got %f", balance)
+	}
+}

@@ -7,6 +7,7 @@ package firefly
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	"go.uber.org/zap"
@@ -241,7 +242,20 @@ func (api *Api) UpdateAccounts(accType string) error {
 		}
 	}
 
+	owned := ownedAccountTypeKeys(accType)
+	for key := range accs {
+		if !slices.Contains(owned, key) {
+			owned = append(owned, key)
+		}
+	}
+
 	api.mu.Lock()
+	for _, key := range owned {
+		for _, acc := range api.Accounts[key] {
+			delete(api.accountBalances, acc.ID)
+		}
+		delete(api.Accounts, key)
+	}
 	maps.Copy(api.accountBalances, balances)
 	maps.Copy(api.Accounts, accs)
 	api.mu.Unlock()
@@ -330,6 +344,23 @@ func (api *Api) CashAccount() Account {
 	}
 	zap.S().Error("No asset accounts available to use as cash account")
 	return Account{}
+}
+
+// ownedAccountTypeKeys maps an account fetch query type to the cache keys
+// it is responsible for, so a refresh can replace stale entries even when
+// the fetch returns no accounts of that type.
+func ownedAccountTypeKeys(accType string) []string {
+	switch accType {
+	case "asset":
+		return []string{"asset"}
+	case "expense":
+		return []string{"expense"}
+	case "revenue":
+		return []string{"revenue"}
+	case "liability", "liabilities":
+		return []string{"liabilities", "loan", "debt", "mortgage"}
+	}
+	return nil
 }
 
 // AccountsByType returns the cached accounts for the given type.

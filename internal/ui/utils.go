@@ -24,3 +24,18 @@ func CaseInsensitiveContains(s, substr string) bool {
 	s, substr = strings.ToUpper(s), strings.ToUpper(substr)
 	return strings.Contains(s, substr)
 }
+
+func isDataMsg(msg tea.Msg) bool {
+	switch msg.(type) {
+	case RefreshAssetsMsg, AssetsUpdateMsg,
+		RefreshLiabilitiesMsg, LiabilitiesUpdateMsg,
+		RefreshExpensesMsg, RefreshExpenseInsightsMsg, ExpensesUpdatedMsg,
+		RefreshRevenuesMsg, RefreshRevenueInsightsMsg, RevenuesUpdateMsg,
+		RefreshCategoriesMsg, RefreshCategoryInsightsMsg, CategoriesUpdateMsg,
+		RefreshSummaryMsg, SummaryUpdateMsg,
+		RefreshTransactionsMsg, TransactionsUpdateMsg,
+		FilterMsg, DataLoadCompletedMsg:
+		return true
+	}
+	return false
+}

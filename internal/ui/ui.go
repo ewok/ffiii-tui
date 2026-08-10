@@ -295,7 +295,11 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for _, loaded := range m.loadStatus {
 			if !loaded {
 				if c <= 0 {
-					return m, notify.NotifyWarn("Could not load all resources")
+					return m, tea.Batch(
+						notify.NotifyWarn("Could not load all resources"),
+						Cmd(RefreshTransactionsMsg{}),
+						Cmd(RefreshSummaryMsg{}),
+					)
 				}
 				return m, tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
 					return LazyLoadMsg{t: t, c: c}
@@ -335,14 +339,14 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.prompt, cmd = updateModel(m.prompt, msg)
 	cmds = append(cmds, cmd)
-	if m.prompt.Focused() {
+	if m.prompt.Focused() && !isDataMsg(msg) {
 		return m, tea.Batch(cmds...)
 	}
 
 	periodPickerWasFocused := m.periodPicker.Focused()
 	m.periodPicker, cmd = updateModel(m.periodPicker, msg)
 	cmds = append(cmds, cmd)
-	if periodPickerWasFocused {
+	if periodPickerWasFocused && !isDataMsg(msg) {
 		return m, tea.Batch(cmds...)
 	}
 

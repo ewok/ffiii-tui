@@ -200,22 +200,43 @@ func TestModelAssets_RefreshAssets_Error(t *testing.T) {
 	}
 
 	msgs := collectMsgsFromCmd(cmd)
-	if len(msgs) != 2 {
-		t.Fatalf("expected 2 messages, got %d (%T)", len(msgs), msgs)
-	}
-	notifyMsg, ok := msgs[0].(notify.NotifyMsg)
-	if !ok {
-		t.Fatalf("expected notify.NotifyMsg, got %T", msgs[0])
-	}
-	if notifyMsg.Level != notify.Warn {
-		t.Fatalf("expected warn level, got %v", notifyMsg.Level)
-	}
-	if notifyMsg.Message != expectedErr.Error() {
-		t.Fatalf("expected message %q, got %q", expectedErr.Error(), notifyMsg.Message)
-	}
+	assertRefreshErrorMsgs(t, msgs, expectedErr, "asset")
 
 	if len(api.updateAccountsCalledWith) != 1 || api.updateAccountsCalledWith[0] != "asset" {
 		t.Fatalf("expected UpdateAccounts called with 'asset', got %v", api.updateAccountsCalledWith)
+	}
+}
+
+func assertRefreshErrorMsgs(t *testing.T, msgs []tea.Msg, expectedErr error, dataType string) {
+	t.Helper()
+
+	var notifyMsg notify.NotifyMsg
+	foundNotify := false
+	foundDataLoadCompleted := false
+	for _, msg := range msgs {
+		switch msg := msg.(type) {
+		case notify.NotifyMsg:
+			notifyMsg = msg
+			foundNotify = true
+		case DataLoadCompletedMsg:
+			if msg.DataType != dataType {
+				t.Errorf("expected DataLoadCompletedMsg DataType %q, got %q", dataType, msg.DataType)
+			}
+			foundDataLoadCompleted = true
+		}
+	}
+
+	if !foundNotify {
+		t.Fatalf("expected notify.NotifyMsg in messages, got %v", msgs)
+	}
+	if notifyMsg.Level != notify.Warn {
+		t.Errorf("expected warn level, got %v", notifyMsg.Level)
+	}
+	if notifyMsg.Message != expectedErr.Error() {
+		t.Errorf("expected message %q, got %q", expectedErr.Error(), notifyMsg.Message)
+	}
+	if !foundDataLoadCompleted {
+		t.Errorf("expected DataLoadCompletedMsg in messages, got %v", msgs)
 	}
 }
 
