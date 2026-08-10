@@ -139,8 +139,8 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.layout != nil {
 			h, v := m.styles.Base.GetFrameSize()
 			m.list.SetSize(
-				msg.layout.Width-h,
-				msg.layout.Height-v-msg.layout.TopSize-msg.layout.TabBarSize,
+				max(1, msg.layout.Width-h),
+				max(1, msg.layout.Height-v-msg.layout.TopSize-msg.layout.TabBarSize),
 			)
 		}
 		m.list.FilterInput.Width = 20

@@ -83,7 +83,7 @@ func (m AccountListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				height = msg.layout.Height - v - msg.layout.TopSize - msg.layout.TabBarSize
 			}
-			m.list.SetSize(msg.layout.Width-h, height)
+			m.list.SetSize(max(1, msg.layout.Width-h), max(1, height))
 		}
 		m.list.FilterInput.Width = 20
 		return m, nil
