@@ -14,19 +14,24 @@ import (
 
 func newTestAccountsServer(t *testing.T) *httptest.Server {
 	t.Helper()
+	writeBody := func(w http.ResponseWriter, body string) {
+		if _, err := fmt.Fprint(w, body); err != nil {
+			t.Errorf("failed to write response body: %v", err)
+		}
+	}
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.HasPrefix(r.URL.Path, "/insight/"):
-			fmt.Fprint(w, `[]`)
+			writeBody(w, `[]`)
 		case r.URL.Path == "/accounts":
 			switch r.URL.Query().Get("type") {
 			case "special":
-				fmt.Fprint(w, `{"data":[{"id":"42","attributes":{"active":true,"name":"Cash account","currency_code":"EUR","current_balance":"0","type":"cash"}}],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":1}}}`)
+				writeBody(w, `{"data":[{"id":"42","attributes":{"active":true,"name":"Cash account","currency_code":"EUR","current_balance":"0","type":"cash"}}],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":1}}}`)
 			case "expense":
-				fmt.Fprint(w, `{"data":[{"id":"7","attributes":{"active":true,"name":"Groceries","currency_code":"EUR","current_balance":"0","type":"expense"}}],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":1}}}`)
+				writeBody(w, `{"data":[{"id":"7","attributes":{"active":true,"name":"Groceries","currency_code":"EUR","current_balance":"0","type":"expense"}}],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":1}}}`)
 			default:
-				fmt.Fprint(w, `{"data":[],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":0}}}`)
+				writeBody(w, `{"data":[],"meta":{"pagination":{"current_page":1,"total_pages":1,"total":0}}}`)
 			}
 		default:
 			http.NotFound(w, r)
