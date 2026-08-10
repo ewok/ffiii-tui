@@ -340,7 +340,7 @@ func (m *modelTransaction) UpdateForm() {
 					switch s.source.Type {
 					case "asset", "liabilities":
 						return title + s.source.CurrencyCode
-					case "revenue":
+					case "revenue", "cash":
 						return title + s.destination.CurrencyCode
 					}
 					return title
@@ -619,9 +619,9 @@ func deriveTransactionType(source, destination firefly.Account) string {
 		return "withdrawal"
 	case stx == "asset" && dtx == "asset":
 		return "transfer"
-	case stx == "revenue":
+	case stx == "revenue" || stx == "cash":
 		return "deposit"
-	case stx == "liabilities" && dtx == "expense":
+	case stx == "liabilities" && (dtx == "expense" || dtx == "cash"):
 		return "withdrawal"
 	case stx == "liabilities" && dtx == "asset":
 		return "deposit"
@@ -677,6 +677,9 @@ func (m *modelTransaction) trxSourceOptions(i int, s *split) (func() []huh.Optio
 				for _, account := range m.api.AccountsByType("liabilities") {
 					options = append(options, huh.NewOption(account.Name, account))
 				}
+				for _, account := range m.api.AccountsByType("cash") {
+					options = append(options, huh.NewOption(account.Name, account))
+				}
 			}
 			return options
 		}, bindings
@@ -691,6 +694,9 @@ func (m *modelTransaction) trxSourceOptions(i int, s *split) (func() []huh.Optio
 			options = append(options, huh.NewOption(account.Name, account))
 		}
 		for _, account := range m.api.AccountsByType("liabilities") {
+			options = append(options, huh.NewOption(account.Name, account))
+		}
+		for _, account := range m.api.AccountsByType("cash") {
 			options = append(options, huh.NewOption(account.Name, account))
 		}
 		return options
@@ -717,7 +723,7 @@ func (m *modelTransaction) trxDestinationOptions(i int, s *split) (func() []huh.
 					for _, account := range m.api.AccountsByType("liabilities") {
 						options = append(options, huh.NewOption(account.Name, account))
 					}
-				case "revenue":
+				case "revenue", "cash":
 					for _, account := range m.api.AccountsByType("asset") {
 						options = append(options, huh.NewOption(account.Name, account))
 					}
@@ -750,7 +756,7 @@ func (m *modelTransaction) trxDestinationOptions(i int, s *split) (func() []huh.
 			for _, account := range m.api.AccountsByType("liabilities") {
 				options = append(options, huh.NewOption(account.Name, account))
 			}
-		case "revenue":
+		case "revenue", "cash":
 			for _, account := range m.api.AccountsByType("asset") {
 				options = append(options, huh.NewOption(account.Name, account))
 			}
@@ -804,7 +810,7 @@ func (s *split) CurrencyCode() string {
 	switch s.source.Type {
 	case "asset", "liabilities":
 		return s.source.CurrencyCode
-	case "revenue":
+	case "revenue", "cash":
 		return s.destination.CurrencyCode
 	}
 	return ""
