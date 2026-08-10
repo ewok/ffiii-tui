@@ -23,6 +23,9 @@ type (
 	NewExpenseMsg             struct {
 		Account string
 	}
+	ExpenseCreatedMsg struct {
+		Account string
+	}
 )
 
 type expenseItem = accountListItem[firefly.Account]
@@ -80,13 +83,20 @@ func (m modelExpenses) Init() tea.Cmd {
 func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if newMsg, ok := msg.(NewExpenseMsg); ok {
 		api := m.api.(ExpenseAPI)
-		err := api.CreateExpenseAccount(newMsg.Account)
-		if err != nil {
-			return m, notify.NotifyWarn(err.Error())
+		return m, func() tea.Msg {
+			opID := startLoading("Creating expense account...")
+			defer stopLoading(opID)
+			if err := api.CreateExpenseAccount(newMsg.Account); err != nil {
+				return notify.NotifyWarn(err.Error())()
+			}
+			return ExpenseCreatedMsg(newMsg)
 		}
+	}
+
+	if createdMsg, ok := msg.(ExpenseCreatedMsg); ok {
 		return m, tea.Batch(
 			Cmd(RefreshExpensesMsg{}),
-			notify.NotifyLog(fmt.Sprintf("Expense account '%s' created", newMsg.Account)),
+			notify.NotifyLog(fmt.Sprintf("Expense account '%s' created", createdMsg.Account)),
 		)
 	}
 

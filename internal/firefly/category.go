@@ -52,35 +52,38 @@ func (api *Api) CreateCategory(name, notes string) error {
 }
 
 func (api *Api) UpdateCategoriesInsights() error {
-	// TODO: Need error reporting
 	insights := make(map[string]categoryInsight)
 
 	spentInsights, err := api.GetInsights("expense/category")
-	if err == nil {
-		for _, item := range spentInsights {
-			insights[item.ID] = categoryInsight{
-				Spent:  (-1) * item.DifferenceFloat,
-				Earned: 0,
-			}
+	if err != nil {
+		return fmt.Errorf("failed to fetch category expense insights: %w", err)
+	}
+	for _, item := range spentInsights {
+		insights[item.ID] = categoryInsight{
+			Spent:  (-1) * item.DifferenceFloat,
+			Earned: 0,
 		}
 	}
 
 	earnedInsights, err := api.GetInsights("income/category")
-	if err == nil {
-		for _, item := range earnedInsights {
-			if val, ok := insights[item.ID]; ok {
-				val.Earned = item.DifferenceFloat
-				insights[item.ID] = val
-			} else {
-				insights[item.ID] = categoryInsight{
-					Spent:  0,
-					Earned: item.DifferenceFloat,
-				}
+	if err != nil {
+		return fmt.Errorf("failed to fetch category income insights: %w", err)
+	}
+	for _, item := range earnedInsights {
+		if val, ok := insights[item.ID]; ok {
+			val.Earned = item.DifferenceFloat
+			insights[item.ID] = val
+		} else {
+			insights[item.ID] = categoryInsight{
+				Spent:  0,
+				Earned: item.DifferenceFloat,
 			}
 		}
 	}
 
+	api.mu.Lock()
 	api.categoryInsights = insights
+	api.mu.Unlock()
 
 	return nil
 }
@@ -90,7 +93,10 @@ func (api *Api) UpdateCategories() error {
 	if err != nil {
 		return err
 	}
+
+	api.mu.Lock()
 	api.Categories = categories
+	api.mu.Unlock()
 
 	err = api.UpdateCategoriesInsights()
 	if err != nil {
@@ -103,12 +109,12 @@ func (api *Api) UpdateCategories() error {
 func (api *Api) ListCategories() ([]Category, error) {
 	allData, err := api.fetchPaginated("%s/categories?page=%d", api.Config.ApiUrl)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch paginated categories: %v", err)
+		return nil, fmt.Errorf("failed to fetch paginated categories: %w", err)
 	}
 
 	cats, err := unmarshalItems[apiCategory](allData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal categories: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal categories: %w", err)
 	}
 
 	categories := []Category{}
@@ -125,6 +131,8 @@ func (api *Api) ListCategories() ([]Category, error) {
 }
 
 func (api *Api) GetCategoryByName(name string) Category {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	for _, category := range api.Categories {
 		if category.Name == name {
 			return category
@@ -134,6 +142,8 @@ func (api *Api) GetCategoryByName(name string) Category {
 }
 
 func (api *Api) GetCategoryByID(ID string) Category {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	for _, category := range api.Categories {
 		if category.ID == ID {
 			return category
@@ -145,11 +155,15 @@ func (api *Api) GetCategoryByID(ID string) Category {
 // CategoriesList returns the cached categories.
 // It returns a copy of the slice to avoid accidental mutation by callers.
 func (api *Api) CategoriesList() []Category {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	return append([]Category(nil), api.Categories...)
 }
 
 // CategorySpent returns the cached spent amount for a category.
 func (api *Api) CategorySpent(categoryID string) float64 {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	if insight, ok := api.categoryInsights[categoryID]; ok {
 		return insight.Spent
 	}
@@ -158,6 +172,8 @@ func (api *Api) CategorySpent(categoryID string) float64 {
 
 // CategoryEarned returns the cached earned amount for a category.
 func (api *Api) CategoryEarned(categoryID string) float64 {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	if insight, ok := api.categoryInsights[categoryID]; ok {
 		return insight.Earned
 	}
@@ -173,6 +189,8 @@ func (c *Category) GetEarned(api *Api) float64 {
 }
 
 func (api *Api) GetTotalSpentEarnedCategories() (spent, earned float64) {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	for _, insight := range api.categoryInsights {
 		spent += insight.Spent
 		earned += insight.Earned

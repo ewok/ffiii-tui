@@ -331,9 +331,19 @@ func TestModelExpenses_NewExpense_Success(t *testing.T) {
 	}
 	m := newModelExpenses(api)
 
-	_, cmd := m.Update(NewExpenseMsg{Account: "New Expense"})
+	updated, cmd := m.Update(NewExpenseMsg{Account: "New Expense"})
 	if cmd == nil {
 		t.Fatal("expected cmd")
+	}
+
+	createdMsg := cmd()
+	if _, ok := createdMsg.(ExpenseCreatedMsg); !ok {
+		t.Fatalf("expected ExpenseCreatedMsg, got %T", createdMsg)
+	}
+
+	_, cmd = updated.(modelExpenses).Update(createdMsg)
+	if cmd == nil {
+		t.Fatal("expected cmd after ExpenseCreatedMsg")
 	}
 
 	msgs := collectMsgsFromCmd(cmd)

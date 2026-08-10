@@ -341,10 +341,19 @@ func TestDeleteTransactionMsg_Success(t *testing.T) {
 	m := NewModelTransactions(api)
 	(&m).Focus()
 
-	_, cmd := m.Update(DeleteTransactionMsg{Transaction: tx})
+	updated, cmd := m.Update(DeleteTransactionMsg{Transaction: tx})
 
 	if cmd == nil {
 		t.Fatal("expected a command, got nil")
+	}
+
+	resultMsg := cmd()
+	deleteResult, ok := resultMsg.(TransactionDeleteResultMsg)
+	if !ok {
+		t.Fatalf("expected TransactionDeleteResultMsg, got %T", resultMsg)
+	}
+	if deleteResult.Err != nil {
+		t.Fatalf("expected no error, got %v", deleteResult.Err)
 	}
 
 	if len(api.deleteTransactionCalledWith) != 1 {
@@ -352,6 +361,11 @@ func TestDeleteTransactionMsg_Success(t *testing.T) {
 	}
 	if api.deleteTransactionCalledWith[0] != "tx-to-delete" {
 		t.Errorf("expected transaction ID 'tx-to-delete', got %q", api.deleteTransactionCalledWith[0])
+	}
+
+	_, cmd = updated.(modelTransactions).Update(resultMsg)
+	if cmd == nil {
+		t.Fatal("expected a command after TransactionDeleteResultMsg, got nil")
 	}
 
 	msgs := collectMsgsFromCmd(cmd)
@@ -385,10 +399,24 @@ func TestDeleteTransactionMsg_Error(t *testing.T) {
 	m := NewModelTransactions(api)
 	(&m).Focus()
 
-	_, cmd := m.Update(DeleteTransactionMsg{Transaction: tx})
+	updated, cmd := m.Update(DeleteTransactionMsg{Transaction: tx})
 
 	if cmd == nil {
 		t.Fatal("expected a command, got nil")
+	}
+
+	resultMsg := cmd()
+	deleteResult, ok := resultMsg.(TransactionDeleteResultMsg)
+	if !ok {
+		t.Fatalf("expected TransactionDeleteResultMsg, got %T", resultMsg)
+	}
+	if deleteResult.Err == nil {
+		t.Fatal("expected error in TransactionDeleteResultMsg")
+	}
+
+	_, cmd = updated.(modelTransactions).Update(resultMsg)
+	if cmd == nil {
+		t.Fatal("expected a command after TransactionDeleteResultMsg, got nil")
 	}
 
 	msgs := collectMsgsFromCmd(cmd)

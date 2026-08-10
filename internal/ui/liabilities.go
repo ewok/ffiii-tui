@@ -28,6 +28,9 @@ type (
 		Type      string
 		Direction string
 	}
+	LiabilityCreatedMsg struct {
+		Account string
+	}
 )
 
 type liabilityItem = accountListItem[firefly.Account]
@@ -82,21 +85,29 @@ func (m modelLiabilities) Init() tea.Cmd {
 func (m modelLiabilities) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if newMsg, ok := msg.(NewLiabilityMsg); ok {
 		api := m.api.(LiabilityAPI)
-		err := api.CreateLiabilityAccount(
-			firefly.NewLiability{
-				Name:         newMsg.Account,
-				CurrencyCode: newMsg.Currency,
-				Type:         newMsg.Type,
-				Direction:    newMsg.Direction,
-			})
-		if err != nil {
-			return m, notify.NotifyWarn(err.Error())
+		return m, func() tea.Msg {
+			opID := startLoading("Creating liability account...")
+			defer stopLoading(opID)
+			err := api.CreateLiabilityAccount(
+				firefly.NewLiability{
+					Name:         newMsg.Account,
+					CurrencyCode: newMsg.Currency,
+					Type:         newMsg.Type,
+					Direction:    newMsg.Direction,
+				})
+			if err != nil {
+				return notify.NotifyWarn(err.Error())()
+			}
+			return LiabilityCreatedMsg{Account: newMsg.Account}
 		}
-		// Reset prompt on accaunt creation
+	}
+
+	if createdMsg, ok := msg.(LiabilityCreatedMsg); ok {
+		// Reset prompt on account creation
 		promptValue = ""
 		return m, tea.Batch(
 			Cmd(RefreshLiabilitiesMsg{}),
-			notify.NotifyLog(fmt.Sprintf("Liability account '%s' created", newMsg.Account)),
+			notify.NotifyLog(fmt.Sprintf("Liability account '%s' created", createdMsg.Account)),
 		)
 	}
 	updated, cmd := m.AccountListModel.Update(msg)

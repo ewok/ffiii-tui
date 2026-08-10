@@ -331,9 +331,19 @@ func TestModelRevenues_NewRevenue_Success(t *testing.T) {
 	}
 	m := newModelRevenues(api)
 
-	_, cmd := m.Update(NewRevenueMsg{Account: "New Revenue"})
+	updated, cmd := m.Update(NewRevenueMsg{Account: "New Revenue"})
 	if cmd == nil {
 		t.Fatal("expected cmd")
+	}
+
+	createdMsg := cmd()
+	if _, ok := createdMsg.(RevenueCreatedMsg); !ok {
+		t.Fatalf("expected RevenueCreatedMsg, got %T", createdMsg)
+	}
+
+	_, cmd = updated.(modelRevenues).Update(createdMsg)
+	if cmd == nil {
+		t.Fatal("expected cmd after RevenueCreatedMsg")
 	}
 
 	msgs := collectMsgsFromCmd(cmd)

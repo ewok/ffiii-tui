@@ -38,6 +38,11 @@ type (
 	EditTransactionMsg             struct{ Transaction firefly.Transaction }
 	EditTransactionConfirmedMsg    struct{ Transaction firefly.Transaction }
 	ResetTransactionMsg            struct{}
+	TransactionSaveResultMsg       struct {
+		ID      string
+		Err     error
+		Updated bool
+	}
 )
 
 type modelTransaction struct {
@@ -69,8 +74,6 @@ type transactionAttr struct {
 	month           string
 	day             string
 	transactionType string
-	source          firefly.Account
-	destination     firefly.Account
 	groupTitle      string
 
 	trxID string // For editing existing transactions
@@ -169,6 +172,29 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.WindowSize()
 	case DeleteSplitMsg:
 		return m, m.DeleteSplit(msg.Index)
+	case TransactionSaveResultMsg:
+		if msg.Err != nil {
+			return m, tea.Sequence(
+				notify.NotifyError(msg.Err.Error()),
+				SetView(transactionsView))
+		}
+
+		m.created = false
+
+		action := "created"
+		if msg.Updated {
+			action = "updated"
+		}
+		return m, tea.Batch(
+			SetView(transactionsView),
+			notify.NotifyLog(fmt.Sprintf("Transaction %s successfully", action)),
+			Cmd(RefreshAssetsMsg{}),
+			Cmd(RefreshLiabilitiesMsg{}),
+			Cmd(RefreshSummaryMsg{}),
+			Cmd(RefreshTransactionsMsg{TrxID: msg.ID}),
+			Cmd(RefreshExpenseInsightsMsg{}),
+			Cmd(RefreshRevenueInsightsMsg{}),
+			Cmd(RefreshCategoryInsightsMsg{}))
 	}
 
 	if !m.focus {
@@ -435,61 +461,28 @@ func (m *modelTransaction) DeleteSplit(index int) tea.Cmd {
 	return tea.Sequence(notify.NotifyWarn("Invalid split index"), SetView(newView))
 }
 
-func (m *modelTransaction) CreateTransaction() tea.Cmd {
-	opID := startLoading("Creating transaction...")
-	defer stopLoading(opID)
+func (m *modelTransaction) buildRequestSplits() []firefly.RequestTransactionSplit {
+	ttype := m.transactionType()
+	date := fmt.Sprintf("%s-%s-%s", m.attr.year, m.attr.month, m.attr.day)
+	first := m.firstSplit()
+
 	trx := []firefly.RequestTransactionSplit{}
-	for _, s := range m.splits {
-		trx = append(trx, firefly.RequestTransactionSplit{
-			Type:                m.attr.transactionType,
-			Date:                fmt.Sprintf("%s-%s-%s", m.attr.year, m.attr.month, m.attr.day),
-			SourceID:            s.source.ID,
-			DestinationID:       s.destination.ID,
-			CategoryID:          s.category.ID,
-			CurrencyCode:        s.CurrencyCode(),
-			ForeignCurrencyCode: s.ForeignCurrencyCode(),
-			Amount:              s.amount,
-			ForeignAmount:       s.foreignAmount,
-			Description:         s.Description(),
-		})
-	}
-
-	id, err := m.api.CreateTransaction(firefly.RequestTransaction{
-		ApplyRules:           true,
-		ErrorIfDuplicateHash: false,
-		FireWebhooks:         true,
-		GroupTitle:           m.GroupTitle(),
-		Transactions:         trx,
-	})
-	if err != nil {
-		return tea.Sequence(
-			notify.NotifyError(err.Error()),
-			SetView(transactionsView))
-	}
-
-	m.created = false
-
-	return tea.Batch(
-		SetView(transactionsView),
-		notify.NotifyLog("Transaction created successfully"),
-		Cmd(RefreshAssetsMsg{}),
-		Cmd(RefreshLiabilitiesMsg{}),
-		Cmd(RefreshSummaryMsg{}),
-		Cmd(RefreshTransactionsMsg{TrxID: id}),
-		Cmd(RefreshExpenseInsightsMsg{}),
-		Cmd(RefreshRevenueInsightsMsg{}),
-		Cmd(RefreshCategoryInsightsMsg{}))
-}
-
-func (m *modelTransaction) UpdateTransaction() tea.Cmd {
-	opID := startLoading("Updating transaction...")
-	defer stopLoading(opID)
-	trx := []firefly.RequestTransactionSplit{}
-	for _, s := range m.splits {
+	for i, s := range m.splits {
+		if i > 0 {
+			switch ttype {
+			case "withdrawal":
+				s.source = first.source
+			case "deposit":
+				s.destination = first.destination
+			case "transfer":
+				s.source = first.source
+				s.destination = first.destination
+			}
+		}
 		trx = append(trx, firefly.RequestTransactionSplit{
 			TransactionJournalID: s.trxJID,
-			Type:                 m.attr.transactionType,
-			Date:                 fmt.Sprintf("%s-%s-%s", m.attr.year, m.attr.month, m.attr.day),
+			Type:                 ttype,
+			Date:                 date,
 			SourceID:             s.source.ID,
 			DestinationID:        s.destination.ID,
 			CategoryID:           s.category.ID,
@@ -500,31 +493,43 @@ func (m *modelTransaction) UpdateTransaction() tea.Cmd {
 			Description:          s.Description(),
 		})
 	}
+	return trx
+}
 
-	id, err := m.api.UpdateTransaction(m.attr.trxID, firefly.RequestTransaction{
+func (m *modelTransaction) CreateTransaction() tea.Cmd {
+	req := firefly.RequestTransaction{
+		ApplyRules:           true,
+		ErrorIfDuplicateHash: false,
+		FireWebhooks:         true,
+		GroupTitle:           m.GroupTitle(),
+		Transactions:         m.buildRequestSplits(),
+	}
+
+	api := m.api
+	return func() tea.Msg {
+		opID := startLoading("Creating transaction...")
+		defer stopLoading(opID)
+		id, err := api.CreateTransaction(req)
+		return TransactionSaveResultMsg{ID: id, Err: err}
+	}
+}
+
+func (m *modelTransaction) UpdateTransaction() tea.Cmd {
+	req := firefly.RequestTransaction{
 		ApplyRules:   true,
 		FireWebhooks: true,
 		GroupTitle:   m.GroupTitle(),
-		Transactions: trx,
-	})
-	if err != nil {
-		return tea.Sequence(
-			notify.NotifyError(err.Error()),
-			SetView(transactionsView))
+		Transactions: m.buildRequestSplits(),
 	}
 
-	m.created = false
-
-	return tea.Batch(
-		SetView(transactionsView),
-		notify.NotifyLog("Transaction updated successfully"),
-		Cmd(RefreshAssetsMsg{}),
-		Cmd(RefreshLiabilitiesMsg{}),
-		Cmd(RefreshSummaryMsg{}),
-		Cmd(RefreshTransactionsMsg{TrxID: id}),
-		Cmd(RefreshExpenseInsightsMsg{}),
-		Cmd(RefreshRevenueInsightsMsg{}),
-		Cmd(RefreshCategoryInsightsMsg{}))
+	api := m.api
+	trxID := m.attr.trxID
+	return func() tea.Msg {
+		opID := startLoading("Updating transaction...")
+		defer stopLoading(opID)
+		id, err := api.UpdateTransaction(trxID, req)
+		return TransactionSaveResultMsg{ID: id, Err: err, Updated: true}
+	}
 }
 
 func (m *modelTransaction) SetTransaction(trx firefly.Transaction, newT bool) {
@@ -536,9 +541,7 @@ func (m *modelTransaction) SetTransaction(trx firefly.Transaction, newT bool) {
 
 	if trx.TransactionID != "" {
 		m.attr.transactionType = trx.Type
-		m.attr.year = trx.Date[0:4]
-		m.attr.month = trx.Date[5:7]
-		m.attr.day = trx.Date[8:10]
+		m.attr.year, m.attr.month, m.attr.day = splitTransactionDate(trx.Date, now)
 		m.attr.groupTitle = trx.GroupTitle
 		m.attr.trxID = trx.TransactionID
 
@@ -595,36 +598,61 @@ func RedrawForm() tea.Cmd {
 	return Cmd(RedrawFormMsg{})
 }
 
+func splitTransactionDate(date string, fallback time.Time) (year, month, day string) {
+	t, err := time.Parse(time.RFC3339, date)
+	if err != nil {
+		t, err = time.Parse("2006-01-02", date)
+	}
+	if err != nil {
+		zap.S().Warnf("Failed to parse transaction date %q, using current date: %v", date, err)
+		t = fallback
+	}
+	return fmt.Sprintf("%d", t.Year()), fmt.Sprintf("%02d", t.Month()), fmt.Sprintf("%02d", t.Day())
+}
+
+func deriveTransactionType(source, destination firefly.Account) string {
+	stx := source.Type
+	dtx := destination.Type
+
+	switch {
+	case stx == "asset" && (dtx == "expense" || dtx == "liabilities" || dtx == "cash"):
+		return "withdrawal"
+	case stx == "asset" && dtx == "asset":
+		return "transfer"
+	case stx == "revenue":
+		return "deposit"
+	case stx == "liabilities" && dtx == "expense":
+		return "withdrawal"
+	case stx == "liabilities" && dtx == "asset":
+		return "deposit"
+	case stx == "liabilities" && dtx == "liabilities":
+		return "transfer"
+	default:
+		return "unknown"
+	}
+}
+
+func (m *modelTransaction) firstSplit() *split {
+	if len(m.splits) > 0 {
+		return m.splits[0]
+	}
+	return &split{}
+}
+
+func (m *modelTransaction) transactionType() string {
+	if len(m.splits) > 0 {
+		return deriveTransactionType(m.splits[0].source, m.splits[0].destination)
+	}
+	return m.attr.transactionType
+}
+
 // Helpers
 func (m *modelTransaction) trxTitle(i int, s *split) (func() string, any) {
 	bindings := []any{&s.source, &s.destination}
 
 	if i == 0 {
 		return func() string {
-			m.attr.source = s.source
-			m.attr.destination = s.destination
-
-			stx := s.source.Type
-			dtx := s.destination.Type
-			m.attr.transactionType = ""
-
-			switch {
-			case stx == "asset" && (dtx == "expense" || dtx == "liabilities" || dtx == "cash"):
-				m.attr.transactionType = "withdrawal"
-			case stx == "asset" && dtx == "asset":
-				m.attr.transactionType = "transfer"
-			case stx == "revenue":
-				m.attr.transactionType = "deposit"
-			case stx == "liabilities" && dtx == "expense":
-				m.attr.transactionType = "withdrawal"
-			case stx == "liabilities" && dtx == "asset":
-				m.attr.transactionType = "deposit"
-			case stx == "liabilities" && dtx == "liabilities":
-				m.attr.transactionType = "transfer"
-			default:
-				m.attr.transactionType = "unknown"
-			}
-			return fmt.Sprintf("Current Type: %s", m.attr.transactionType)
+			return fmt.Sprintf("Current Type: %s", deriveTransactionType(s.source, s.destination))
 		}, bindings
 	}
 
@@ -635,12 +663,13 @@ func (m *modelTransaction) trxSourceOptions(i int, s *split) (func() []huh.Optio
 	bindings := []any{&triggerSourceCounter}
 
 	if i > 0 {
-		bindings = append(bindings, &m.attr.source)
+		first := m.firstSplit()
+		bindings = append(bindings, &first.source, &first.destination)
 		return func() []huh.Option[firefly.Account] {
 			options := []huh.Option[firefly.Account]{}
-			if m.attr.transactionType == "withdrawal" || m.attr.transactionType == "transfer" {
-				options = append(options, huh.NewOption(m.attr.source.Name, m.attr.source))
-				s.source = m.attr.source
+			ttype := deriveTransactionType(first.source, first.destination)
+			if ttype == "withdrawal" || ttype == "transfer" {
+				options = append(options, huh.NewOption(first.source.Name, first.source))
 			} else {
 				for _, account := range m.api.AccountsByType("revenue") {
 					options = append(options, huh.NewOption(account.Name, account))
@@ -672,12 +701,13 @@ func (m *modelTransaction) trxDestinationOptions(i int, s *split) (func() []huh.
 	bindings := []any{&s.source.Type, &triggerDestinationCounter}
 
 	if i > 0 {
-		bindings = append(bindings, &m.attr.destination)
+		first := m.firstSplit()
+		bindings = append(bindings, &first.source, &first.destination)
 		return func() []huh.Option[firefly.Account] {
 			options := []huh.Option[firefly.Account]{}
-			if m.attr.transactionType == "deposit" || m.attr.transactionType == "transfer" {
-				options = append(options, huh.NewOption(m.attr.destination.Name, m.attr.destination))
-				s.destination = m.attr.destination
+			ttype := deriveTransactionType(first.source, first.destination)
+			if ttype == "deposit" || ttype == "transfer" {
+				options = append(options, huh.NewOption(first.destination.Name, first.destination))
 			} else {
 				switch s.source.Type {
 				case "asset":
@@ -747,16 +777,18 @@ func (m *modelTransaction) GroupTitle() string {
 		if m.attr.groupTitle != "" {
 			return m.attr.groupTitle
 		}
+		first := m.firstSplit()
+		ttype := m.transactionType()
 		acc := ""
-		switch m.attr.transactionType {
+		switch ttype {
 		case "withdrawal":
-			acc = m.attr.source.Name
+			acc = first.source.Name
 		case "deposit":
-			acc = m.attr.destination.Name
+			acc = first.destination.Name
 		case "transfer":
-			acc = fmt.Sprintf("%s -> %s", m.attr.source.Name, m.attr.destination.Name)
+			acc = fmt.Sprintf("%s -> %s", first.source.Name, first.destination.Name)
 		}
-		return fmt.Sprintf("%s, splits: %d, %s", m.attr.transactionType, len(m.splits), acc)
+		return fmt.Sprintf("%s, splits: %d, %s", ttype, len(m.splits), acc)
 	}
 	return ""
 }

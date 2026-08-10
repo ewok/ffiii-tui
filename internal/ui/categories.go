@@ -26,6 +26,9 @@ type (
 	NewCategoryMsg             struct {
 		Category string
 	}
+	CategoryCreatedMsg struct {
+		Category string
+	}
 )
 
 type categoryItem struct {
@@ -119,12 +122,15 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Cmd(DataLoadCompletedMsg{DataType: "categories"}),
 		)
 	case NewCategoryMsg:
-		opID := startLoading("Creating category...")
-		defer stopLoading(opID)
-		err := m.api.CreateCategory(msg.Category, "")
-		if err != nil {
-			return m, notify.NotifyWarn(err.Error())
+		return m, func() tea.Msg {
+			opID := startLoading("Creating category...")
+			defer stopLoading(opID)
+			if err := m.api.CreateCategory(msg.Category, ""); err != nil {
+				return notify.NotifyWarn(err.Error())()
+			}
+			return CategoryCreatedMsg(msg)
 		}
+	case CategoryCreatedMsg:
 		return m, tea.Batch(
 			Cmd(RefreshCategoriesMsg{}),
 			notify.NotifyLog(fmt.Sprintf("Category '%s' created", msg.Category)),

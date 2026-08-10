@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"maps"
 	"strings"
-	"time"
 
 	"go.uber.org/zap"
 )
@@ -97,6 +96,8 @@ func (api *Api) createAccount(payload map[string]any) error {
 }
 
 func (api *Api) GetExpenseDiff(ID string) float64 {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	if insight, ok := api.expenseInsights[ID]; ok {
 		return insight.Diff
 	}
@@ -104,6 +105,8 @@ func (api *Api) GetExpenseDiff(ID string) float64 {
 }
 
 func (api *Api) GetTotalExpenseDiff() float64 {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	total := 0.0
 	for _, insight := range api.expenseInsights {
 		total += insight.Diff
@@ -123,22 +126,26 @@ func (api *Api) GetTotalExpenseDiff2() (totals []struct {
 },
 ) {
 	spentInsights, err := api.GetInsights("expense/total")
-	if err == nil {
-		for _, item := range spentInsights {
-			totals = append(totals, struct {
-				CurrencyCode string
-				Diff         float64
-			}{
-				CurrencyCode: item.CurrencyCode,
-				Diff:         (-1) * item.DifferenceFloat,
-			})
-			zap.S().Debugf("Expense total insight: diff=%f, currency=%s", item.DifferenceFloat, item.CurrencyCode)
-		}
+	if err != nil {
+		zap.S().Errorf("Failed to fetch expense total insights: %v", err)
+		return
+	}
+	for _, item := range spentInsights {
+		totals = append(totals, struct {
+			CurrencyCode string
+			Diff         float64
+		}{
+			CurrencyCode: item.CurrencyCode,
+			Diff:         (-1) * item.DifferenceFloat,
+		})
+		zap.S().Debugf("Expense total insight: diff=%f, currency=%s", item.DifferenceFloat, item.CurrencyCode)
 	}
 	return
 }
 
 func (api *Api) GetRevenueDiff(ID string) float64 {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	if insight, ok := api.revenueInsights[ID]; ok {
 		return insight.Diff
 	}
@@ -146,6 +153,8 @@ func (api *Api) GetRevenueDiff(ID string) float64 {
 }
 
 func (api *Api) GetTotalRevenueDiff() float64 {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	total := 0.0
 	for _, insight := range api.revenueInsights {
 		total += insight.Diff
@@ -154,33 +163,41 @@ func (api *Api) GetTotalRevenueDiff() float64 {
 }
 
 func (api *Api) UpdateExpenseInsights() error {
-	// TODO: Need error reporting
-	insights := make(map[string]accountInsight)
 	spentInsights, err := api.GetInsights("expense/expense")
-	if err == nil {
-		for _, item := range spentInsights {
-			insights[item.ID] = accountInsight{
-				Diff: (-1) * item.DifferenceFloat,
-			}
+	if err != nil {
+		return fmt.Errorf("failed to fetch expense insights: %w", err)
+	}
+
+	insights := make(map[string]accountInsight, len(spentInsights))
+	for _, item := range spentInsights {
+		insights[item.ID] = accountInsight{
+			Diff: (-1) * item.DifferenceFloat,
 		}
 	}
+
+	api.mu.Lock()
 	api.expenseInsights = insights
+	api.mu.Unlock()
 
 	return nil
 }
 
 func (api *Api) UpdateRevenueInsights() error {
-	insights := make(map[string]accountInsight)
 	earnedInsights, err := api.GetInsights("income/revenue")
-	if err == nil {
-		for _, item := range earnedInsights {
-			insights[item.ID] = accountInsight{
-				Diff: item.DifferenceFloat,
-			}
+	if err != nil {
+		return fmt.Errorf("failed to fetch revenue insights: %w", err)
+	}
+
+	insights := make(map[string]accountInsight, len(earnedInsights))
+	for _, item := range earnedInsights {
+		insights[item.ID] = accountInsight{
+			Diff: item.DifferenceFloat,
 		}
 	}
 
+	api.mu.Lock()
 	api.revenueInsights = insights
+	api.mu.Unlock()
 
 	return nil
 }
@@ -192,9 +209,10 @@ func (api *Api) UpdateAccounts(accType string) error {
 	}
 
 	accs := make(map[string][]Account, 0)
+	balances := make(map[string]float64, len(accounts))
 
 	for _, account := range accounts {
-		api.accountBalances[account.ID] = account.Attributes.CurrentBalance
+		balances[account.ID] = account.Attributes.CurrentBalance
 		accs[account.Attributes.Type] = append(accs[account.Attributes.Type], Account{
 			ID:                 account.ID,
 			Name:               account.Attributes.Name,
@@ -204,30 +222,35 @@ func (api *Api) UpdateAccounts(accType string) error {
 		})
 	}
 
+	if accType == "expense" || accType == "all" {
+		if cash := api.CashAccount(); !cash.IsEmpty() {
+			accs["expense"] = append(accs["expense"], cash)
+		} else if _, ok := accs["expense"]; !ok {
+			accs["expense"] = []Account{}
+		}
+	}
+
+	api.mu.Lock()
+	maps.Copy(api.accountBalances, balances)
 	maps.Copy(api.Accounts, accs)
+	api.mu.Unlock()
 
 	switch accType {
 	case "expense":
-		api.Accounts["expense"] = append(api.Accounts["expense"], api.CashAccount())
-		err := api.UpdateExpenseInsights()
-		if err != nil {
-			return fmt.Errorf("failed to update expense insights: %v", err)
+		if err := api.UpdateExpenseInsights(); err != nil {
+			return fmt.Errorf("failed to update expense insights: %w", err)
 		}
 	case "revenue":
-		err := api.UpdateRevenueInsights()
-		if err != nil {
-			return fmt.Errorf("failed to update revenue insights: %v", err)
+		if err := api.UpdateRevenueInsights(); err != nil {
+			return fmt.Errorf("failed to update revenue insights: %w", err)
 		}
 	case "all":
-		api.Accounts["expense"] = append(api.Accounts["expense"], api.CashAccount())
 		errs := []error{}
-		err1 := api.UpdateExpenseInsights()
-		if err1 != nil {
-			errs = append(errs, fmt.Errorf("failed to update expense insights: %v", err1))
+		if err := api.UpdateExpenseInsights(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to update expense insights: %w", err))
 		}
-		err2 := api.UpdateRevenueInsights()
-		if err2 != nil {
-			errs = append(errs, fmt.Errorf("failed to update revenue insights: %v", err2))
+		if err := api.UpdateRevenueInsights(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to update revenue insights: %w", err))
 		}
 		if len(errs) > 0 {
 			return fmt.Errorf("multiple errors: %v", errs)
@@ -242,41 +265,35 @@ func (api *Api) ListAccounts(accountType string) ([]apiAccount, error) {
 		api.Config.ApiUrl,
 		accountType)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch paginated accounts: %v", err)
+		return nil, fmt.Errorf("failed to fetch paginated accounts: %w", err)
 	}
 	accs, err := unmarshalItems[apiAccount](allData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal accounts: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal accounts: %w", err)
 	}
 	return accs, nil
 }
 
 // TODO: Optimize search with a map
 func (api *Api) GetAccountByID(ID string) Account {
-	const retryLimit = 10
-	const retryDelay = 1 * time.Second
-
-	var account Account
-	for attempt := 1; attempt <= retryLimit; attempt++ {
-		for _, groups := range api.Accounts {
-			for _, acc := range groups {
-				if acc.ID == ID {
-					return acc
-				}
+	api.mu.RLock()
+	defer api.mu.RUnlock()
+	for _, groups := range api.Accounts {
+		for _, acc := range groups {
+			if acc.ID == ID {
+				return acc
 			}
 		}
-
-		if attempt < retryLimit {
-			time.Sleep(retryDelay)
-		}
 	}
-
-	return account
+	return Account{}
 }
 
 func (api *Api) CashAccount() Account {
-	if api.cashAccount != (Account{}) {
-		return api.cashAccount
+	api.mu.RLock()
+	cached := api.cashAccount
+	api.mu.RUnlock()
+	if !cached.IsEmpty() {
+		return cached
 	}
 
 	accounts, err := api.ListAccounts("special")
@@ -292,7 +309,9 @@ func (api *Api) CashAccount() Account {
 				Name: account.Attributes.Name,
 				Type: account.Attributes.Type,
 			}
+			api.mu.Lock()
 			api.cashAccount = cash
+			api.mu.Unlock()
 			zap.S().Debugf("Using cash account: %s (%s)", cash.Name, cash.ID)
 			return cash
 		}
@@ -304,12 +323,16 @@ func (api *Api) CashAccount() Account {
 // AccountsByType returns the cached accounts for the given type.
 // It returns a copy of the slice to avoid accidental mutation by callers.
 func (api *Api) AccountsByType(accountType string) []Account {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	accounts := api.Accounts[accountType]
 	return append([]Account(nil), accounts...)
 }
 
 // AccountBalance returns the cached balance for the given account ID.
 func (api *Api) AccountBalance(accountID string) float64 {
+	api.mu.RLock()
+	defer api.mu.RUnlock()
 	if balance, ok := api.accountBalances[accountID]; ok {
 		return balance
 	}
