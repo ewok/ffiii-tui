@@ -191,6 +191,12 @@ var (
 		Type:         "liabilities",
 		CurrencyCode: "USD",
 	}
+	testCashAccount = firefly.Account{
+		ID:           "cash1",
+		Name:         "Cash account",
+		Type:         "cash",
+		CurrencyCode: "USD",
+	}
 	testCategoryFood = firefly.Category{
 		ID:   "cat1",
 		Name: "Food",
@@ -212,11 +218,13 @@ func newTestTransactionModel() modelTransaction {
 			case "asset":
 				return []firefly.Account{testAssetChecking, testAssetSavings}
 			case "expense":
-				return []firefly.Account{testExpenseGroceries, testExpenseUtilities}
+				return []firefly.Account{testExpenseGroceries, testExpenseUtilities, testCashAccount}
 			case "revenue":
 				return []firefly.Account{testRevenueSalary, testRevenueFreelance}
 			case "liabilities":
 				return []firefly.Account{testLiabilityCreditCard, testLiabilityLoan}
+			case "cash":
+				return []firefly.Account{testCashAccount}
 			default:
 				return nil
 			}
@@ -1429,6 +1437,13 @@ func TestSplit_CurrencyCode(t *testing.T) {
 			expected:       "USD",
 		},
 		{
+			name:           "source cash returns destination currency",
+			sourceType:     "cash",
+			sourceCurrency: "USD",
+			destCurrency:   "EUR",
+			expected:       "EUR",
+		},
+		{
 			name:           "other types return empty string",
 			sourceType:     "expense",
 			sourceCurrency: "USD",
@@ -1670,6 +1685,18 @@ func TestTransaction_TransactionTypeDetection(t *testing.T) {
 			sourceType:   "liabilities",
 			destType:     "liabilities",
 			expectedType: "transfer",
+		},
+		{
+			name:         "cash to asset is deposit",
+			sourceType:   "cash",
+			destType:     "asset",
+			expectedType: "deposit",
+		},
+		{
+			name:         "liability to cash is withdrawal",
+			sourceType:   "liabilities",
+			destType:     "cash",
+			expectedType: "withdrawal",
 		},
 		{
 			name:         "unknown combination is unknown",
@@ -1928,6 +1955,63 @@ func TestTransaction_ZeroAmount(t *testing.T) {
 	if m.form == nil {
 		t.Fatal("expected form to exist with zero amount")
 	}
+}
+
+func TestTransaction_CashAccountEditKeepsSelection(t *testing.T) {
+	containsAccount := func(t *testing.T, options []huh.Option[firefly.Account], want firefly.Account) bool {
+		t.Helper()
+		for _, opt := range options {
+			if opt.Value == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("withdrawal to cash keeps destination option", func(t *testing.T) {
+		m := newTestTransactionModel()
+		s := &split{source: testAssetChecking, destination: testCashAccount}
+		m.splits = []*split{s}
+
+		optionsFunc, _ := m.trxDestinationOptions(0, s)
+		if !containsAccount(t, optionsFunc(), s.destination) {
+			t.Errorf("expected destination options to contain the cash account %+v", s.destination)
+		}
+	})
+
+	t.Run("deposit from cash keeps source option", func(t *testing.T) {
+		m := newTestTransactionModel()
+		s := &split{source: testCashAccount, destination: testAssetChecking}
+		m.splits = []*split{s}
+
+		optionsFunc, _ := m.trxSourceOptions(0, s)
+		if !containsAccount(t, optionsFunc(), s.source) {
+			t.Errorf("expected source options to contain the cash account %+v", s.source)
+		}
+	})
+
+	t.Run("deposit from cash offers asset destinations", func(t *testing.T) {
+		m := newTestTransactionModel()
+		s := &split{source: testCashAccount, destination: testAssetChecking}
+		m.splits = []*split{s}
+
+		optionsFunc, _ := m.trxDestinationOptions(0, s)
+		if !containsAccount(t, optionsFunc(), testAssetChecking) {
+			t.Error("expected destination options to contain asset accounts for cash source")
+		}
+	})
+
+	t.Run("additional split source options include cash for deposit", func(t *testing.T) {
+		m := newTestTransactionModel()
+		first := &split{source: testCashAccount, destination: testAssetChecking}
+		second := &split{}
+		m.splits = []*split{first, second}
+
+		optionsFunc, _ := m.trxSourceOptions(1, second)
+		if !containsAccount(t, optionsFunc(), testCashAccount) {
+			t.Error("expected additional split source options to contain the cash account")
+		}
+	})
 }
 
 // Helper function for string contains check

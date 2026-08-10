@@ -211,15 +211,26 @@ func (api *Api) UpdateAccounts(accType string) error {
 	accs := make(map[string][]Account, 0)
 	balances := make(map[string]float64, len(accounts))
 
+	var cashAcc Account
 	for _, account := range accounts {
 		balances[account.ID] = account.Attributes.CurrentBalance
-		accs[account.Attributes.Type] = append(accs[account.Attributes.Type], Account{
+		acc := Account{
 			ID:                 account.ID,
 			Name:               account.Attributes.Name,
 			CurrencyCode:       account.Attributes.CurrencyCode,
 			Type:               account.Attributes.Type,
 			LiabilityDirection: account.Attributes.LiabilityDirection,
-		})
+		}
+		accs[account.Attributes.Type] = append(accs[account.Attributes.Type], acc)
+		if acc.Type == "cash" {
+			cashAcc = acc
+		}
+	}
+
+	if !cashAcc.IsEmpty() {
+		api.mu.Lock()
+		api.cashAccount = cashAcc
+		api.mu.Unlock()
 	}
 
 	if accType == "expense" || accType == "all" {
@@ -305,9 +316,10 @@ func (api *Api) CashAccount() Account {
 	for _, account := range accounts {
 		if account.Attributes.Type == "cash" {
 			cash := Account{
-				ID:   account.ID,
-				Name: account.Attributes.Name,
-				Type: account.Attributes.Type,
+				ID:           account.ID,
+				Name:         account.Attributes.Name,
+				CurrencyCode: account.Attributes.CurrencyCode,
+				Type:         account.Attributes.Type,
 			}
 			api.mu.Lock()
 			api.cashAccount = cash
