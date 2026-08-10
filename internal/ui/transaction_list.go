@@ -292,8 +292,8 @@ func (m modelTransactions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case UpdatePositions:
 		if msg.layout != nil {
 			h, v := m.styles.Base.GetFrameSize()
-			m.table.SetWidth(msg.layout.Width - msg.layout.LeftSize - h)
-			m.table.SetHeight(msg.layout.Height - msg.layout.TopSize - v)
+			m.table.SetWidth(max(1, msg.layout.Width-msg.layout.LeftSize-h))
+			m.table.SetHeight(max(2, msg.layout.Height-msg.layout.TopSize-v))
 		}
 	}
 

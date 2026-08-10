@@ -800,6 +800,54 @@ func TestUpdatePositions_SetsTableSize(t *testing.T) {
 	}
 }
 
+func TestUpdatePositions_TinyWindowDoesNotPanic(t *testing.T) {
+	tests := []struct {
+		name   string
+		width  int
+		height int
+	}{
+		{"height smaller than top size", 80, 3},
+		{"zero size", 0, 0},
+		{"width smaller than left size", 20, 40},
+		{"one by one", 1, 1},
+	}
+
+	transactions := make([]firefly.Transaction, 30)
+	for i := range transactions {
+		transactions[i] = newTestTransaction(
+			uint(i), fmt.Sprintf("tx%d", i), "withdrawal", "2025-01-01", "desc")
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newFocusedTransactionModel(t, transactions)
+
+			updated, _ := m.Update(UpdatePositions{
+				layout: &LayoutConfig{
+					Width:    tt.width,
+					Height:   tt.height,
+					TopSize:  5,
+					LeftSize: 30,
+				},
+			})
+			m2 := updated.(modelTransactions)
+
+			if m2.table.Height() < 0 {
+				t.Errorf("expected non-negative table height, got %d", m2.table.Height())
+			}
+			if m2.table.Width() < 1 {
+				t.Errorf("expected table width >= 1, got %d", m2.table.Width())
+			}
+
+			var model tea.Model = m2
+			for range transactions {
+				model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+			}
+			_ = model.View()
+		})
+	}
+}
+
 // Edge case tests
 
 func TestGetRows_CalculatesColumnWidths(t *testing.T) {
