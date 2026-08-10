@@ -761,36 +761,11 @@ func TestTransaction_KeyBindings(t *testing.T) {
 		}
 	})
 
-	t.Run("Refresh increments all 3 counters and returns RedrawForm", func(t *testing.T) {
-		// Save and restore global counters
-		origCategory := triggerCategoryCounter
-		origSource := triggerSourceCounter
-		origDest := triggerDestinationCounter
-		defer func() {
-			triggerCategoryCounter = origCategory
-			triggerSourceCounter = origSource
-			triggerDestinationCounter = origDest
-		}()
-
+	t.Run("Refresh returns RedrawForm", func(t *testing.T) {
 		m := newTestTransactionModel()
 		m.Focus()
 
-		initialCategory := triggerCategoryCounter
-		initialSource := triggerSourceCounter
-		initialDest := triggerDestinationCounter
-
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
-
-		// Verify all counters incremented
-		if triggerCategoryCounter != initialCategory+1 {
-			t.Errorf("expected category counter to be %d, got %d", initialCategory+1, triggerCategoryCounter)
-		}
-		if triggerSourceCounter != initialSource+1 {
-			t.Errorf("expected source counter to be %d, got %d", initialSource+1, triggerSourceCounter)
-		}
-		if triggerDestinationCounter != initialDest+1 {
-			t.Errorf("expected destination counter to be %d, got %d", initialDest+1, triggerDestinationCounter)
-		}
 
 		// Verify RedrawForm was returned
 		if cmd == nil {
@@ -1954,12 +1929,6 @@ func TestTransaction_TransactionTypeDetection(t *testing.T) {
 			if got := m.transactionType(); got != tt.expectedType {
 				t.Errorf("expected model transaction type '%s', got '%s'", tt.expectedType, got)
 			}
-
-			titleFunc, _ := m.trxTitle(0, s)
-			expectedTitle := fmt.Sprintf("Current Type: %s", tt.expectedType)
-			if got := titleFunc(); got != expectedTitle {
-				t.Errorf("expected title '%s', got '%s'", expectedTitle, got)
-			}
 		})
 	}
 }
@@ -2197,7 +2166,7 @@ func TestTransaction_CashAccountEditKeepsSelection(t *testing.T) {
 		s := &split{source: testAssetChecking, destination: testCashAccount}
 		m.splits = []*split{s}
 
-		optionsFunc, _ := m.trxDestinationOptions(0, s)
+		optionsFunc, _ := m.trxDestinationOptions(m.buildFormOptions(), 0, s)
 		if !containsAccount(t, optionsFunc(), s.destination) {
 			t.Errorf("expected destination options to contain the cash account %+v", s.destination)
 		}
@@ -2208,8 +2177,8 @@ func TestTransaction_CashAccountEditKeepsSelection(t *testing.T) {
 		s := &split{source: testCashAccount, destination: testAssetChecking}
 		m.splits = []*split{s}
 
-		optionsFunc, _ := m.trxSourceOptions(0, s)
-		if !containsAccount(t, optionsFunc(), s.source) {
+		options := firstSourceOptions(m.buildFormOptions())
+		if !containsAccount(t, options, s.source) {
 			t.Errorf("expected source options to contain the cash account %+v", s.source)
 		}
 	})
@@ -2219,7 +2188,7 @@ func TestTransaction_CashAccountEditKeepsSelection(t *testing.T) {
 		s := &split{source: testCashAccount, destination: testAssetChecking}
 		m.splits = []*split{s}
 
-		optionsFunc, _ := m.trxDestinationOptions(0, s)
+		optionsFunc, _ := m.trxDestinationOptions(m.buildFormOptions(), 0, s)
 		if !containsAccount(t, optionsFunc(), testAssetChecking) {
 			t.Error("expected destination options to contain asset accounts for cash source")
 		}
@@ -2231,7 +2200,7 @@ func TestTransaction_CashAccountEditKeepsSelection(t *testing.T) {
 		second := &split{}
 		m.splits = []*split{first, second}
 
-		optionsFunc, _ := m.trxSourceOptions(1, second)
+		optionsFunc, _ := m.trxSourceOptions(m.buildFormOptions())
 		if !containsAccount(t, optionsFunc(), testCashAccount) {
 			t.Error("expected additional split source options to contain the cash account")
 		}

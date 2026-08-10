@@ -364,6 +364,14 @@ func (m modelUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	}
 
+	// Fast path: while the transaction form is focused, keystrokes are only
+	// relevant to the form; every other component ignores them anyway.
+	if _, isKey := msg.(tea.KeyMsg); isKey && m.new.Focused() {
+		m.new, cmd = updateModel(m.new, msg)
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
+	}
+
 	m.notify, cmd = updateModel(m.notify, msg)
 	cmds = append(cmds, cmd)
 

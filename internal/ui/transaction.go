@@ -20,12 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	triggerCategoryCounter    byte
-	triggerSourceCounter      byte
-	triggerDestinationCounter byte
-	fullNewForm               bool
-)
+var fullNewForm bool
 
 type (
 	RedrawFormMsg                  struct{}
@@ -244,9 +239,6 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Cmd(ResetTransactionMsg{}),
 			)
 		case key.Matches(msg, m.keymap.Refresh):
-			triggerCategoryCounter++
-			triggerSourceCounter++
-			triggerDestinationCounter++
 			return m, RedrawForm()
 		case key.Matches(msg, m.keymap.EditFormAgain):
 			return m, RedrawForm()
@@ -328,34 +320,40 @@ func (m *modelTransaction) Focused() bool {
 }
 
 func (m *modelTransaction) UpdateForm() {
+	opts := m.buildFormOptions()
 	var allGroups []*huh.Group
 
 	for i, s := range m.splits {
-		allGroups = append(allGroups, huh.NewGroup(
-			huh.NewNote().
-				Title(fmt.Sprint("Split: ", i)).
-				TitleFunc(m.trxTitle(i, s)),
-			huh.NewSelect[firefly.Account]().
-				Title("Source").
-				Value(&s.source).
+		note := huh.NewNote().Title(fmt.Sprint("Split: ", i))
+		if i == 0 {
+			note = note.TitleFunc(func() string {
+				return fmt.Sprintf("Current Type: %s", deriveTransactionType(s.source, s.destination))
+			}, []any{&s.source.Type, &s.destination.Type})
+		}
+
+		sourceSelect := huh.NewSelect[firefly.Account]().
+			Title("Source").
+			Value(&s.source)
+		if i == 0 {
+			sourceSelect = sourceSelect.Options(firstSourceOptions(opts)...)
+		} else {
+			sourceSelect = sourceSelect.
 				Options(huh.NewOption(s.source.Name, s.source)).
-				OptionsFunc(m.trxSourceOptions(i, s)).WithHeight(5),
+				OptionsFunc(m.trxSourceOptions(opts))
+		}
+
+		allGroups = append(allGroups, huh.NewGroup(
+			note,
+			sourceSelect.WithHeight(5),
 			huh.NewSelect[firefly.Account]().
 				Title("Destination").
 				Value(&s.destination).
 				Options(huh.NewOption(s.destination.Name, s.destination)).
-				OptionsFunc(m.trxDestinationOptions(i, s)).WithHeight(4),
+				OptionsFunc(m.trxDestinationOptions(opts, i, s)).WithHeight(4),
 			huh.NewSelect[firefly.Category]().
 				Title("Category").
 				Value(&s.category).
-				Options(huh.NewOption(s.category.Name, s.category)).
-				OptionsFunc(func() []huh.Option[firefly.Category] {
-					options := []huh.Option[firefly.Category]{}
-					for _, category := range m.api.CategoriesList() {
-						options = append(options, huh.NewOption(category.Name, category))
-					}
-					return options
-				}, &triggerCategoryCounter).WithHeight(4),
+				Options(opts.categories...).WithHeight(4),
 			huh.NewInput().
 				Title("Amount").
 				Value(&s.amount).
@@ -368,7 +366,7 @@ func (m *modelTransaction) UpdateForm() {
 						return title + s.destination.CurrencyCode
 					}
 					return title
-				}, []any{&s.source, &s.destination}).
+				}, []any{&s.source.Type, &s.source.CurrencyCode, &s.destination.CurrencyCode}).
 				Validate(func(str string) error {
 					var amount float64
 					amount, err := strconv.ParseFloat(str, 64)
@@ -391,7 +389,7 @@ func (m *modelTransaction) UpdateForm() {
 						return title + s.destination.CurrencyCode
 					}
 					return title + "N/A"
-				}, []any{&s.source, &s.destination}).
+				}, []any{&s.source.Type, &s.source.CurrencyCode, &s.destination.Type, &s.destination.CurrencyCode}).
 				Validate(func(str string) error {
 					sType := s.source.Type
 					dType := s.destination.Type
@@ -418,7 +416,7 @@ func (m *modelTransaction) UpdateForm() {
 			huh.NewInput().
 				Title("Description").
 				Value(&s.description).
-				PlaceholderFunc(s.Description, []any{&s.category, &s.source, &s.destination}).
+				PlaceholderFunc(s.Description, []any{&s.category.Name, &s.source.Name, &s.destination.Name}).
 				WithWidth(30),
 		))
 	}
@@ -461,11 +459,12 @@ func (m *modelTransaction) UpdateForm() {
 	))
 
 	if len(m.splits) > 1 {
+		first := m.firstSplit()
 		allGroups = append(allGroups, huh.NewGroup(
 			huh.NewInput().
 				Title("Group Title").
 				Value(&m.attr.groupTitle).
-				PlaceholderFunc(m.GroupTitle, &m.splits).
+				PlaceholderFunc(m.GroupTitle, []any{&first.source.ID, &first.destination.ID}).
 				WithWidth(30),
 		))
 	}
@@ -675,134 +674,112 @@ func (m *modelTransaction) transactionType() string {
 }
 
 // Helpers
-func (m *modelTransaction) trxTitle(i int, s *split) (func() string, any) {
-	bindings := []any{&s.source, &s.destination}
 
-	if i == 0 {
-		return func() string {
-			return fmt.Sprintf("Current Type: %s", deriveTransactionType(s.source, s.destination))
-		}, bindings
-	}
-
-	return func() string { return fmt.Sprint("Split: ", i) }, bindings
+// formOptions holds account and category options prebuilt once per form
+// redraw, so the dynamic huh OptionsFuncs only slice prebuilt lists instead
+// of rebuilding them on every evaluation.
+type formOptions struct {
+	asset       []huh.Option[firefly.Account]
+	expense     []huh.Option[firefly.Account]
+	revenue     []huh.Option[firefly.Account]
+	liabilities []huh.Option[firefly.Account]
+	cash        []huh.Option[firefly.Account]
+	categories  []huh.Option[firefly.Category]
 }
 
-func (m *modelTransaction) trxSourceOptions(i int, s *split) (func() []huh.Option[firefly.Account], any) {
-	bindings := []any{&triggerSourceCounter}
-
-	if i > 0 {
-		first := m.firstSplit()
-		bindings = append(bindings, &first.source, &first.destination)
-		return func() []huh.Option[firefly.Account] {
-			options := []huh.Option[firefly.Account]{}
-			ttype := deriveTransactionType(first.source, first.destination)
-			if ttype == "withdrawal" || ttype == "transfer" {
-				options = append(options, huh.NewOption(first.source.Name, first.source))
-			} else {
-				for _, account := range m.api.AccountsByType("revenue") {
-					options = append(options, huh.NewOption(account.Name, account))
-				}
-				for _, account := range m.api.AccountsByType("liabilities") {
-					options = append(options, huh.NewOption(account.Name, account))
-				}
-				for _, account := range m.api.AccountsByType("cash") {
-					options = append(options, huh.NewOption(account.Name, account))
-				}
-			}
-			return options
-		}, bindings
-	}
-
-	return func() []huh.Option[firefly.Account] {
-		options := []huh.Option[firefly.Account]{}
-		for _, account := range m.api.AccountsByType("asset") {
-			options = append(options, huh.NewOption(account.Name, account))
-		}
-		for _, account := range m.api.AccountsByType("revenue") {
-			options = append(options, huh.NewOption(account.Name, account))
-		}
-		for _, account := range m.api.AccountsByType("liabilities") {
-			options = append(options, huh.NewOption(account.Name, account))
-		}
-		for _, account := range m.api.AccountsByType("cash") {
+func (m *modelTransaction) buildFormOptions() *formOptions {
+	accountOptions := func(accountType string) []huh.Option[firefly.Account] {
+		accounts := m.api.AccountsByType(accountType)
+		options := make([]huh.Option[firefly.Account], 0, len(accounts))
+		for _, account := range accounts {
 			options = append(options, huh.NewOption(account.Name, account))
 		}
 		return options
+	}
+
+	categories := m.api.CategoriesList()
+	categoryOptions := make([]huh.Option[firefly.Category], 0, len(categories))
+	for _, category := range categories {
+		categoryOptions = append(categoryOptions, huh.NewOption(category.Name, category))
+	}
+
+	return &formOptions{
+		asset:       accountOptions("asset"),
+		expense:     accountOptions("expense"),
+		revenue:     accountOptions("revenue"),
+		liabilities: accountOptions("liabilities"),
+		cash:        accountOptions("cash"),
+		categories:  categoryOptions,
+	}
+}
+
+func concatOptions(lists ...[]huh.Option[firefly.Account]) []huh.Option[firefly.Account] {
+	total := 0
+	for _, list := range lists {
+		total += len(list)
+	}
+	options := make([]huh.Option[firefly.Account], 0, total)
+	for _, list := range lists {
+		options = append(options, list...)
+	}
+	return options
+}
+
+// firstSourceOptions returns the static source options for the first split.
+func firstSourceOptions(opts *formOptions) []huh.Option[firefly.Account] {
+	return concatOptions(opts.asset, opts.revenue, opts.liabilities, opts.cash)
+}
+
+// trxSourceOptions returns the source options for splits after the first one:
+// they follow the first split for withdrawals/transfers and offer the full
+// deposit source list otherwise.
+func (m *modelTransaction) trxSourceOptions(opts *formOptions) (func() []huh.Option[firefly.Account], any) {
+	first := m.firstSplit()
+	bindings := []any{&first.source.ID, &first.destination.ID}
+
+	return func() []huh.Option[firefly.Account] {
+		ttype := deriveTransactionType(first.source, first.destination)
+		if ttype == "withdrawal" || ttype == "transfer" {
+			return []huh.Option[firefly.Account]{huh.NewOption(first.source.Name, first.source)}
+		}
+		return concatOptions(opts.revenue, opts.liabilities, opts.cash)
 	}, bindings
 }
 
-func (m *modelTransaction) trxDestinationOptions(i int, s *split) (func() []huh.Option[firefly.Account], any) {
-	bindings := []any{&s.source.Type, &triggerDestinationCounter}
+func (m *modelTransaction) trxDestinationOptions(opts *formOptions, i int, s *split) (func() []huh.Option[firefly.Account], any) {
+	destinationsBySourceType := func(includeSameType bool) []huh.Option[firefly.Account] {
+		switch s.source.Type {
+		case "asset":
+			if includeSameType {
+				return concatOptions(opts.expense, opts.asset, opts.liabilities)
+			}
+			return concatOptions(opts.expense, opts.liabilities)
+		case "revenue", "cash":
+			return concatOptions(opts.asset, opts.liabilities)
+		case "liabilities":
+			if includeSameType {
+				return concatOptions(opts.asset, opts.expense, opts.liabilities)
+			}
+			return concatOptions(opts.asset, opts.expense)
+		}
+		return nil
+	}
 
 	if i > 0 {
 		first := m.firstSplit()
-		bindings = append(bindings, &first.source, &first.destination)
+		bindings := []any{&s.source.Type, &first.source.ID, &first.destination.ID}
 		return func() []huh.Option[firefly.Account] {
-			options := []huh.Option[firefly.Account]{}
 			ttype := deriveTransactionType(first.source, first.destination)
 			if ttype == "deposit" || ttype == "transfer" {
-				options = append(options, huh.NewOption(first.destination.Name, first.destination))
-			} else {
-				switch s.source.Type {
-				case "asset":
-					for _, account := range m.api.AccountsByType("expense") {
-						options = append(options, huh.NewOption(account.Name, account))
-					}
-					for _, account := range m.api.AccountsByType("liabilities") {
-						options = append(options, huh.NewOption(account.Name, account))
-					}
-				case "revenue", "cash":
-					for _, account := range m.api.AccountsByType("asset") {
-						options = append(options, huh.NewOption(account.Name, account))
-					}
-					for _, account := range m.api.AccountsByType("liabilities") {
-						options = append(options, huh.NewOption(account.Name, account))
-					}
-				case "liabilities":
-					for _, account := range m.api.AccountsByType("asset") {
-						options = append(options, huh.NewOption(account.Name, account))
-					}
-					for _, account := range m.api.AccountsByType("expense") {
-						options = append(options, huh.NewOption(account.Name, account))
-					}
-				}
+				return []huh.Option[firefly.Account]{huh.NewOption(first.destination.Name, first.destination)}
 			}
-			return options
+			return destinationsBySourceType(false)
 		}, bindings
 	}
 
+	bindings := []any{&s.source.Type}
 	return func() []huh.Option[firefly.Account] {
-		options := []huh.Option[firefly.Account]{}
-		switch s.source.Type {
-		case "asset":
-			for _, account := range m.api.AccountsByType("expense") {
-				options = append(options, huh.NewOption(account.Name, account))
-			}
-			for _, account := range m.api.AccountsByType("asset") {
-				options = append(options, huh.NewOption(account.Name, account))
-			}
-			for _, account := range m.api.AccountsByType("liabilities") {
-				options = append(options, huh.NewOption(account.Name, account))
-			}
-		case "revenue", "cash":
-			for _, account := range m.api.AccountsByType("asset") {
-				options = append(options, huh.NewOption(account.Name, account))
-			}
-			for _, account := range m.api.AccountsByType("liabilities") {
-				options = append(options, huh.NewOption(account.Name, account))
-			}
-		case "liabilities":
-			for _, account := range m.api.AccountsByType("asset") {
-				options = append(options, huh.NewOption(account.Name, account))
-			}
-			for _, account := range m.api.AccountsByType("expense") {
-				options = append(options, huh.NewOption(account.Name, account))
-			}
-			for _, account := range m.api.AccountsByType("liabilities") {
-				options = append(options, huh.NewOption(account.Name, account))
-			}
-		}
-		return options
+		return destinationsBySourceType(true)
 	}, bindings
 }
 
