@@ -84,9 +84,16 @@ Prerequisites:
 
 		ui.Show(ff)
 
-		viper.Set("logging.debug", false)
+		if cfgUsed := viper.ConfigFileUsed(); cfgUsed != "" {
+			viper.Set("logging.debug", false)
+			if err := viper.WriteConfigAs(cfgUsed); err != nil {
+				zap.L().Warn("Failed to persist configuration on exit",
+					zap.String("config_file", cfgUsed),
+					zap.Error(err))
+			}
+		}
 
-		return viper.WriteConfigAs(viper.ConfigFileUsed())
+		return nil
 	},
 }
 
