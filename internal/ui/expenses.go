@@ -89,7 +89,7 @@ func (m modelExpenses) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := api.CreateExpenseAccount(newMsg.Account); err != nil {
 				return notify.NotifyWarn(err.Error())()
 			}
-			return ExpenseCreatedMsg{Account: newMsg.Account}
+			return ExpenseCreatedMsg(newMsg)
 		}
 	}
 

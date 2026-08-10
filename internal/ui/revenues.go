@@ -89,7 +89,7 @@ func (m modelRevenues) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := api.CreateRevenueAccount(newMsg.Account); err != nil {
 				return notify.NotifyWarn(err.Error())()
 			}
-			return RevenueCreatedMsg{Account: newMsg.Account}
+			return RevenueCreatedMsg(newMsg)
 		}
 	}
 

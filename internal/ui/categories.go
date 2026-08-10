@@ -128,7 +128,7 @@ func (m modelCategories) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := m.api.CreateCategory(msg.Category, ""); err != nil {
 				return notify.NotifyWarn(err.Error())()
 			}
-			return CategoryCreatedMsg{Category: msg.Category}
+			return CategoryCreatedMsg(msg)
 		}
 	case CategoryCreatedMsg:
 		return m, tea.Batch(
