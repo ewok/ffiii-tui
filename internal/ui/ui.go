@@ -598,8 +598,8 @@ func buildLoadingMessage() string {
 		if msg, ok := value.(string); ok {
 			abbrev := msg
 
-			if len(abbrev) > 25 {
-				abbrev = abbrev[:22] + "..."
+			if runes := []rune(abbrev); len(runes) > 25 {
+				abbrev = string(runes[:22]) + "..."
 			}
 
 			messages = append(messages, abbrev)
