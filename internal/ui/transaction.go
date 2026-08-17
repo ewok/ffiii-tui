@@ -282,6 +282,8 @@ func (m modelTransaction) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.ChangeLayout):
 			fullNewForm = !fullNewForm
 			return m, RedrawForm()
+		case key.Matches(msg, m.keymap.ToggleLastDate):
+			return m, m.toggleLastDate()
 		case key.Matches(msg, m.keymap.Submit):
 			if m.form.State == huh.StateCompleted {
 				if m.new {
@@ -590,13 +592,9 @@ func (m *modelTransaction) SetTransaction(trx firefly.Transaction, newT bool) {
 		}
 	} else {
 		m.attr.transactionType = "withdrawal"
-		if m.lastDate != "" {
-			m.attr.year, m.attr.month, m.attr.day = splitTransactionDate(m.lastDate, now)
-		} else {
-			m.attr.year = fmt.Sprintf("%d", now.Year())
-			m.attr.month = fmt.Sprintf("%02d", now.Month())
-			m.attr.day = fmt.Sprintf("%02d", now.Day())
-		}
+		m.attr.year = fmt.Sprintf("%d", now.Year())
+		m.attr.month = fmt.Sprintf("%02d", now.Month())
+		m.attr.day = fmt.Sprintf("%02d", now.Day())
 		m.attr.groupTitle = ""
 		source := firefly.Account{}
 		destination := firefly.Account{}
@@ -619,6 +617,25 @@ func (m *modelTransaction) SetTransaction(trx firefly.Transaction, newT bool) {
 		}
 		m.new = true
 	}
+}
+
+func (m *modelTransaction) toggleLastDate() tea.Cmd {
+	if !m.new {
+		return nil
+	}
+	if m.lastDate == "" {
+		return notify.NotifyWarn("No saved date yet")
+	}
+	now := time.Now()
+	current := fmt.Sprintf("%s-%s-%s", m.attr.year, m.attr.month, m.attr.day)
+	if current == m.lastDate {
+		m.attr.year = fmt.Sprintf("%d", now.Year())
+		m.attr.month = fmt.Sprintf("%02d", now.Month())
+		m.attr.day = fmt.Sprintf("%02d", now.Day())
+	} else {
+		m.attr.year, m.attr.month, m.attr.day = splitTransactionDate(m.lastDate, now)
+	}
+	return RedrawForm()
 }
 
 func RedrawForm() tea.Cmd {

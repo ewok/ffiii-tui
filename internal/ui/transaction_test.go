@@ -1023,20 +1023,9 @@ func TestTransaction_SetTransaction_New(t *testing.T) {
 }
 
 func TestTransaction_LastDate(t *testing.T) {
-	t.Run("new form uses last date when set", func(t *testing.T) {
+	t.Run("new form uses today even when last date is set", func(t *testing.T) {
 		m := newTestTransactionModel()
 		m.lastDate = "2025-03-07"
-
-		m.SetTransaction(firefly.Transaction{}, true)
-
-		if m.attr.year != "2025" || m.attr.month != "03" || m.attr.day != "07" {
-			t.Errorf("expected date 2025-03-07, got %s-%s-%s", m.attr.year, m.attr.month, m.attr.day)
-		}
-	})
-
-	t.Run("new form falls back to today on invalid last date", func(t *testing.T) {
-		m := newTestTransactionModel()
-		m.lastDate = "not-a-date"
 
 		m.SetTransaction(firefly.Transaction{}, true)
 
@@ -1115,6 +1104,97 @@ func TestTransaction_LastDate(t *testing.T) {
 		}
 		if m2.lastDate != "2025-03-07" {
 			t.Errorf("expected lastDate to be preserved, got %q", m2.lastDate)
+		}
+	})
+}
+
+func TestTransaction_ToggleLastDate(t *testing.T) {
+	now := time.Now()
+	today := [3]string{
+		fmt.Sprintf("%d", now.Year()),
+		fmt.Sprintf("%02d", now.Month()),
+		fmt.Sprintf("%02d", now.Day()),
+	}
+
+	newFocusedModel := func(t *testing.T, lastDate string, newT bool) modelTransaction {
+		t.Helper()
+		m := newTestTransactionModel()
+		m.lastDate = lastDate
+		trx := firefly.Transaction{}
+		if !newT {
+			trx = firefly.Transaction{TransactionID: "trx123", Type: "withdrawal", Date: "2026-01-15"}
+		}
+		m.SetTransaction(trx, newT)
+		(&m).Focus()
+		return m
+	}
+
+	pressCtrlT := func(t *testing.T, m modelTransaction) (modelTransaction, bool) {
+		t.Helper()
+		updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
+		return updated.(modelTransaction), cmd != nil
+	}
+
+	t.Run("applies last saved date", func(t *testing.T) {
+		m := newFocusedModel(t, "2025-03-07", true)
+
+		m2, hasCmd := pressCtrlT(t, m)
+
+		if m2.attr.year != "2025" || m2.attr.month != "03" || m2.attr.day != "07" {
+			t.Errorf("expected date 2025-03-07, got %s-%s-%s", m2.attr.year, m2.attr.month, m2.attr.day)
+		}
+		if !hasCmd {
+			t.Error("expected redraw command")
+		}
+	})
+
+	t.Run("toggles back to today", func(t *testing.T) {
+		m := newFocusedModel(t, "2025-03-07", true)
+
+		m2, _ := pressCtrlT(t, m)
+		m3, hasCmd := pressCtrlT(t, m2)
+
+		if m3.attr.year != today[0] || m3.attr.month != today[1] || m3.attr.day != today[2] {
+			t.Errorf("expected today's date, got %s-%s-%s", m3.attr.year, m3.attr.month, m3.attr.day)
+		}
+		if !hasCmd {
+			t.Error("expected redraw command")
+		}
+	})
+
+	t.Run("warns when no last date saved", func(t *testing.T) {
+		m := newFocusedModel(t, "", true)
+
+		m2, hasCmd := pressCtrlT(t, m)
+
+		if m2.attr.year != today[0] || m2.attr.month != today[1] || m2.attr.day != today[2] {
+			t.Errorf("expected today's date, got %s-%s-%s", m2.attr.year, m2.attr.month, m2.attr.day)
+		}
+		if !hasCmd {
+			t.Error("expected notify command")
+		}
+	})
+
+	t.Run("no-op when editing existing transaction", func(t *testing.T) {
+		m := newFocusedModel(t, "2025-03-07", false)
+
+		m2, hasCmd := pressCtrlT(t, m)
+
+		if m2.attr.year != "2026" || m2.attr.month != "01" || m2.attr.day != "15" {
+			t.Errorf("expected date 2026-01-15, got %s-%s-%s", m2.attr.year, m2.attr.month, m2.attr.day)
+		}
+		if hasCmd {
+			t.Error("expected no command when editing")
+		}
+	})
+
+	t.Run("invalid last date falls back to today", func(t *testing.T) {
+		m := newFocusedModel(t, "not-a-date", true)
+
+		m2, _ := pressCtrlT(t, m)
+
+		if m2.attr.year != today[0] || m2.attr.month != today[1] || m2.attr.day != today[2] {
+			t.Errorf("expected today's date, got %s-%s-%s", m2.attr.year, m2.attr.month, m2.attr.day)
 		}
 	})
 }

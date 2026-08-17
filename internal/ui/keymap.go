@@ -52,14 +52,15 @@ type CategoryKeyMap struct {
 }
 
 type TransactionFormKeyMap struct {
-	Reset         key.Binding
-	Cancel        key.Binding
-	Submit        key.Binding
-	Refresh       key.Binding
-	EditFormAgain key.Binding
-	AddSplit      key.Binding
-	DeleteSplit   key.Binding
-	ChangeLayout  key.Binding
+	Reset          key.Binding
+	Cancel         key.Binding
+	Submit         key.Binding
+	Refresh        key.Binding
+	EditFormAgain  key.Binding
+	AddSplit       key.Binding
+	DeleteSplit    key.Binding
+	ChangeLayout   key.Binding
+	ToggleLastDate key.Binding
 }
 
 type TransactionsKeyMap struct {
@@ -261,6 +262,10 @@ func DefaultTransactionFormKeyMap() TransactionFormKeyMap {
 			key.WithKeys("ctrl+f"),
 			key.WithHelp("ctrl+f", "toggle layout (for many splits)"),
 		),
+		ToggleLastDate: key.NewBinding(
+			key.WithKeys("ctrl+t"),
+			key.WithHelp("ctrl+t", "toggle last saved date"),
+		),
 	}
 }
 
@@ -399,6 +404,7 @@ func (k TransactionFormKeyMap) ShortHelp() []key.Binding {
 		k.EditFormAgain,
 		k.Refresh,
 		k.ChangeLayout,
+		k.ToggleLastDate,
 	}
 }
 
